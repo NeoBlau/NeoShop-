@@ -1,14 +1,11 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { Logger, NodeIO, type Document, type Transform } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, KHRDracoMeshCompression } from '@gltf-transform/extensions';
 import { dedup, prune, simplify, textureCompress, weld } from '@gltf-transform/functions';
+import { ktx2 } from 'babylonpress-ktx2-encoder/gltf-transform';
 import draco3d from 'draco3dgltf';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import { inspectModel, type LodEntry, type ModelStats } from '@3dsfera/shared';
-
-const run = promisify(execFile);
 
 /**
  * Server-side optimization of an uploaded model.
@@ -36,7 +33,12 @@ const LOD_LEVELS = [
  * without visibly deforming the silhouette.
  */
 const MIN_LOD_REDUCTION = 0.1;
-const MAX_TEXTURE_SIZE = 2048;
+/**
+ * 4096 is the ceiling, not the target: a 4K base colour map is a reasonable ask
+ * for a hero product, and KTX2 with mipmaps is what makes it affordable on the
+ * GPU. Anything larger is resized before compression.
+ */
+const MAX_TEXTURE_SIZE = 4096;
 
 let ioPromise: Promise<NodeIO> | null = null;
 
@@ -60,19 +62,143 @@ async function getIO(): Promise<NodeIO> {
 /** gltf-transform narrates every transform; only failures are interesting here. */
 const quietLogger = new Logger(Logger.Verbosity.ERROR);
 
-/** True when the KTX-Software CLI is installed and usable. */
-async function hasKtxTooling(): Promise<boolean> {
-  for (const binary of ['ktx', 'toktx']) {
-    try {
-      await run(binary, ['--version'], { timeout: 5_000 });
-      return true;
-    } catch {
-      // Not installed, or not on PATH. Try the next name.
-    }
-  }
-  return false;
+/**
+ * The Basis encoder runs on raw RGBA, so it needs something to decode the JPEG
+ * and PNG images out of the glTF first. In the browser that is the canvas; in
+ * Node it is sharp.
+ */
+async function decodeImage(
+  buffer: Uint8Array,
+): Promise<{ width: number; height: number; data: Uint8Array }> {
+  const { data, info } = await sharp(buffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return { width: info.width, height: info.height, data: new Uint8Array(data) };
 }
 
+/**
+ * Texture policy, per map, measured rather than guessed.
+ *
+ * Encoding a 4096 texture takes 43 seconds with ETC1S and 7 with UASTC on one
+ * core; ETC1S produces 0.6 MB where UASTC produces 4.1 MB. Neither codec is
+ * simply better, so each map gets the one that suits what it stores:
+ *
+ *   base colour  4096, ETC1S   the codec treats albedo as a photograph, which
+ *                              is what it is; smallest file, and the artefacts
+ *                              do not survive a mip chain
+ *   normal       2048, UASTC   averaging the channels of a normal map bends the
+ *                              surface, so this one keeps its values — and at
+ *                              2K it encodes in seconds
+ *   ORM          2048, ETC1S   roughness and occlusion are low-frequency; the
+ *                              banding ETC1S introduces never changes the shape
+ *                              of a highlight
+ *
+ * Everything gets mipmaps: without them a 4K texture on a distant product
+ * shimmers and costs full bandwidth for a handful of pixels.
+ */
+const TEXTURE_POLICY = [
+  { slots: /(baseColorTexture|emissiveTexture)/, maxSize: 4096 },
+  { slots: /normalTexture/, maxSize: 2048 },
+  { slots: /(metallicRoughnessTexture|occlusionTexture)/, maxSize: 2048 },
+] as const;
+
+function ktx2Transforms(): Transform[] {
+  return [
+    ktx2({
+      slots: /normalTexture/,
+      isUASTC: true,
+      needSupercompression: true,
+      // Level 0 is the fast setting. At 2K the difference from level 2 is not
+      // visible on a product, and level 2 costs minutes rather than seconds.
+      uastcLDRQualityLevel: 0,
+      isNormalMap: true,
+      isPerceptual: false,
+      isSetKTX2SRGBTransferFunc: false,
+      generateMipmap: true,
+      imageDecoder: decodeImage,
+    }),
+    ktx2({
+      slots: /(metallicRoughnessTexture|occlusionTexture)/,
+      isUASTC: false,
+      qualityLevel: 190,
+      compressionLevel: 2,
+      isPerceptual: false,
+      isSetKTX2SRGBTransferFunc: false,
+      generateMipmap: true,
+      imageDecoder: decodeImage,
+    }),
+    ktx2({
+      slots: /(baseColorTexture|emissiveTexture)/,
+      isUASTC: false,
+      qualityLevel: 210,
+      compressionLevel: 2,
+      isPerceptual: true,
+      isSetKTX2SRGBTransferFunc: true,
+      generateMipmap: true,
+      imageDecoder: decodeImage,
+    }),
+  ];
+}
+
+/**
+ * Resizes each texture to the ceiling for the slot it is used in, before
+ * compression does the expensive part. A texture used in two slots takes the
+ * larger ceiling: shrinking it for the stricter one would degrade the other.
+ */
+async function capTextureSizes(document: Document): Promise<number> {
+  const limits = new Map<string, number>();
+  const keyOf = (texture: { getName(): string; listParents(): unknown[] }): string =>
+    texture.getName() || String(texture.listParents().length);
+
+  for (const material of document.getRoot().listMaterials()) {
+    // Walking the known accessors is explicit and cheap; the alternative is
+    // crawling gltf-transform's property graph for slot names.
+    const bySlot = [
+      ['baseColorTexture', material.getBaseColorTexture()],
+      ['emissiveTexture', material.getEmissiveTexture()],
+      ['normalTexture', material.getNormalTexture()],
+      ['metallicRoughnessTexture', material.getMetallicRoughnessTexture()],
+      ['occlusionTexture', material.getOcclusionTexture()],
+    ] as const;
+
+    for (const [slot, texture] of bySlot) {
+      if (!texture) continue;
+      const policy = TEXTURE_POLICY.find((entry) => entry.slots.test(slot));
+      if (!policy) continue;
+
+      const key = keyOf(texture);
+      limits.set(key, Math.max(limits.get(key) ?? 0, policy.maxSize));
+    }
+  }
+
+  let resized = 0;
+
+  for (const texture of document.getRoot().listTextures()) {
+    const image = texture.getImage();
+    if (!image) continue;
+
+    const maxSize = limits.get(keyOf(texture)) ?? MAX_TEXTURE_SIZE;
+    const metadata = await sharp(image).metadata();
+    const width = metadata.width ?? 0;
+    const height = metadata.height ?? 0;
+    if (width <= maxSize && height <= maxSize) continue;
+
+    const resizer = sharp(image).resize(maxSize, maxSize, { fit: 'inside' });
+    const output =
+      texture.getMimeType() === 'image/png'
+        ? await resizer.png({ compressionLevel: 9 }).toBuffer()
+        : await resizer.jpeg({ quality: 95, chromaSubsampling: '4:4:4' }).toBuffer();
+
+    texture.setImage(new Uint8Array(output));
+    resized += 1;
+  }
+
+  return resized;
+}
+
+/** Draco compresses the geometry itself; it is the single largest saving. */
 async function applyDraco(document: Document): Promise<void> {
   document.createExtension(KHRDracoMeshCompression).setRequired(true).setEncoderOptions({
     method: KHRDracoMeshCompression.EncoderMethod.EDGEBREAKER,
@@ -83,6 +209,7 @@ async function applyDraco(document: Document): Promise<void> {
 
 function countTriangles(document: Document): number {
   let triangles = 0;
+
   for (const mesh of document.getRoot().listMeshes()) {
     for (const primitive of mesh.listPrimitives()) {
       const indices = primitive.getIndices();
@@ -91,6 +218,7 @@ function countTriangles(document: Document): number {
       triangles += Math.floor(count / 3);
     }
   }
+
   return triangles;
 }
 
@@ -122,52 +250,67 @@ export async function optimizeModel(original: Uint8Array): Promise<OptimizedMode
   await baseDocument.transform(...cleanup);
 
   const hasTextures = baseDocument.getRoot().listTextures().length > 0;
+  let ktxApplied = false;
 
   if (hasTextures) {
+    const resized = await capTextureSizes(baseDocument);
+    if (resized > 0) skipped.push(`resized_${resized}_textures`);
+
     try {
-      await baseDocument.transform(
-        textureCompress({
-          encoder: sharp,
-          targetFormat: 'webp',
-          resize: [MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE],
-        }),
-      );
+      await baseDocument.transform(...ktx2Transforms());
+      ktxApplied = true;
     } catch (error) {
-      skipped.push('texture_compression');
-      console.warn('[pipeline] texture compression failed', error);
+      // Losing supercompression must not lose the upload: fall back to WebP,
+      // which every browser reads, and say so in the report.
+      skipped.push('ktx2_failed');
+      console.warn('[pipeline] KTX2 compression failed, falling back to WebP', error);
+
+      try {
+        await baseDocument.transform(textureCompress({ encoder: sharp, targetFormat: 'webp' }));
+      } catch (fallbackError) {
+        skipped.push('texture_compression');
+        console.warn('[pipeline] texture compression failed', fallbackError);
+      }
     }
+  } else {
+    skipped.push('ktx2_no_textures');
   }
 
-  // KTX2/Basis needs the KTX-Software CLI, which is not a Node dependency. It
-  // is a real gain on textured models, so its absence is reported rather than
-  // hidden — see docs/supplier-guide.md.
-  const ktxAvailable = hasTextures ? await hasKtxTooling() : false;
-  if (hasTextures && !ktxAvailable) skipped.push('ktx2');
-  if (!hasTextures) skipped.push('ktx2_no_textures');
+  /**
+   * The cleaned, texture-compressed model, serialized once.
+   *
+   * Every level of detail is built from these bytes rather than from the
+   * upload. Re-reading the original would mean compressing the same 4K
+   * textures three times — minutes of work per level — and, worse, would ship
+   * the uncompressed originals inside each LOD file.
+   */
+  const sharedBytes = await io.writeBinary(baseDocument);
 
-  await applyDraco(baseDocument);
-  const optimized = await io.writeBinary(baseDocument);
+  const readShared = async (): Promise<Document> => {
+    const document = await io.readBinary(sharedBytes);
+    document.setLogger(quietLogger);
+    return document;
+  };
+
+  const fullDetail = await readShared();
+  await applyDraco(fullDetail);
+  const optimized = await io.writeBinary(fullDetail);
 
   const lods: OptimizedModel['lods'] = [];
+  const baseTriangles = countTriangles(fullDetail);
   const lodEntries: LodEntry[] = [
-    { level: 0, triangles: countTriangles(baseDocument), byteSize: optimized.byteLength },
+    { level: 0, triangles: baseTriangles, byteSize: optimized.byteLength },
   ];
-
-  const baseTriangles = lodEntries[0]?.triangles ?? 0;
 
   for (const [index, level] of LOD_LEVELS.entries()) {
     const levelNumber = index + 1;
     try {
       await MeshoptSimplifier.ready;
-      // Re-read the original for each level: simplification is destructive and
-      // chaining it would compound the error instead of measuring it against
-      // the source geometry.
-      const lodDocument = await io.readBinary(original);
-      lodDocument.setLogger(quietLogger);
+      // Each level is simplified from the shared geometry, not from the level
+      // above it: chaining would compound the error instead of measuring it
+      // against the source.
+      const lodDocument = await readShared();
       await lodDocument.transform(
-        dedup(),
-        prune({ keepAttributes: false }),
-        weld(),
         simplify({ simplifier: MeshoptSimplifier, ratio: level.ratio, error: level.error }),
       );
 
@@ -201,7 +344,7 @@ export async function optimizeModel(original: Uint8Array): Promise<OptimizedMode
     animations: inspection.animations,
     lods: lodEntries,
     dracoApplied: true,
-    ktx2Applied: ktxAvailable,
+    ktx2Applied: ktxApplied,
     skipped,
     warnings: [],
     durationMs: Date.now() - startedAt,

@@ -48,6 +48,8 @@ export default defineConfig({
       name: 'chromium',
       use: chromium,
       testIgnore: [/supplier-wizard\.spec\.ts/, /supplier\.setup\.ts/],
+      // The scene needs a while to compile shaders under a software renderer.
+      timeout: 90_000,
     },
     { name: 'setup', use: chromium, testMatch: /supplier\.setup\.ts/ },
     // Supplier specs reuse the session the setup project signed in with.

@@ -38,7 +38,9 @@ test('a buyer cannot reach the supplier area', async ({ page }) => {
 
   await page.goto('/supplier');
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Трёхмерная витрина' })).toBeVisible();
+  // Home is the showroom; the counter in its corner is the cheapest proof that
+  // the world loaded rather than a blank canvas.
+  await expect(page.getByText(/Павильонов: \d+/)).toBeVisible({ timeout: 60_000 });
 });
 
 test('an anonymous visitor is sent to the login page and back again', async ({ page }) => {
@@ -54,12 +56,14 @@ test('an anonymous visitor is sent to the login page and back again', async ({ p
 });
 
 test('the interface switches to English and back', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/catalog');
+  await expect(page.getByRole('heading', { name: 'Каталог' })).toBeVisible();
+
   await page.getByRole('button', { name: 'en', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '3D showroom' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Catalog' })).toBeVisible();
 
   await page.getByRole('button', { name: 'ru', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Трёхмерная витрина' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Каталог' })).toBeVisible();
 });
 
 test('wrong credentials produce a readable message, not a stack trace', async ({ page }) => {

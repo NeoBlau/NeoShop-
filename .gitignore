@@ -32,3 +32,11 @@ blob-report/
 apps/web/public/draco/
 apps/web/public/basis/
 apps/web/.auth/
+
+# CC0 world assets fetched by apps/tools/src/fetch-assets.ts
+apps/web/public/world/
+
+# Generated demo assets: 4K material library and the models built from it.
+# `make assets` regenerates them deterministically from committed generators.
+apps/api/prisma/seed-assets/textures/
+apps/api/prisma/seed-assets/*.glb

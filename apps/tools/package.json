@@ -5,12 +5,16 @@
   "type": "module",
   "scripts": {
     "gen:assets": "tsx src/gen-demo-assets.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "gen:textures": "tsx src/gen-textures.ts",
+    "gen:all": "tsx src/gen-textures.ts && tsx src/gen-demo-assets.ts",
+    "fetch:assets": "tsx src/fetch-assets.ts"
   },
   "dependencies": {
     "@3dsfera/shared": "workspace:*",
     "@gltf-transform/core": "^4.5.0",
-    "@gltf-transform/extensions": "^4.5.0"
+    "@gltf-transform/extensions": "^4.5.0",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

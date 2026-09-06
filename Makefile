@@ -6,10 +6,12 @@
 #
 SHELL := /bin/bash
 COMPOSE := docker compose
+DEMO_ASSET_MARKER := apps/api/prisma/seed-assets/robot-vacuum.glb
 
 .DEFAULT_GOAL := help
 .PHONY: help env install up down restart logs db-migrate db-reset db-studio seed \
-        app dev build lint typecheck test e2e desktop assets clean
+        app dev build lint typecheck test e2e desktop assets assets-if-missing textures \
+        world-assets clean
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -45,8 +47,19 @@ db-reset: ## Drop the database, re-apply migrations, re-seed
 db-studio: ## Open Prisma Studio
 	pnpm --filter @3dsfera/api exec prisma studio
 
-assets: ## Regenerate the demo GLB models (committed, offline-safe)
+world-assets: ## Download the CC0 world assets (HDRI, scanned materials, font)
+	pnpm --filter @3dsfera/tools run fetch:assets
+
+textures: ## Generate the 4K PBR material library (about six minutes)
+	pnpm --filter @3dsfera/tools run gen:textures
+
+assets: textures ## Regenerate the demo materials and GLB models
 	pnpm --filter @3dsfera/tools run gen:assets
+
+# The generated library is deterministic but takes about seven minutes, so a
+# repeat `make dev` skips it. Delete the directory to force a rebuild.
+assets-if-missing:
+	@test -f $(DEMO_ASSET_MARKER) || $(MAKE) assets
 
 seed: ## Load demo data (suppliers, pavilions, five animated products)
 	pnpm --filter @3dsfera/api run seed
@@ -54,7 +67,7 @@ seed: ## Load demo data (suppliers, pavilions, five animated products)
 app: ## Run api + web with hot reload
 	pnpm dev
 
-dev: env install up db-migrate seed app ## Full local environment, one command
+dev: env install world-assets assets-if-missing up db-migrate seed app ## Full local environment, one command
 
 build: ## Production build of every package
 	pnpm build

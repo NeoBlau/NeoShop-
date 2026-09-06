@@ -8,19 +8,37 @@
  * Output lands in apps/api/prisma/seed-assets and is committed — the seed must
  * work offline.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Document, NodeIO, type Node as GltfNode } from '@gltf-transform/core';
+import {
+  Document,
+  NodeIO,
+  type Material,
+  type Node as GltfNode,
+  type Texture,
+} from '@gltf-transform/core';
 import { box, cylinder, dish, triangleCount, translated, type Geometry } from './geometry.js';
 
 type Vec3 = [number, number, number];
 type Quat = [number, number, number, number];
 
+/**
+ * Material presets come from the generated 4K library. A part names a preset
+ * and a tint; the tint multiplies the base colour texture, so half a dozen
+ * visually distinct parts share one set of texture maps — one upload, one GPU
+ * allocation, far fewer draw calls than a material per part.
+ */
+type MaterialPreset =
+  'brushed-aluminium' | 'matte-plastic' | 'powder-coated' | 'fabric-weave' | 'rubber';
+
 interface Part {
   name: string;
   geometry: Geometry;
+  /** Multiplied with the base colour map. White keeps the texture as authored. */
   color: Vec3;
+  material: MaterialPreset;
+  /** Overrides on top of the ORM map, in [0,1]. */
   metallic?: number;
   roughness?: number;
   translation?: Vec3;
@@ -71,7 +89,8 @@ function antenna(): ModelSpec {
       {
         name: 'base',
         geometry: cylinder(0.28, 0.24, 0.09, 20),
-        color: [0.24, 0.25, 0.27],
+        material: 'powder-coated',
+        color: [0.55, 0.57, 0.6],
         metallic: 0.8,
         roughness: 0.45,
         translation: [0, 0.045, 0],
@@ -79,7 +98,8 @@ function antenna(): ModelSpec {
       {
         name: 'mast',
         geometry: translated(cylinder(0.05, 0.045, 0.85, 14), 0, 0.425, 0),
-        color: [0.32, 0.33, 0.35],
+        material: 'brushed-aluminium',
+        color: [0.62, 0.64, 0.68],
         metallic: 0.9,
         roughness: 0.35,
         translation: [0, 0.09, 0],
@@ -87,7 +107,8 @@ function antenna(): ModelSpec {
       {
         name: 'dish_arm',
         geometry: translated(box(0.07, 0.26, 0.07), 0, 0.13, 0),
-        color: [0.3, 0.31, 0.33],
+        material: 'brushed-aluminium',
+        color: [0.55, 0.57, 0.6],
         metallic: 0.85,
         roughness: 0.4,
         translation: [0, 0.94, 0],
@@ -97,7 +118,8 @@ function antenna(): ModelSpec {
         name: 'dish',
         // Folded down at rest; `deploy` swings it up to the sky.
         geometry: dish(0.6, 0.17, 30, 9),
-        color: [0.86, 0.86, 0.84],
+        material: 'powder-coated',
+        color: [1.0, 0.99, 0.96],
         metallic: 0.15,
         roughness: 0.65,
         translation: [0, 0.26, 0],
@@ -107,7 +129,8 @@ function antenna(): ModelSpec {
       {
         name: 'feed_horn',
         geometry: translated(cylinder(0.035, 0.06, 0.22, 12), 0, 0.11, 0),
-        color: [0.15, 0.15, 0.16],
+        material: 'matte-plastic',
+        color: [0.9, 0.9, 0.95],
         metallic: 0.5,
         roughness: 0.5,
         translation: [0, 0.17, 0],
@@ -176,7 +199,8 @@ function vacuum(): ModelSpec {
       {
         name: 'body',
         geometry: cylinder(0.17, 0.165, 0.085, 32),
-        color: [0.13, 0.14, 0.16],
+        material: 'matte-plastic',
+        color: [0.85, 0.88, 0.95],
         metallic: 0.25,
         roughness: 0.55,
         translation: [0, 0.06, 0],
@@ -184,7 +208,8 @@ function vacuum(): ModelSpec {
       {
         name: 'lid',
         geometry: cylinder(0.12, 0.115, 0.012, 28),
-        color: [0.2, 0.21, 0.24],
+        material: 'powder-coated',
+        color: [0.72, 0.75, 0.82],
         metallic: 0.4,
         roughness: 0.35,
         translation: [0, 0.105, 0],
@@ -193,7 +218,8 @@ function vacuum(): ModelSpec {
       {
         name: 'lidar',
         geometry: cylinder(0.038, 0.038, 0.028, 18),
-        color: [0.08, 0.08, 0.09],
+        material: 'matte-plastic',
+        color: [0.5, 0.5, 0.55],
         metallic: 0.2,
         roughness: 0.6,
         translation: [0, 0.02, -0.02],
@@ -202,7 +228,8 @@ function vacuum(): ModelSpec {
       {
         name: 'brush_left',
         geometry: cylinder(0.055, 0.05, 0.012, 12),
-        color: [0.78, 0.72, 0.5],
+        material: 'fabric-weave',
+        color: [2.4, 2.2, 1.5],
         metallic: 0.05,
         roughness: 0.85,
         translation: [-0.12, -0.035, 0.11],
@@ -211,7 +238,8 @@ function vacuum(): ModelSpec {
       {
         name: 'brush_right',
         geometry: cylinder(0.055, 0.05, 0.012, 12),
-        color: [0.78, 0.72, 0.5],
+        material: 'fabric-weave',
+        color: [2.4, 2.2, 1.5],
         metallic: 0.05,
         roughness: 0.85,
         translation: [0.12, -0.035, 0.11],
@@ -220,7 +248,8 @@ function vacuum(): ModelSpec {
       {
         name: 'dock',
         geometry: translated(box(0.26, 0.02, 0.2), 0, 0.01, 0),
-        color: [0.22, 0.23, 0.25],
+        material: 'matte-plastic',
+        color: [1.4, 1.45, 1.55],
         metallic: 0.3,
         roughness: 0.6,
         translation: [0, 0, -0.34],
@@ -320,14 +349,16 @@ function chair(): ModelSpec {
       {
         name: 'base',
         geometry: translated(box(0.62, 0.1, 0.62), 0, 0.05, 0),
-        color: [0.18, 0.18, 0.19],
+        material: 'brushed-aluminium',
+        color: [0.28, 0.28, 0.3],
         metallic: 0.4,
         roughness: 0.5,
       },
       {
         name: 'seat',
         geometry: translated(box(0.66, 0.14, 0.62), 0, 0.07, 0),
-        color: [0.42, 0.26, 0.2],
+        material: 'fabric-weave',
+        color: [1.15, 1.05, 0.95],
         metallic: 0.02,
         roughness: 0.9,
         translation: [0, 0.36, 0],
@@ -335,7 +366,8 @@ function chair(): ModelSpec {
       {
         name: 'backrest',
         geometry: translated(box(0.66, 0.72, 0.13), 0, 0.36, 0),
-        color: [0.45, 0.28, 0.22],
+        material: 'fabric-weave',
+        color: [1.2, 1.1, 1.0],
         metallic: 0.02,
         roughness: 0.9,
         translation: [0, 0.13, -0.24],
@@ -344,7 +376,8 @@ function chair(): ModelSpec {
       {
         name: 'headrest',
         geometry: translated(box(0.5, 0.2, 0.14), 0, 0.1, 0),
-        color: [0.4, 0.25, 0.19],
+        material: 'fabric-weave',
+        color: [1.1, 1.0, 0.92],
         metallic: 0.02,
         roughness: 0.9,
         translation: [0, 0.72, 0],
@@ -353,7 +386,8 @@ function chair(): ModelSpec {
       {
         name: 'footrest',
         geometry: translated(box(0.6, 0.1, 0.42), 0, 0, 0.21),
-        color: [0.42, 0.26, 0.2],
+        material: 'fabric-weave',
+        color: [1.15, 1.05, 0.95],
         metallic: 0.02,
         roughness: 0.9,
         translation: [0, -0.02, 0.31],
@@ -363,7 +397,8 @@ function chair(): ModelSpec {
       {
         name: 'armrest_left',
         geometry: translated(box(0.1, 0.12, 0.56), 0, 0, 0),
-        color: [0.4, 0.25, 0.19],
+        material: 'fabric-weave',
+        color: [1.05, 0.95, 0.88],
         metallic: 0.02,
         roughness: 0.9,
         translation: [-0.38, 0.22, 0],
@@ -372,7 +407,8 @@ function chair(): ModelSpec {
       {
         name: 'armrest_right',
         geometry: translated(box(0.1, 0.12, 0.56), 0, 0, 0),
-        color: [0.4, 0.25, 0.19],
+        material: 'fabric-weave',
+        color: [1.05, 0.95, 0.88],
         metallic: 0.02,
         roughness: 0.9,
         translation: [0.38, 0.22, 0],
@@ -446,7 +482,8 @@ function drone(): ModelSpec {
     arms.push({
       name: armName,
       geometry: translated(box(0.05, 0.03, 0.05), 0, 0, 0),
-      color: [0.2, 0.21, 0.23],
+      material: 'matte-plastic',
+      color: [1.6, 1.65, 1.75],
       metallic: 0.6,
       roughness: 0.45,
       translation: offset,
@@ -456,7 +493,8 @@ function drone(): ModelSpec {
     arms.push({
       name: rotorName,
       geometry: translated(box(0.26, 0.008, 0.03), 0, 0, 0),
-      color: [0.1, 0.1, 0.11],
+      material: 'matte-plastic',
+      color: [0.9, 0.9, 0.95],
       metallic: 0.3,
       roughness: 0.6,
       translation: [0, 0.035, 0],
@@ -485,7 +523,8 @@ function drone(): ModelSpec {
       {
         name: 'body',
         geometry: translated(box(0.24, 0.07, 0.3), 0, 0, 0),
-        color: [0.16, 0.17, 0.19],
+        material: 'matte-plastic',
+        color: [1.3, 1.35, 1.45],
         metallic: 0.5,
         roughness: 0.5,
         translation: [0, 0.12, 0],
@@ -493,7 +532,8 @@ function drone(): ModelSpec {
       {
         name: 'camera',
         geometry: cylinder(0.045, 0.04, 0.06, 16),
-        color: [0.07, 0.07, 0.08],
+        material: 'rubber',
+        color: [1.2, 1.2, 1.3],
         metallic: 0.3,
         roughness: 0.4,
         translation: [0, -0.06, 0.09],
@@ -543,7 +583,8 @@ function lamp(): ModelSpec {
       {
         name: 'base',
         geometry: cylinder(0.11, 0.1, 0.025, 24),
-        color: [0.2, 0.2, 0.22],
+        material: 'powder-coated',
+        color: [0.9, 0.92, 0.98],
         metallic: 0.7,
         roughness: 0.4,
         translation: [0, 0.0125, 0],
@@ -551,7 +592,8 @@ function lamp(): ModelSpec {
       {
         name: 'lower_arm',
         geometry: translated(cylinder(0.016, 0.014, 0.34, 12), 0, 0.17, 0),
-        color: [0.7, 0.68, 0.62],
+        material: 'brushed-aluminium',
+        color: [0.95, 0.92, 0.85],
         metallic: 0.8,
         roughness: 0.3,
         translation: [0, 0.025, 0],
@@ -560,7 +602,8 @@ function lamp(): ModelSpec {
       {
         name: 'upper_arm',
         geometry: translated(cylinder(0.014, 0.012, 0.3, 12), 0, 0.15, 0),
-        color: [0.7, 0.68, 0.62],
+        material: 'brushed-aluminium',
+        color: [0.95, 0.92, 0.85],
         metallic: 0.8,
         roughness: 0.3,
         translation: [0, 0.34, 0],
@@ -570,7 +613,8 @@ function lamp(): ModelSpec {
       {
         name: 'head',
         geometry: cylinder(0.09, 0.05, 0.12, 20),
-        color: [0.24, 0.24, 0.26],
+        material: 'powder-coated',
+        color: [1.0, 1.02, 1.08],
         metallic: 0.6,
         roughness: 0.45,
         translation: [0, 0.3, 0],
@@ -613,6 +657,79 @@ function lamp(): ModelSpec {
 
 // --- Assembly --------------------------------------------------------------
 
+const TEXTURE_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../api/prisma/seed-assets/textures',
+);
+
+interface PresetTextures {
+  baseColor: Texture;
+  normal: Texture;
+  /** Occlusion in R, roughness in G, metalness in B — one fetch, three inputs. */
+  orm: Texture;
+}
+
+/**
+ * Loads a material preset into the document once and hands back the same
+ * texture objects for every part that uses it. Sharing matters: a texture per
+ * part would multiply both the file size and the GPU memory by the number of
+ * parts, for pixels that are identical.
+ */
+function loadPreset(
+  document: Document,
+  preset: MaterialPreset,
+  cache: Map<MaterialPreset, PresetTextures>,
+): PresetTextures | null {
+  const cached = cache.get(preset);
+  if (cached) return cached;
+
+  const dir = path.join(TEXTURE_DIR, preset);
+  const baseColorPath = path.join(dir, 'basecolor.jpg');
+  if (!existsSync(baseColorPath)) return null;
+
+  const textures: PresetTextures = {
+    baseColor: document
+      .createTexture(`${preset}_basecolor`)
+      .setImage(new Uint8Array(readFileSync(baseColorPath)))
+      .setMimeType('image/jpeg'),
+    normal: document
+      .createTexture(`${preset}_normal`)
+      .setImage(new Uint8Array(readFileSync(path.join(dir, 'normal.jpg'))))
+      .setMimeType('image/jpeg'),
+    orm: document
+      .createTexture(`${preset}_orm`)
+      .setImage(new Uint8Array(readFileSync(path.join(dir, 'orm.jpg'))))
+      .setMimeType('image/jpeg'),
+  };
+
+  cache.set(preset, textures);
+  return textures;
+}
+
+function buildMaterial(document: Document, part: Part, textures: PresetTextures | null): Material {
+  const material = document
+    .createMaterial(`${part.name}_material`)
+    // The tint multiplies the map, so parts sharing one texture still read as
+    // different colours.
+    .setBaseColorFactor([part.color[0], part.color[1], part.color[2], 1])
+    .setMetallicFactor(part.metallic ?? 1)
+    .setRoughnessFactor(part.roughness ?? 1);
+
+  if (textures) {
+    material
+      .setBaseColorTexture(textures.baseColor)
+      .setNormalTexture(textures.normal)
+      .setMetallicRoughnessTexture(textures.orm)
+      .setOcclusionTexture(textures.orm);
+  } else {
+    // No texture library generated yet: fall back to flat factors so the
+    // generator still produces usable models.
+    material.setMetallicFactor(part.metallic ?? 0.2).setRoughnessFactor(part.roughness ?? 0.7);
+  }
+
+  return material;
+}
+
 function buildDocument(spec: ModelSpec): Document {
   const document = new Document();
   document.getRoot().getAsset().generator = '3DSFERA demo asset generator';
@@ -620,6 +737,7 @@ function buildDocument(spec: ModelSpec): Document {
   const buffer = document.createBuffer();
   const scene = document.createScene(spec.name);
   const nodes = new Map<string, GltfNode>();
+  const presetCache = new Map<MaterialPreset, PresetTextures>();
 
   for (const part of spec.parts) {
     const position = document
@@ -634,22 +752,29 @@ function buildDocument(spec: ModelSpec): Document {
       .setType('VEC3')
       .setBuffer(buffer);
 
+    const uv = document
+      .createAccessor(`${part.name}_uv`)
+      .setArray(part.geometry.uvs)
+      .setType('VEC2')
+      .setBuffer(buffer);
+
     const indices = document
       .createAccessor(`${part.name}_indices`)
       .setArray(part.geometry.indices)
       .setType('SCALAR')
       .setBuffer(buffer);
 
-    const material = document
-      .createMaterial(`${part.name}_material`)
-      .setBaseColorFactor([part.color[0], part.color[1], part.color[2], 1])
-      .setMetallicFactor(part.metallic ?? 0.2)
-      .setRoughnessFactor(part.roughness ?? 0.7);
+    const material = buildMaterial(
+      document,
+      part,
+      loadPreset(document, part.material, presetCache),
+    );
 
     const primitive = document
       .createPrimitive()
       .setAttribute('POSITION', position)
       .setAttribute('NORMAL', normal)
+      .setAttribute('TEXCOORD_0', uv)
       .setIndices(indices)
       .setMaterial(material);
 

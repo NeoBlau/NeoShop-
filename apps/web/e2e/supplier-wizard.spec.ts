@@ -14,7 +14,7 @@ const ASSETS = path.resolve(
 );
 
 test('a supplier takes a model from upload to moderation without help', async ({ page }) => {
-  test.slow();
+  test.setTimeout(360_000);
   await page.goto('/supplier/products/new');
   await page.getByLabel('Название товара').fill(`Робот-пылесос E2E ${Date.now()}`);
   await page.getByRole('button', { name: 'Создать черновик' }).click();
@@ -27,12 +27,16 @@ test('a supplier takes a model from upload to moderation without help', async ({
 
   // 2. Processing: the server reports what it actually did.
   await page.getByRole('button', { name: 'Далее' }).click();
-  await expect(page.getByText(/Вес уменьшился на \d+%/)).toBeVisible({ timeout: 20_000 });
+  // A 4K-textured model takes a minute or two to compress; that is the real
+  // pipeline, not a stub, so the test waits for it rather than mocking it out.
+  await expect(page.getByText(/Вес уменьшился на \d+%/)).toBeVisible({ timeout: 240_000 });
   await expect(page.getByText('Уровни детализации')).toBeVisible();
 
   // 3. Preview: the same viewer the buyer gets.
   await page.getByRole('button', { name: 'Далее' }).click();
-  await expect(page.locator('canvas')).toBeVisible();
+  // The dev build adds the frame-rate panel's own canvases, so the scene is
+  // addressed by the one three.js labels.
+  await expect(page.locator('canvas[data-engine]').first()).toBeVisible();
 
   // 4. Animation: clips come from the uploaded model, captions from the supplier.
   await page.getByRole('button', { name: 'Далее' }).click();

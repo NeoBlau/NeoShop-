@@ -6,7 +6,7 @@ import {
   type OkResponse,
   type SessionResponse,
 } from '@3dsfera/shared';
-import { env } from '../../env.js';
+import { env, isProduction } from '../../env.js';
 import { prisma } from '../../lib/prisma.js';
 import { parseInput } from '../../lib/validate.js';
 import { recordAudit } from '../../lib/audit.js';
@@ -14,11 +14,18 @@ import { hashIp } from '../../lib/tokens.js';
 import { clearSessionCookie, readSessionToken, setSessionCookie } from '../../plugins/auth.js';
 import { destroySession, loginUser, registerUser } from './service.js';
 
-/** Credential endpoints get a much tighter budget than the global limit. */
+/**
+ * Credential endpoints get a much tighter budget than the global limit.
+ *
+ * Development is deliberately looser. Ten attempts per five minutes is the
+ * right number for a login page on the internet and the wrong one for a
+ * developer running the end-to-end suite twice in a row — the second run then
+ * fails on a 429 that has nothing to do with the code under test.
+ */
 const credentialRateLimit = {
   config: {
     rateLimit: {
-      max: 10,
+      max: isProduction ? 10 : 60,
       timeWindow: '5 minutes',
     },
   },

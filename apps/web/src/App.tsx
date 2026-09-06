@@ -10,13 +10,9 @@ import { ProductWizardPage } from './routes/supplier/ProductWizardPage.js';
 import { ImportPage } from './routes/supplier/ImportPage.js';
 import { StatsPage } from './routes/supplier/StatsPage.js';
 import { AdminDashboard } from './routes/AdminDashboard.js';
-import {
-  CartPage,
-  CatalogPage,
-  NotFoundPage,
-  OrdersPage,
-  WorldPage,
-} from './routes/buyer-pages.js';
+import { CartPage, NotFoundPage, OrdersPage } from './routes/buyer-pages.js';
+import { WorldPage } from './routes/WorldPage.js';
+import { CatalogPage } from './routes/CatalogPage.js';
 import { useSession } from './stores/session.js';
 
 export function App() {

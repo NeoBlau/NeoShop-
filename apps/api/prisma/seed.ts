@@ -17,6 +17,16 @@ import { hashPassword } from '../src/lib/password.js';
 import { attachModel, runModelJob } from '../src/modules/products/processing.js';
 
 const DEMO_PASSWORD = 'sfera-demo-2026';
+
+/**
+ * Re-runs the optimization pipeline for the demo products even when they
+ * already have processed assets. Needed after regenerating the models or
+ * changing the pipeline; skipped by default because encoding five models with
+ * 4K textures takes minutes.
+ *
+ *   SEED_REPROCESS=1 pnpm --filter @3dsfera/api run seed
+ */
+const REPROCESS = process.env['SEED_REPROCESS'] === '1';
 const ASSET_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'seed-assets');
 
 interface SupplierSeed {
@@ -358,6 +368,11 @@ async function seedProduct(supplierId: string, seed: ProductSeed): Promise<void>
     },
     select: { id: true },
   });
+
+  if (REPROCESS) {
+    await prisma.productAsset.deleteMany({ where: { productId: product.id } });
+    await prisma.modelJob.deleteMany({ where: { productId: product.id } });
+  }
 
   const alreadyProcessed = await prisma.productAsset.findFirst({
     where: { productId: product.id, kind: 'GLB_OPTIMIZED' },

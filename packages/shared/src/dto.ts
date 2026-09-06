@@ -1,6 +1,7 @@
 import type {
   AssetKind,
   Currency,
+  PavilionTheme,
   InteractionType,
   Locale,
   ModerationStatus,
@@ -162,4 +163,45 @@ export interface SupplierStatsRow {
 export interface SupplierStatsResponse {
   totals: { views: number; orders: number; published: number; pending: number };
   rows: SupplierStatsRow[];
+}
+
+/** One level of the detail ladder, as the scene consumes it. */
+export interface WorldModelLevel {
+  level: number;
+  url: string;
+  byteSize: number;
+  triangles: number;
+}
+
+export interface WorldProduct {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  priceCents: number;
+  currency: Currency;
+  stock: number;
+  previewUrl: string | null;
+  /** Ordered from full detail down; empty when the model is still processing. */
+  levels: WorldModelLevel[];
+  interactions: ProductInteractionDto[];
+  /** Slot along the pavilion wall, assigned by the layout. */
+  standIndex: number;
+}
+
+export interface WorldPavilion {
+  id: string;
+  slot: number;
+  title: string;
+  theme: PavilionTheme;
+  supplierName: string;
+  /** Where the hall sits in the world; the scene streams by distance from it. */
+  worldPosition: { x: number; y: number; z: number; rotationY: number };
+  products: WorldProduct[];
+}
+
+export interface WorldResponse {
+  pavilions: WorldPavilion[];
+  /** Spacing between pavilion centres, so the client can lay out corridors. */
+  pavilionSpacing: number;
 }

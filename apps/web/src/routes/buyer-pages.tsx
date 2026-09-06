@@ -21,16 +21,6 @@ function Placeholder({ title, text }: { title: string; text: string }) {
   );
 }
 
-export function WorldPage() {
-  const { t } = useTranslation();
-  return <Placeholder title={t('buyer.worldTitle')} text={t('buyer.worldPlaceholder')} />;
-}
-
-export function CatalogPage() {
-  const { t } = useTranslation();
-  return <Placeholder title={t('buyer.catalogTitle')} text={t('buyer.catalogPlaceholder')} />;
-}
-
 export function CartPage() {
   const { t } = useTranslation();
   return <Placeholder title={t('buyer.cartTitle')} text={t('common.comingSoon')} />;
