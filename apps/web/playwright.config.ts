@@ -1,6 +1,5 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+import { BUYER_STATE, SUPPLIER_STATE } from './e2e/auth-state.js';
 
 const WEB_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 
@@ -10,11 +9,6 @@ const WEB_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
  * second copy.
  */
 const CHROMIUM_PATH = process.env.E2E_CHROMIUM_PATH;
-
-const SUPPLIER_STATE = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '.auth/supplier.json',
-);
 
 const chromium = {
   ...devices['Desktop Chrome'],
@@ -47,16 +41,23 @@ export default defineConfig({
     {
       name: 'chromium',
       use: chromium,
-      testIgnore: [/supplier-wizard\.spec\.ts/, /supplier\.setup\.ts/],
+      testIgnore: [/supplier-wizard\.spec\.ts/, /checkout\.spec\.ts/, /\.setup\.ts/],
       // The scene needs a while to compile shaders under a software renderer.
       timeout: 90_000,
     },
-    { name: 'setup', use: chromium, testMatch: /supplier\.setup\.ts/ },
+    { name: 'setup', use: chromium, testMatch: /\.setup\.ts/ },
     // Supplier specs reuse the session the setup project signed in with.
     {
       name: 'supplier',
       use: { ...chromium, storageState: SUPPLIER_STATE },
       testMatch: /supplier-wizard\.spec\.ts/,
+      dependencies: ['setup'],
+    },
+    // The purchase path runs as the demo buyer.
+    {
+      name: 'buyer',
+      use: { ...chromium, storageState: BUYER_STATE },
+      testMatch: /checkout\.spec\.ts/,
       dependencies: ['setup'],
     },
   ],

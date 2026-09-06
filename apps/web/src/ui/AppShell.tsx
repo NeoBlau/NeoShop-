@@ -1,6 +1,7 @@
 import { NavLink, Link, Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSession } from '../stores/session.js';
+import { useCart } from '../stores/cart.js';
 import { LanguageSwitch } from './LanguageSwitch.js';
 import { landingRouteFor } from '../features/auth/model.js';
 
@@ -14,6 +15,8 @@ export function AppShell() {
   const { t } = useTranslation();
   const user = useSession((state) => state.user);
   const logout = useSession((state) => state.logout);
+  const cartLines = useCart((state) => state.lines);
+  const cartCount = cartLines.reduce((total, line) => total + line.quantity, 0);
   const navigate = useNavigate();
 
   async function handleLogout(): Promise<void> {
@@ -41,7 +44,17 @@ export function AppShell() {
             </NavLink>
             <NavLink to="/cart" className={navClass}>
               {t('nav.cart')}
+              {cartCount > 0 ? (
+                <span className="bg-accent text-accent-ink ml-1.5 rounded px-1.5 py-0.5 text-[11px] tabular-nums">
+                  {cartCount}
+                </span>
+              ) : null}
             </NavLink>
+            {user ? (
+              <NavLink to="/orders" className={navClass}>
+                {t('nav.orders')}
+              </NavLink>
+            ) : null}
             {user?.role === 'SUPPLIER' ? (
               <NavLink to="/supplier" className={navClass}>
                 {t('nav.supplier')}

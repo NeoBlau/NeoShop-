@@ -10,7 +10,12 @@ import { ProductWizardPage } from './routes/supplier/ProductWizardPage.js';
 import { ImportPage } from './routes/supplier/ImportPage.js';
 import { StatsPage } from './routes/supplier/StatsPage.js';
 import { AdminDashboard } from './routes/AdminDashboard.js';
-import { CartPage, NotFoundPage, OrdersPage } from './routes/buyer-pages.js';
+import { NotFoundPage } from './routes/NotFoundPage.js';
+import { CartPage } from './routes/CartPage.js';
+import { CheckoutPage } from './routes/CheckoutPage.js';
+import { OrdersPage } from './routes/OrdersPage.js';
+import { OrderStatusPage } from './routes/OrderStatusPage.js';
+import { SupplierOrdersPage } from './routes/supplier/SupplierOrdersPage.js';
 import { WorldPage } from './routes/WorldPage.js';
 import { CatalogPage } from './routes/CatalogPage.js';
 import { useSession } from './stores/session.js';
@@ -29,10 +34,26 @@ export function App() {
         <Route path="catalog" element={<CatalogPage />} />
         <Route path="cart" element={<CartPage />} />
         <Route
+          path="checkout"
+          element={
+            <RequireAuth>
+              <CheckoutPage />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="orders"
           element={
             <RequireAuth>
               <OrdersPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="orders/:number"
+          element={
+            <RequireAuth>
+              <OrderStatusPage />
             </RequireAuth>
           }
         />
@@ -67,6 +88,14 @@ export function App() {
           element={
             <RequireRole roles={['SUPPLIER', 'ADMIN']}>
               <ProductWizardPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="supplier/orders"
+          element={
+            <RequireRole roles={['SUPPLIER', 'ADMIN']}>
+              <SupplierOrdersPage />
             </RequireRole>
           }
         />

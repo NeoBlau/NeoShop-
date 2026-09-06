@@ -64,7 +64,11 @@ export function SupplierDashboard() {
           to="/supplier/products"
           badge={String(profile.productCount)}
         />
-        <SectionCard title={t('supplier.orders')} hint={t('supplier.ordersHint')} />
+        <SectionCard
+          title={t('supplier.orders')}
+          hint={t('supplier.ordersHint')}
+          to="/supplier/orders"
+        />
         <SectionCard
           title={t('supplier.pavilion')}
           hint={t('supplier.pavilionHint')}

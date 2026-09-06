@@ -1,6 +1,5 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { expect, test as setup } from '@playwright/test';
+import { SUPPLIER_STATE } from './auth-state.js';
 
 /**
  * Signs in once and saves the session for the supplier specs.
@@ -9,11 +8,6 @@ import { expect, test as setup } from '@playwright/test';
  * is the right limit for a login endpoint and the wrong thing for a test suite
  * to spend on repeated sign-ins. One login, reused.
  */
-export const SUPPLIER_STATE = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../.auth/supplier.json',
-);
-
 setup('sign in as a supplier', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill('antenna@demo.3dsfera.local');

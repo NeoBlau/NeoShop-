@@ -94,15 +94,6 @@ export const en: Dictionary = {
     metrics: 'Metrics',
     metricsHint: 'Visitors, views, conversion',
   },
-  buyer: {
-    worldTitle: '3D showroom',
-    worldPlaceholder:
-      'The world, pavilions and product stands arrive in stage three. The shell, auth and roles already work.',
-    catalogTitle: 'Catalog',
-    catalogPlaceholder: 'The flat catalog doubles as the fallback for low-end devices.',
-    cartTitle: 'Cart',
-    ordersTitle: 'My orders',
-  },
   errors: {
     ERR_VALIDATION: 'Check the highlighted fields',
     ERR_UNAUTHORIZED: 'Please sign in',
@@ -341,6 +332,8 @@ export const en: Dictionary = {
     cartTitle: 'Cart',
     cartEmpty: 'Your cart is empty',
     cartEmptyHint: 'Have a look in the showroom or the catalog — one click adds a product.',
+    mixedCurrency:
+      'The cart mixes currencies and one order cannot. Keep the products priced in a single currency.',
     remove: 'Remove',
     quantity: 'Quantity',
     subtotal: 'Items',
