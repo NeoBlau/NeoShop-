@@ -1,7 +1,9 @@
 import type {
   AssetKind,
   Currency,
+  OrderStatus,
   PavilionTheme,
+  ShipmentStatus,
   InteractionType,
   Locale,
   ModerationStatus,
@@ -204,4 +206,99 @@ export interface WorldResponse {
   pavilions: WorldPavilion[];
   /** Spacing between pavilion centres, so the client can lay out corridors. */
   pavilionSpacing: number;
+}
+
+export interface ShippingQuote {
+  /** Total billable weight in grams, including a packaging allowance. */
+  weightGrams: number;
+  country: string;
+  /** Named tier the quote fell into, e.g. `domestic` or `international`. */
+  zone: string;
+  priceCents: number;
+  currency: Currency;
+  /** Working days, as a range. */
+  estimatedDays: { min: number; max: number };
+}
+
+export interface OrderItemDto {
+  id: string;
+  productId: string;
+  slug: string;
+  title: string;
+  unitPriceCents: number;
+  quantity: number;
+  previewUrl: string | null;
+  supplierName: string;
+}
+
+export interface ShipmentDto {
+  id: string;
+  carrier: string;
+  trackingNumber: string | null;
+  status: ShipmentStatus;
+  supplierName: string;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+}
+
+export interface OrderSummary {
+  id: string;
+  number: string;
+  status: OrderStatus;
+  currency: Currency;
+  subtotalCents: number;
+  shippingCents: number;
+  totalCents: number;
+  itemCount: number;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+export interface OrderDetail extends OrderSummary {
+  items: OrderItemDto[];
+  shipments: ShipmentDto[];
+  /** Present only for the buyer who owns the order, and for admins. */
+  address: {
+    recipient: string;
+    phone: string;
+    country: string;
+    region: string | null;
+    city: string;
+    postalCode: string;
+    line1: string;
+    line2: string | null;
+    comment: string | null;
+  } | null;
+}
+
+/** What the client needs to finish paying, whichever provider is configured. */
+export interface PaymentIntentDto {
+  provider: 'mock' | 'stripe';
+  /** Opaque handle the client sends back when confirming. */
+  reference: string;
+  /** Stripe's client secret; absent for the mock provider. */
+  clientSecret?: string;
+  /** Hosted page to redirect to, when the provider uses one. */
+  redirectUrl?: string;
+}
+
+export interface CheckoutResult {
+  order: OrderDetail;
+  payment: PaymentIntentDto;
+}
+
+/** One incoming order line as a supplier sees it. */
+export interface SupplierOrderDto {
+  orderId: string;
+  orderNumber: string;
+  status: OrderStatus;
+  createdAt: string;
+  paidAt: string | null;
+  currency: Currency;
+  items: { title: string; quantity: number; unitPriceCents: number }[];
+  totalCents: number;
+  /** City and country only: the supplier ships, they do not need the doorstep
+   * until the label is printed. */
+  destination: { country: string; city: string };
+  shipment: ShipmentDto | null;
 }

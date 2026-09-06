@@ -5,5 +5,6 @@ export * from './dto.js';
 export * from './schemas/common.js';
 export * from './schemas/auth.js';
 export * from './schemas/product.js';
+export * from './schemas/order.js';
 export * from './glb.js';
 export { dictionaries, negotiateLocale, type Dictionary } from './i18n/index.js';

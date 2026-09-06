@@ -10,6 +10,9 @@ import { supplierRoutes } from './modules/supplier/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { productRoutes, supplierStatsRoutes } from './modules/products/routes.js';
 import { worldRoutes } from './modules/world/routes.js';
+import { orderRoutes } from './modules/orders/routes.js';
+import { paymentRoutes } from './modules/payments/routes.js';
+import { supplierOrderRoutes } from './modules/supplier/orders.js';
 import { requeueInterruptedJobs } from './modules/products/processing.js';
 import { healthRoutes } from './modules/health/routes.js';
 
@@ -52,6 +55,9 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(supplierRoutes, { prefix: '/api/supplier' });
   await app.register(productRoutes, { prefix: '/api/supplier/products' });
   await app.register(supplierStatsRoutes, { prefix: '/api/supplier/stats' });
+  await app.register(supplierOrderRoutes, { prefix: '/api/supplier/orders' });
+  await app.register(orderRoutes, { prefix: '/api/orders' });
+  await app.register(paymentRoutes, { prefix: '/api/payments' });
   await app.register(adminRoutes, { prefix: '/api/admin' });
 
   // A restart must not strand a model in "processing" forever.
