@@ -77,6 +77,22 @@ test('a file that only pretends to be a model is refused in the browser', async 
   await expect(page.getByText('Файл проверен')).toBeHidden();
 });
 
+test('a published product opens on its steps and the animation editor is reachable', async ({
+  page,
+}) => {
+  await page.goto('/supplier/products');
+  await page.getByText('Антенна спутниковая «Орбита 1.2»').first().click();
+  await expect(page).toHaveURL(/\/supplier\/products\/[a-z0-9]+$/);
+
+  // Every step of a finished product is navigable by name, which also pins
+  // down the accessible name of the step buttons.
+  await page.getByRole('button', { name: 'Оживление' }).click();
+  await expect(page.getByLabel('Подпись (ru)').first()).toHaveValue('Развернуть антенну');
+
+  await page.getByRole('button', { name: 'Карточка' }).click();
+  await expect(page.getByLabel('Цена')).toHaveValue('18990');
+});
+
 test('the product list filters by status', async ({ page }) => {
   await page.goto('/supplier/products');
 

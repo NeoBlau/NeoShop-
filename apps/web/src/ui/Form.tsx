@@ -110,7 +110,12 @@ export function Steps({
                     : 'text-ink-faint hover:text-ink-muted'
               }`}
             >
-              <span className="text-ink-faint mr-1.5 tabular-nums">{index + 1}</span>
+              {/* Decorative: without aria-hidden the accessible name becomes
+                  "4Оживление", because the number sits directly against the
+                  label with no whitespace between them. */}
+              <span aria-hidden="true" className="text-ink-faint mr-1.5 tabular-nums">
+                {index + 1}
+              </span>
               {step.label}
             </button>
             {index < steps.length - 1 ? <span className="text-ink-faint">·</span> : null}
