@@ -77,6 +77,13 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum ProcessingStatus {
+  PENDING
+  RUNNING
+  READY
+  FAILED
+}
+
 enum ShipmentStatus {
   CREATED
   HANDED_OVER
@@ -223,6 +230,7 @@ model Product {
   assets       ProductAsset[]
   interactions ProductInteraction[]
   orderItems   OrderItem[]
+  modelJobs    ModelJob[]
 
   @@index([supplierId, status])
   @@index([status, category])
@@ -241,6 +249,9 @@ model ProductAsset {
   contentType String
   byteSize    Int
   checksum    String
+  /// 0 is the full-detail model; 1 and 2 are the simplified levels the scene
+  /// swaps in with distance. Null for anything that is not geometry.
+  lodLevel    Int?
   /// Extraction results: triangle/material counts, animation clip names,
   /// generated LOD levels, texture dimensions.
   meta        Json?
@@ -250,6 +261,32 @@ model ProductAsset {
 
   @@index([productId, kind])
   @@map("product_assets")
+}
+
+/// One run of the optimization pipeline over an uploaded model. The upload
+/// endpoint returns immediately and the wizard polls this row, so a 40 MB
+/// model does not hold an HTTP connection open for a minute.
+model ModelJob {
+  id         String           @id @default(cuid())
+  productId  String
+  status     ProcessingStatus @default(PENDING)
+  /// Developer-facing failure text. The client renders its own message from
+  /// `errorCode`.
+  error      String?
+  errorCode  String?
+  /// Byte sizes before and after, the LOD table, and which steps were skipped.
+  stats      Json?
+  attempts   Int              @default(0)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+  @@index([status])
+  @@map("model_jobs")
 }
 
 /// How a product "comes alive" in the scene. Either a clip that exists inside

@@ -9,6 +9,11 @@ export default tseslint.config(
       '**/node_modules/**',
       'apps/api/src/generated/**',
       'apps/desktop/src-tauri/**',
+      // Vendor decoders copied out of the three package, and test output.
+      'apps/web/public/**',
+      'apps/web/.auth/**',
+      'apps/web/test-results/**',
+      'apps/web/playwright-report/**',
       '**/*.config.js',
     ],
   },
@@ -29,6 +34,17 @@ export default tseslint.config(
       // Empty catch blocks hide failures; the brief calls them out explicitly.
       'no-empty': ['error', { allowEmptyCatch: false }],
       eqeqeq: ['error', 'always'],
+    },
+  },
+  {
+    // Plain Node scripts: no TypeScript, so `no-undef` needs the globals named.
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        __dirname: 'readonly',
+      },
     },
   },
   {

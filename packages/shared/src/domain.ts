@@ -71,6 +71,10 @@ export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 export const PAVILION_THEMES = ['GRAPHITE', 'SAND', 'DEEP_BLUE', 'MONO'] as const;
 export type PavilionTheme = (typeof PAVILION_THEMES)[number];
 
+/** Where an uploaded model is in the optimization pipeline. */
+export const PROCESSING_STATUSES = ['PENDING', 'RUNNING', 'READY', 'FAILED'] as const;
+export type ProcessingStatus = (typeof PROCESSING_STATUSES)[number];
+
 export const LOCALES = ['ru', 'en'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'ru';

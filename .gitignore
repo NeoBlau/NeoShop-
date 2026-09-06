@@ -27,3 +27,8 @@ blob-report/
 
 .DS_Store
 *.log
+
+# Decoders copied out of the three package by apps/web/scripts/copy-decoders.mjs
+apps/web/public/draco/
+apps/web/public/basis/
+apps/web/.auth/

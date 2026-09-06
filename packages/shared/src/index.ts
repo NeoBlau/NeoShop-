@@ -4,4 +4,6 @@ export * from './errors.js';
 export * from './dto.js';
 export * from './schemas/common.js';
 export * from './schemas/auth.js';
+export * from './schemas/product.js';
+export * from './glb.js';
 export { dictionaries, negotiateLocale, type Dictionary } from './i18n/index.js';

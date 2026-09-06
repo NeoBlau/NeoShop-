@@ -61,6 +61,7 @@ export function SupplierDashboard() {
         <SectionCard
           title={t('supplier.products')}
           hint={t('supplier.productsHint')}
+          to="/supplier/products"
           badge={String(profile.productCount)}
         />
         <SectionCard title={t('supplier.orders')} hint={t('supplier.ordersHint')} />
@@ -73,7 +74,11 @@ export function SupplierDashboard() {
               : t('supplier.noPavilion')
           }
         />
-        <SectionCard title={t('supplier.stats')} hint={t('supplier.statsHint')} />
+        <SectionCard
+          title={t('supplier.stats')}
+          hint={t('supplier.statsHint')}
+          to="/supplier/stats"
+        />
       </div>
 
       <Panel>

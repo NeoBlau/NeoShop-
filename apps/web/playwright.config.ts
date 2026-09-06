@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 const WEB_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
@@ -8,6 +10,16 @@ const WEB_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
  * second copy.
  */
 const CHROMIUM_PATH = process.env.E2E_CHROMIUM_PATH;
+
+const SUPPLIER_STATE = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '.auth/supplier.json',
+);
+
+const chromium = {
+  ...devices['Desktop Chrome'],
+  ...(CHROMIUM_PATH ? { launchOptions: { executablePath: CHROMIUM_PATH } } : {}),
+};
 
 /**
  * End-to-end coverage of the paths a person actually walks. The API and the
@@ -31,12 +43,19 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    // Anonymous specs: registration, sign-in, guards.
     {
       name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        ...(CHROMIUM_PATH ? { launchOptions: { executablePath: CHROMIUM_PATH } } : {}),
-      },
+      use: chromium,
+      testIgnore: [/supplier-wizard\.spec\.ts/, /supplier\.setup\.ts/],
+    },
+    { name: 'setup', use: chromium, testMatch: /supplier\.setup\.ts/ },
+    // Supplier specs reuse the session the setup project signed in with.
+    {
+      name: 'supplier',
+      use: { ...chromium, storageState: SUPPLIER_STATE },
+      testMatch: /supplier-wizard\.spec\.ts/,
+      dependencies: ['setup'],
     },
   ],
   webServer: [

@@ -9,7 +9,7 @@ COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
 .PHONY: help env install up down restart logs db-migrate db-reset db-studio seed \
-        app dev build lint typecheck test e2e desktop clean
+        app dev build lint typecheck test e2e desktop assets clean
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -45,7 +45,10 @@ db-reset: ## Drop the database, re-apply migrations, re-seed
 db-studio: ## Open Prisma Studio
 	pnpm --filter @3dsfera/api exec prisma studio
 
-seed: ## Load demo data (suppliers, pavilion, products)
+assets: ## Regenerate the demo GLB models (committed, offline-safe)
+	pnpm --filter @3dsfera/tools run gen:assets
+
+seed: ## Load demo data (suppliers, pavilions, five animated products)
 	pnpm --filter @3dsfera/api run seed
 
 app: ## Run api + web with hot reload
