@@ -1,0 +1,29 @@
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client
+apps/api/src/generated/
+
+# Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/dist/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Local storage fallback for S3 (dev without MinIO)
+.storage/
+
+.DS_Store
+*.log

@@ -1,0 +1,387 @@
+// 3DSFERA data model.
+//
+// Conventions:
+//  * money is stored as integer minor units (kopeks/cents), never as float;
+//  * physical dimensions are millimetres, weight is grams, both integers;
+//  * personal data of a delivery lives only in ShippingAddress and is never
+//    denormalized into Order, so that access can be restricted in one place;
+//  * every user-visible status is an enum mirrored in packages/shared.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+// Prisma 7 moved connection URLs out of the schema: migrations read it from
+// prisma.config.ts, the client gets it through the pg driver adapter.
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  BUYER
+  SUPPLIER
+  ADMIN
+}
+
+enum Locale {
+  ru
+  en
+}
+
+enum SupplierStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  BLOCKED
+}
+
+enum PublicationStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ModerationStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum AssetKind {
+  GLB_ORIGINAL
+  GLB_OPTIMIZED
+  KTX2_TEXTURE
+  PREVIEW
+  PHOTO
+}
+
+enum InteractionType {
+  GLTF_ANIMATION
+  STATE_TOGGLE
+  SOUND
+  PARTICLES
+  PRESET_SPIN
+  PRESET_EXPLODE
+  PRESET_HIGHLIGHT
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PACKING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ShipmentStatus {
+  CREATED
+  HANDED_OVER
+  IN_TRANSIT
+  DELIVERED
+  LOST
+}
+
+enum ProductCategory {
+  ELECTRONICS
+  HOME_APPLIANCES
+  FURNITURE
+  LIGHTING
+  OUTDOOR
+  OTHER
+}
+
+enum PavilionTheme {
+  GRAPHITE
+  SAND
+  DEEP_BLUE
+  MONO
+}
+
+enum Currency {
+  RUB
+  EUR
+  USD
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(BUYER)
+  locale       Locale    @default(ru)
+  isBlocked    Boolean   @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  supplier  Supplier?
+  sessions  Session[]
+  orders    Order[]
+  auditLogs AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+/// Opaque server-side sessions. The cookie carries a random token; only its
+/// SHA-256 digest is stored, so a database dump cannot be replayed as a login.
+model Session {
+  id            String   @id @default(cuid())
+  userId        String
+  tokenHash     String   @unique
+  userAgentHash String?
+  createdAt     DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+  expiresAt     DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Supplier {
+  id              String         @id @default(cuid())
+  userId          String         @unique
+  companyName     String
+  legalName       String?
+  taxId           String?
+  contactEmail    String?
+  status          SupplierStatus @default(PENDING)
+  rejectionReason String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pavilions  Pavilion[]
+  products   Product[]
+  orderItems OrderItem[]
+  shipments  Shipment[]
+
+  @@index([status])
+  @@map("suppliers")
+}
+
+/// A pavilion is a supplier's plot in the 3D world. `slot` is the world index
+/// an admin hands out; `worldPosition` caches the resolved coordinates so the
+/// scene does not have to recompute the layout on every load.
+model Pavilion {
+  id            String            @id @default(cuid())
+  supplierId    String
+  slot          Int               @unique
+  title         String
+  theme         PavilionTheme     @default(GRAPHITE)
+  status        PublicationStatus @default(DRAFT)
+  worldPosition Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  supplier Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@map("pavilions")
+}
+
+model Product {
+  id              String           @id @default(cuid())
+  supplierId      String
+  pavilionId      String?
+  slug            String           @unique
+  title           String
+  description     String
+  category        ProductCategory  @default(OTHER)
+  priceCents      Int
+  currency        Currency         @default(RUB)
+  stock           Int              @default(0)
+  status          ModerationStatus @default(DRAFT)
+  rejectionReason String?
+  submittedAt     DateTime?
+  publishedAt     DateTime?
+
+  // Shipping envelope, filled in the product wizard.
+  weightGrams Int @default(0)
+  lengthMm    Int @default(0)
+  widthMm     Int @default(0)
+  heightMm    Int @default(0)
+
+  // Denormalized counters, cheap to read in the scene, updated on write.
+  viewCount  Int @default(0)
+  orderCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplier     Supplier             @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  pavilion     Pavilion?            @relation(fields: [pavilionId], references: [id], onDelete: SetNull)
+  assets       ProductAsset[]
+  interactions ProductInteraction[]
+  orderItems   OrderItem[]
+
+  @@index([supplierId, status])
+  @@index([status, category])
+  @@index([pavilionId])
+  @@map("products")
+}
+
+/// Files that belong to a product. `storageKey` is the S3 object key; anything
+/// under the `public/` prefix is world-readable, everything else is served
+/// through short-lived presigned URLs.
+model ProductAsset {
+  id          String    @id @default(cuid())
+  productId   String
+  kind        AssetKind
+  storageKey  String
+  contentType String
+  byteSize    Int
+  checksum    String
+  /// Extraction results: triangle/material counts, animation clip names,
+  /// generated LOD levels, texture dimensions.
+  meta        Json?
+  createdAt   DateTime  @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, kind])
+  @@map("product_assets")
+}
+
+/// How a product "comes alive" in the scene. Either a clip that exists inside
+/// the GLB, or one of the built-in presets for models that ship without
+/// animation.
+model ProductInteraction {
+  id        String          @id @default(cuid())
+  productId String
+  type      InteractionType
+  /// Name of the glTF animation clip, required for GLTF_ANIMATION.
+  clipName  String?
+  /// Supplier-authored caption shown on the button, e.g. "Развернуть антенну".
+  label     String
+  labelEn   String?
+  order     Int             @default(0)
+  loop      Boolean         @default(false)
+  /// Preset parameters: axis and speed for spin, offsets for explode, etc.
+  config    Json?
+  createdAt DateTime        @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, order])
+  @@map("product_interactions")
+}
+
+model Order {
+  id       String      @id @default(cuid())
+  number   String      @unique
+  buyerId  String
+  status   OrderStatus @default(PENDING)
+  currency Currency    @default(RUB)
+
+  subtotalCents Int
+  shippingCents Int @default(0)
+  totalCents    Int
+
+  paymentProvider String?
+  paymentIntentId String?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer   User             @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+  items   OrderItem[]
+  address ShippingAddress?
+  shipments Shipment[]
+
+  @@index([buyerId, createdAt])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String @id @default(cuid())
+  orderId        String
+  productId      String
+  supplierId     String
+  /// Snapshot of what the buyer actually agreed to pay for. Editing the
+  /// product later must not rewrite history.
+  titleSnapshot  String
+  unitPriceCents Int
+  quantity       Int    @default(1)
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([supplierId])
+  @@map("order_items")
+}
+
+/// Personal data. Separate table on purpose: readable only by the order owner
+/// and admins, never written to logs, never joined into list endpoints.
+model ShippingAddress {
+  id         String  @id @default(cuid())
+  orderId    String  @unique
+  recipient  String
+  phone      String
+  country    String
+  region     String?
+  city       String
+  postalCode String
+  line1      String
+  line2      String?
+  comment    String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("shipping_addresses")
+}
+
+model Shipment {
+  id             String         @id @default(cuid())
+  orderId        String
+  supplierId     String
+  carrier        String
+  trackingNumber String?
+  status         ShipmentStatus @default(CREATED)
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([trackingNumber])
+  @@map("shipments")
+}
+
+/// Append-only trail of privileged actions. Contains no personal data: only
+/// entity ids, the action and a hashed client ip.
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actorRole   UserRole
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipHash      String?
+  createdAt   DateTime @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
