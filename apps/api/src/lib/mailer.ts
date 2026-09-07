@@ -164,3 +164,41 @@ async function send(message: { to: string; subject: string; text: string }): Pro
 export function resetMailer(): void {
   transporter = null;
 }
+
+export interface ModerationMailInput {
+  to: string;
+  locale: Locale;
+  title: string;
+  approved: boolean;
+  /** Required on a rejection; the supplier has nothing to act on without it. */
+  reason: string | null;
+}
+
+/**
+ * Tells a supplier what a moderator decided.
+ *
+ * A rejection carries the reason in full. It is the one place the text is
+ * repeated — the audit log keeps only its length, because a reason can name a
+ * person in a photograph or a trademark that is being disputed, and neither
+ * belongs in a log that is read by everyone with the admin role.
+ */
+export async function sendModerationNotice(input: ModerationMailInput): Promise<void> {
+  const dictionary = dictionaries[input.locale].email;
+
+  const subject = fill(
+    input.approved ? dictionary.moderationApproved : dictionary.moderationRejected,
+    { title: input.title },
+  );
+
+  const text = input.approved
+    ? fill(dictionary.moderationApprovedBody, { title: input.title })
+    : [
+        fill(dictionary.moderationRejectedBody, { title: input.title }),
+        '',
+        input.reason ?? '',
+        '',
+        dictionary.moderationRejectedFooter,
+      ].join('\n');
+
+  await send({ to: input.to, subject, text });
+}

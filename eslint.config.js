@@ -14,6 +14,9 @@ export default tseslint.config(
       'apps/web/.auth/**',
       'apps/web/test-results/**',
       'apps/web/playwright-report/**',
+      // Downloaded source assets and the tools' own scratch space.
+      '**/.cache/**',
+      '**/.ktx/**',
       '**/*.config.js',
     ],
   },

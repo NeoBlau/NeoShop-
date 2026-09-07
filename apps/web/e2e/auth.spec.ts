@@ -38,9 +38,11 @@ test('a buyer cannot reach the supplier area', async ({ page }) => {
 
   await page.goto('/supplier');
   await expect(page).toHaveURL(/\/$/);
-  // Home is the showroom; the counter in its corner is the cheapest proof that
-  // the world loaded rather than a blank canvas.
-  await expect(page.getByText(/Павильонов: \d+/)).toBeVisible({ timeout: 60_000 });
+  // Home is the street; the counter in its corner is the cheapest proof that
+  // the page decided it could show it rather than falling back to the
+  // catalogue. It appears with the data, ahead of the geometry, so a guard
+  // test does not end up waiting for a hundred megabytes of Paris.
+  await expect(page.getByText(/Магазинов: \d+/)).toBeVisible({ timeout: 60_000 });
 });
 
 test('an anonymous visitor is sent to the login page and back again', async ({ page }) => {

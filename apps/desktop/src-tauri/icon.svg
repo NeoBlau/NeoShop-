@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1e24"/>
+      <stop offset="1" stop-color="#0d0f13"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="225" fill="url(#tile)"/>
+
+  <g transform="translate(512 512)" fill="none" stroke="#e8c079"
+     stroke-width="23" stroke-linecap="round">
+    <circle cx="0" cy="0" r="317"/>
+    <line x1="-317" y1="0" x2="317" y2="0"/>
+    <ellipse cx="0" cy="0" rx="317" ry="317" />
+    <ellipse cx="0" cy="0" rx="249" ry="317" />
+  </g>
+
+  <rect width="1024" height="1024" rx="225" fill="url(#sheen)"/>
+</svg>

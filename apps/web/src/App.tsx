@@ -10,6 +10,11 @@ import { ProductWizardPage } from './routes/supplier/ProductWizardPage.js';
 import { ImportPage } from './routes/supplier/ImportPage.js';
 import { StatsPage } from './routes/supplier/StatsPage.js';
 import { AdminDashboard } from './routes/AdminDashboard.js';
+import { ModerationPage } from './routes/admin/ModerationPage.js';
+import { SuppliersPage } from './routes/admin/SuppliersPage.js';
+import { PavilionsPage } from './routes/admin/PavilionsPage.js';
+import { AuditPage } from './routes/admin/AuditPage.js';
+import { MetricsPage } from './routes/admin/MetricsPage.js';
 import { NotFoundPage } from './routes/NotFoundPage.js';
 import { CartPage } from './routes/CartPage.js';
 import { CheckoutPage } from './routes/CheckoutPage.js';
@@ -123,6 +128,21 @@ export function App() {
             </RequireRole>
           }
         />
+        {(
+          [
+            ['admin/moderation', <ModerationPage key="moderation" />],
+            ['admin/suppliers', <SuppliersPage key="suppliers" />],
+            ['admin/pavilions', <PavilionsPage key="pavilions" />],
+            ['admin/audit', <AuditPage key="audit" />],
+            ['admin/metrics', <MetricsPage key="metrics" />],
+          ] as const
+        ).map(([path, element]) => (
+          <Route
+            key={path}
+            path={path}
+            element={<RequireRole roles={['ADMIN']}>{element}</RequireRole>}
+          />
+        ))}
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

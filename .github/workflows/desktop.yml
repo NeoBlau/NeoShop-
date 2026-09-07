@@ -1,0 +1,93 @@
+# Desktop installers for macOS and Windows.
+#
+# The shell is a window onto the same web build — there is no second 3D code
+# path — so the whole job is: build the web app, build the location it walks
+# in, and let Tauri wrap it. Three runners because a .dmg can only be made on
+# macOS, an .msi only on Windows, and Apple Silicon and Intel are different
+# machines.
+#
+# It does not run on every push. Building the location takes the best part of
+# an hour on a cold cache, and an installer is something you cut, not something
+# you produce four times an hour.
+name: Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      # One broken platform should not hide the other two.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            label: macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            label: macos-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: windows-x64
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # The location is two gigabytes of source and an hour of encoding. It
+      # changes only when the build tool or its manifest does, so it is keyed
+      # on those and shared across every runner in the matrix.
+      - name: Cache the location
+        id: location
+        uses: actions/cache@v4
+        with:
+          path: apps/web/public/world
+          key: world-${{ hashFiles('apps/tools/src/build-location.ts', 'apps/tools/src/location-*.ts', 'apps/tools/src/fetch-assets.ts') }}
+
+      - name: Fetch and build the location
+        if: steps.location.outputs.cache-hit != 'true'
+        run: |
+          pnpm --filter @3dsfera/tools run fetch:assets
+          pnpm --filter @3dsfera/tools run build:location
+
+      - run: pnpm --filter @3dsfera/shared run build
+
+      # Regenerates the icon set from the committed SVG. The PNGs, the .icns
+      # and the .ico are all derived, so none of them are in the repository.
+      - name: Build the installer
+        run: |
+          pnpm --filter @3dsfera/desktop run icons
+          pnpm --filter @3dsfera/desktop exec tauri build --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 3dsfera-${{ matrix.label }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi

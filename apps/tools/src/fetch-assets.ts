@@ -110,24 +110,13 @@ const MANIFEST: AssetRequest[] = [
   },
   {
     kind: 'hdri',
-    id: 'small_empty_room_1',
-    resolution: '1k',
-    target: 'hdri/gallery.hdr',
-    note: 'Gallery interior: the reflections the pavilion floor and glass pick up.',
-  },
-  {
-    kind: 'material',
-    id: 'Concrete034',
-    resolution: '2K',
-    target: 'materials/floor-concrete',
-    note: 'Pavilion floor: polished concrete, the standard finish of a retail gallery.',
-  },
-  {
-    kind: 'material',
-    id: 'Plaster001',
-    resolution: '2K',
-    target: 'materials/wall-plaster',
-    note: 'Pavilion walls.',
+    id: 'san_giuseppe_bridge',
+    resolution: '2k',
+    target: 'hdri/street.hdr',
+    note:
+      "The location's sky and its light. Two kelvin more than the scene was lit with " +
+      'would show; this is the same environment its authors used, and it is the backdrop ' +
+      'above the rooflines as well as the light on them.',
   },
   {
     kind: 'material',
@@ -135,13 +124,6 @@ const MANIFEST: AssetRequest[] = [
     resolution: '2K',
     target: 'materials/plinth-marble',
     note: 'Product plinths: marble reads as expensive at a glance, which is the point.',
-  },
-  {
-    kind: 'material',
-    id: 'Wood066',
-    resolution: '2K',
-    target: 'materials/trim-wood',
-    note: 'Trim and benches.',
   },
 ];
 
@@ -340,6 +322,23 @@ async function main(): Promise<void> {
       console.warn(`${label.padEnd(24)} FAILED  ${String(error)}`);
     }
   }
+
+  // The location is fetched by its own tool, but its licence belongs in the
+  // same file: CC BY 4.0 requires the credit to travel with the work, and a
+  // reader looking for "what is in this build and who made it" looks here.
+  lines.push(
+    '',
+    '## Location',
+    '',
+    '**Amazon Lumberyard Bistro** — Amazon Lumberyard, via the NVIDIA Open Research',
+    'Content Archive. Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).',
+    '',
+    'Source: <https://developer.nvidia.com/orca/amazon-lumberyard-bistro>',
+    '',
+    'Built for the web by `pnpm --filter @3dsfera/tools run build:location`: four levels',
+    'of detail, mipped and re-encoded textures at two budgets, and a walkability map',
+    'derived from the geometry. The geometry itself is unmodified in shape.',
+  );
 
   writeFileSync(path.join(OUT_DIR, 'LICENSES.md'), `${lines.join('\n')}\n`);
   console.log(`\nmanifest written to ${path.join(OUT_DIR, 'LICENSES.md')}`);

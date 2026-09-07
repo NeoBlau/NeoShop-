@@ -236,30 +236,10 @@ export function ProductStand({
         />
       </mesh>
 
-      {/* Product spotlight: what makes a plinth read as a display rather than
-          a pedestal. Only the top tiers pay for the shadow. */}
-      <spotLight
-        position={[0, 3.4, 0.6]}
-        target-position={[0, PLINTH_HEIGHT, 0]}
-        angle={0.5}
-        // A wide penumbra and a falloff that reaches the floor: a hard-edged
-        // pool of light reads as a bug, not as a display.
-        penumbra={0.95}
-        intensity={highlight ? 26 : 17}
-        decay={1.6}
-        distance={11}
-        color="#fff6ea"
-        castShadow={quality.shadows !== false && quality.tier !== 'medium'}
-        shadow-mapSize-width={quality.shadows ? quality.shadows.mapSize : 512}
-        shadow-mapSize-height={quality.shadows ? quality.shadows.mapSize : 512}
-        // The shadow camera is fitted to the plinth. Left at the default
-        // 0.5–500 range, a 512-pixel map spreads its precision over half a
-        // kilometre and the product sits in a puddle of striped acne.
-        shadow-camera-near={1.5}
-        shadow-camera-far={6}
-        shadow-bias={-0.0008}
-        shadow-normalBias={0.02}
-      />
+      {/* No spotlight. On a street at midday it would be invisible, and it
+          used to cost one light per plinth: a display reads as a display here
+          because it stands on marble under a shop sign, not because something
+          is pointed at it. */}
 
       {visible && url ? (
         <Suspense fallback={null}>

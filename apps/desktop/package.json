@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build",
-    "tauri": "tauri"
+    "build": "pnpm run icons && tauri build",
+    "tauri": "tauri",
+    "icons": "pnpm --filter @3dsfera/tools run gen:icon && tauri icon src-tauri/icon.png"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4"

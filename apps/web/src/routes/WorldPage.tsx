@@ -11,8 +11,10 @@ import {
   webglUnavailable,
   type QualityTier,
 } from '../scene/quality.js';
+import { useProgress } from '@react-three/drei';
 import { TouchControls } from '../scene/world/TouchControls.js';
 import { useInput } from '../scene/world/input.js';
+import { useLocationData } from '../features/world/useLocationData.js';
 import { Alert } from '../ui/Alert.js';
 import { Button, Spinner } from '../ui/Button.js';
 import { CatalogGrid } from './CatalogPage.js';
@@ -142,6 +144,46 @@ function ProductPanel({
   );
 }
 
+/**
+ * What the buyer looks at while the street arrives.
+ *
+ * The location is a hundred and seventy megabytes at the top tier, and the
+ * canvas is transparent until the first frame of it exists — thirty seconds of
+ * nothing, which reads as a broken page rather than a loading one. This sits
+ * over the canvas until the loader says it is done, and then never returns: a
+ * product streaming in twenty metres away is not something to interrupt the
+ * world for.
+ */
+function SceneLoading() {
+  const { active, progress } = useProgress();
+  const [done, setDone] = useState(false);
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    if (!active && progress >= 100) setDone(true);
+  }, [active, progress]);
+
+  if (done) return null;
+
+  return (
+    // Transparent to the pointer on purpose. Someone watching a slow load must
+    // still be able to reach the quality selector and the way out to the flat
+    // catalogue; an overlay that swallows those is a trap, not a spinner.
+    <div className="bg-void/85 pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
+      <div className="text-ink-muted flex items-center gap-2 text-sm">
+        <Spinner />
+        {t('world.entering')}
+      </div>
+      <div className="bg-panel-raised h-1 w-48 overflow-hidden rounded-full">
+        <div
+          className="bg-accent h-full transition-[width] duration-300"
+          style={{ width: `${Math.min(100, Math.round(progress))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function WorldPage() {
   const { t, i18n } = useTranslation();
   const { world, loading, errorCode } = useWorld();
@@ -156,6 +198,11 @@ export function WorldPage() {
   const [touch, setTouch] = useState(false);
 
   const formatPrice = useMemo(() => formatPriceWith(i18n.language), [i18n.language]);
+
+  // The street itself: its map, its shop fronts and where a buyer arrives.
+  // Small enough to fetch ahead of the geometry, and required before anything
+  // can be placed in it.
+  const { location, loading: locationLoading, failed: locationFailed } = useLocationData();
 
   // Capabilities are probed once: each probe allocates a WebGL context, and
   // browsers cap how many may exist at a time.
@@ -194,7 +241,7 @@ export function WorldPage() {
     0,
   );
 
-  if (loading || mode === 'deciding') {
+  if (loading || locationLoading || mode === 'deciding') {
     return (
       <div className="text-ink-muted flex items-center justify-center gap-2 py-24 text-sm">
         <Spinner />
@@ -207,7 +254,9 @@ export function WorldPage() {
     return <Alert tone="danger">{t(`errors.${errorCode ?? 'ERR_INTERNAL'}`)}</Alert>;
   }
 
-  if (mode === 'flat') {
+  // No location, no street to walk. The catalogue sells the same products and
+  // is the honest answer, rather than a black canvas.
+  if (mode === 'flat' || locationFailed || !location) {
     return (
       <div className="flex flex-col gap-5">
         <Alert tone="info">{t('world.webglUnavailableHint')}</Alert>
@@ -237,6 +286,7 @@ export function WorldPage() {
       >
         <World
           world={world}
+          location={location}
           tier={tier}
           onTierChange={(next) => {
             if (autoTier) setTier(next);
@@ -250,6 +300,8 @@ export function WorldPage() {
         />
       </Suspense>
 
+      <SceneLoading />
+
       {/* Crosshair: without one it is hard to tell what a click will hit. */}
       {!selected ? (
         <div className="pointer-events-none absolute top-1/2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
@@ -259,6 +311,23 @@ export function WorldPage() {
         <div className="bg-void/70 border-edge text-ink-muted pointer-events-auto rounded-lg border px-3 py-2 text-xs backdrop-blur">
           <div>{t('world.pavilions', { count: world.pavilions.length })}</div>
           <div>{t('world.products', { count: productCount ?? 0 })}</div>
+
+          {/* The location is somebody else's work under CC BY 4.0, and the
+              licence asks for the credit to be shown wherever it is used.
+              Small, out of the way, and a link — not a footnote in a file
+              nobody opens. */}
+          <a
+            href={location.manifest.source.licenceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-ink-faint hover:text-ink mt-1 block max-w-[22ch] truncate"
+            title={`${location.manifest.source.title} — ${location.manifest.source.author}`}
+          >
+            {t('world.locationCredit', {
+              title: location.manifest.source.title,
+              licence: location.manifest.source.licence,
+            })}
+          </a>
         </div>
 
         <div className="bg-void/70 border-edge pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 text-xs backdrop-blur">

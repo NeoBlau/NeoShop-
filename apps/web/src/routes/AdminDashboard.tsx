@@ -5,16 +5,28 @@ import { Alert } from '../ui/Alert.js';
 import { Panel, SectionCard } from '../ui/Panel.js';
 import { Spinner } from '../ui/Button.js';
 
-interface Overview {
-  counts: {
-    users: number;
-    suppliersPending: number;
-    suppliersApproved: number;
-    products: number;
-    pavilions: number;
-    orders: number;
-  };
-}
+import type { AdminMetrics } from '@3dsfera/shared';
+
+type Overview = { counts: AdminMetrics['counts'] };
+
+/** Which counters get a card, and in which order. */
+const COUNTERS = [
+  'suppliersPending',
+  'productsPending',
+  'suppliersApproved',
+  'productsPublished',
+  'orderCount',
+  'usersCount',
+] as const;
+
+const COUNTER_KEYS: Record<(typeof COUNTERS)[number], keyof AdminMetrics['counts']> = {
+  suppliersPending: 'suppliersPending',
+  productsPending: 'productsPending',
+  suppliersApproved: 'suppliersApproved',
+  productsPublished: 'productsPublished',
+  orderCount: 'orders',
+  usersCount: 'users',
+};
 
 export function AdminDashboard() {
   const { t } = useTranslation();
@@ -45,10 +57,15 @@ export function AdminDashboard() {
       <Panel>
         {overview ? (
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            {Object.entries(overview.counts).map(([key, value]) => (
+            {/* Named rather than iterated over the object: the first version
+                printed the raw field names at a moderator, which is a debug
+                view wearing a dashboard's clothes. */}
+            {COUNTERS.map((key) => (
               <div key={key}>
-                <dt className="text-ink-faint text-xs">{key}</dt>
-                <dd className="mt-0.5 text-lg tabular-nums">{value}</dd>
+                <dt className="text-ink-faint text-xs">{t(`admin.${key}`)}</dt>
+                <dd className="mt-0.5 text-lg tabular-nums">
+                  {overview.counts[COUNTER_KEYS[key]]}
+                </dd>
               </div>
             ))}
           </dl>
@@ -61,10 +78,25 @@ export function AdminDashboard() {
       </Panel>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <SectionCard title={t('admin.moderation')} hint={t('admin.moderationHint')} />
-        <SectionCard title={t('admin.pavilions')} hint={t('admin.pavilionsHint')} />
-        <SectionCard title={t('admin.audit')} hint={t('admin.auditHint')} />
-        <SectionCard title={t('admin.metrics')} hint={t('admin.metricsHint')} />
+        <SectionCard
+          title={t('admin.moderation')}
+          hint={t('admin.moderationHint')}
+          to="/admin/moderation"
+          {...(overview ? { badge: String(overview.counts.productsPending) } : {})}
+        />
+        <SectionCard
+          title={t('admin.suppliers')}
+          hint={t('admin.suppliersHint')}
+          to="/admin/suppliers"
+          {...(overview ? { badge: String(overview.counts.suppliersPending) } : {})}
+        />
+        <SectionCard
+          title={t('admin.pavilions')}
+          hint={t('admin.pavilionsHint')}
+          to="/admin/pavilions"
+        />
+        <SectionCard title={t('admin.audit')} hint={t('admin.auditHint')} to="/admin/audit" />
+        <SectionCard title={t('admin.metrics')} hint={t('admin.metricsHint')} to="/admin/metrics" />
       </div>
     </div>
   );

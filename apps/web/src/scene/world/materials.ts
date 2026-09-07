@@ -6,17 +6,21 @@ import { LinearSRGBColorSpace, RepeatWrapping, SRGBColorSpace, type Texture } fr
 /**
  * Scanned PBR materials for the architecture.
  *
- * These are CC0 photogrammetry scans from ambientCG, fetched by
+ * A CC0 photogrammetry scan from ambientCG, fetched by
  * apps/tools/src/fetch-assets.ts and served from our own origin. A procedural
- * noise texture can pass for a small plastic part; it cannot pass for a
- * polished concrete floor at eye level, and the floor is most of what a buyer
- * sees while walking.
+ * noise texture can pass for a small plastic part; it cannot pass for polished
+ * marble at arm's length, which is where a product plinth is.
+ */
+/**
+ * Only the plinth is left.
+ *
+ * The street used to be built here out of primitives clad in scanned
+ * materials — concrete, plaster, brick, paving. It is a real location now, and
+ * it brings its own surfaces; the only thing this application still puts on
+ * the pavement is the marble a product stands on.
  */
 export const WORLD_MATERIALS = {
-  floor: 'floor-concrete',
-  wall: 'wall-plaster',
   plinth: 'plinth-marble',
-  trim: 'trim-wood',
 } as const;
 
 export type WorldMaterialName = keyof typeof WORLD_MATERIALS;

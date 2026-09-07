@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Euler, MathUtils, Vector3 } from 'three';
 import { movementFromKeys, useInput } from './input.js';
+import { groundAt, nearestWalkable, resolveMove, type NavigationGrid } from './navigation.js';
 
 /**
  * First-person movement through the world.
@@ -19,21 +20,18 @@ const ACCELERATION = 9;
 const LOOK_SENSITIVITY = 0.0022;
 const PITCH_LIMIT = Math.PI / 2 - 0.12;
 
-export interface WorldBounds {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-}
-
 export function PlayerControls({
-  bounds,
+  grid,
   enabled = true,
-  startPosition = [0, EYE_HEIGHT, 6],
+  startPosition = [0, EYE_HEIGHT, 0],
+  startYaw = 0,
 }: {
-  bounds: WorldBounds;
+  /** The location's map of where a person may stand. */
+  grid: NavigationGrid;
   enabled?: boolean;
   startPosition?: [number, number, number];
+  /** Radians about Y. Zero looks down -Z, the renderer's own default. */
+  startYaw?: number;
 }) {
   const camera = useThree((state) => state.camera);
   const domElement = useThree((state) => state.gl.domElement);
@@ -51,8 +49,20 @@ export function PlayerControls({
 
   if (!started.current) {
     started.current = true;
-    camera.position.set(...startPosition);
-    euler.current.setFromQuaternion(camera.quaternion);
+
+    // A spawn from a stale manifest, or one that lands a centimetre inside a
+    // kerb, would leave the buyer unable to move at all. Nudge onto the map.
+    const landing = nearestWalkable(grid, startPosition[0], startPosition[2]);
+    camera.position.set(
+      landing?.x ?? startPosition[0],
+      startPosition[1],
+      landing?.z ?? startPosition[2],
+    );
+    // Set rather than read: the renderer aims a fresh camera at the world
+    // origin, and a view that is correct only while the scene happens to be
+    // centred there is a view that breaks silently.
+    euler.current.set(0, startYaw, 0, 'YXZ');
+    camera.quaternion.setFromEuler(euler.current);
   }
 
   useEffect(() => {
@@ -144,10 +154,24 @@ export function PlayerControls({
     // reverse, and a ramp costs one lerp per frame.
     velocity.current.lerp(target, Math.min(1, ACCELERATION * delta));
 
-    camera.position.addScaledVector(velocity.current, delta);
-    camera.position.y = EYE_HEIGHT;
-    camera.position.x = MathUtils.clamp(camera.position.x, bounds.minX, bounds.maxX);
-    camera.position.z = MathUtils.clamp(camera.position.z, bounds.minZ, bounds.maxZ);
+    // Walls are real: the location's own geometry decided where they are, and
+    // the camera is tested against that map rather than against a rectangle
+    // somebody typed. Kerbs, bollards, café chairs and the Vespa are all in it.
+    const nextX = camera.position.x + velocity.current.x * delta;
+    const nextZ = camera.position.z + velocity.current.z * delta;
+    const moved = resolveMove(grid, camera.position.x, camera.position.z, nextX, nextZ);
+
+    // Kill the velocity along an axis that was refused, so walking into a wall
+    // does not store up speed that fires the buyer sideways at the next gap.
+    if (moved.x === camera.position.x) velocity.current.x = 0;
+    if (moved.z === camera.position.z) velocity.current.z = 0;
+
+    // The street is not flat. Eye height follows the pavement, smoothed, so a
+    // kerb is a step rather than a jolt.
+    const eyeTarget = groundAt(grid, moved.x, moved.z) + EYE_HEIGHT;
+    const eye = camera.position.y + (eyeTarget - camera.position.y) * Math.min(1, 12 * delta);
+
+    camera.position.set(moved.x, eye, moved.z);
   });
 
   return null;

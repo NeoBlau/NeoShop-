@@ -1,87 +1,43 @@
-import type { PavilionDimensions } from './Pavilion.js';
-
 /**
- * Where the plinths stand inside a hall.
+ * Where a supplier's plinths stand on the pavement.
  *
- * Two rows along the side walls with a clear central aisle: the layout of
- * every gallery and every good shop, for the same reason — the buyer walks a
- * line and every product is presented side-on with space around it. Overflow
- * goes to a back row rather than crowding the aisle.
+ * The location gives each supplier a shop front and a stretch of pavement in
+ * front of it. The products are laid out along that frontage in a single row
+ * facing the street, which is how a real shop uses its window: side-on, one
+ * step from the walker, nothing hidden behind anything else.
+ *
+ * Coordinates are local to the anchor — the scene rotates the whole group to
+ * face the street, so here +Z is "towards the buyer" and +X runs along the
+ * shop front.
  */
 
 export interface StandPlacement {
   position: [number, number, number];
-  /** Radians. Stands face the aisle so labels are readable while walking. */
+  /** Radians. Stands face the street, so this is a nudge, not a turn. */
   rotationY: number;
 }
 
-const AISLE_HALF_WIDTH = 3.2;
-const ROW_SPACING = 3.6;
-const WALL_MARGIN = 2.6;
+/** Metres between plinth centres. Wide enough that two products never touch. */
+const SPACING = 2.1;
 
-export function standPlacements(count: number, dimensions: PavilionDimensions): StandPlacement[] {
+/** How far the row bows towards the buyer at its ends. */
+const BOW = 0.35;
+
+export function standPlacements(count: number): StandPlacement[] {
   if (count === 0) return [];
 
-  const usableDepth = dimensions.depth - WALL_MARGIN * 2;
-  const perRow = Math.max(1, Math.floor(usableDepth / ROW_SPACING) + 1);
-  const placements: StandPlacement[] = [];
+  const span = (count - 1) * SPACING;
 
-  for (let index = 0; index < count; index += 1) {
-    const row = index % 2 === 0 ? -1 : 1;
-    const slot = Math.floor(index / 2);
+  return Array.from({ length: count }, (_, index) => {
+    const offset = -span / 2 + index * SPACING;
+    // A shallow arc rather than a straight line: the products at the ends turn
+    // a few degrees inward, so a buyer standing in the middle of the frontage
+    // sees every label square-on instead of edge-on.
+    const curve = span > 0 ? (offset / (span / 2)) ** 2 : 0;
 
-    if (slot < perRow) {
-      const z = dimensions.depth / 2 - WALL_MARGIN - slot * ROW_SPACING;
-      placements.push({
-        position: [row * AISLE_HALF_WIDTH, 0, z],
-        rotationY: row === -1 ? Math.PI / 2 : -Math.PI / 2,
-      });
-      continue;
-    }
-
-    // Back row, facing the entrance. The spacing is derived from how many
-    // stands actually land here, not from a guess at the total: an earlier
-    // version divided by a third of the product count and pushed the last
-    // plinths of a large pavilion straight through the side wall.
-    const backIndex = index - perRow * 2;
-    const backCount = count - perRow * 2;
-    const usableWidth = dimensions.width - WALL_MARGIN * 2;
-    const step = backCount > 1 ? usableWidth / (backCount - 1) : 0;
-
-    placements.push({
-      position: [
-        backCount > 1 ? -usableWidth / 2 + backIndex * step : 0,
-        0,
-        -dimensions.depth / 2 + WALL_MARGIN,
-      ],
-      rotationY: 0,
-    });
-  }
-
-  return placements;
-}
-
-/** The rectangle the buyer may walk in, across every pavilion in the world. */
-export function worldBounds(
-  pavilionCentres: number[],
-  dimensions: PavilionDimensions,
-): { minX: number; maxX: number; minZ: number; maxZ: number } {
-  const margin = 0.9;
-
-  if (pavilionCentres.length === 0) {
     return {
-      minX: -dimensions.width / 2 + margin,
-      maxX: dimensions.width / 2 - margin,
-      minZ: -dimensions.depth / 2 + margin,
-      maxZ: dimensions.depth / 2 - margin,
+      position: [offset, 0, BOW * curve],
+      rotationY: span > 0 ? (-offset / (span / 2)) * 0.22 : 0,
     };
-  }
-
-  return {
-    minX: Math.min(...pavilionCentres) - dimensions.width / 2 + margin,
-    maxX: Math.max(...pavilionCentres) + dimensions.width / 2 - margin,
-    minZ: -dimensions.depth / 2 + margin,
-    // The promenade in front of the halls, where the buyer walks between them.
-    maxZ: dimensions.depth / 2 + 12,
-  };
+  });
 }

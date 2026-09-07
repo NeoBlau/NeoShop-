@@ -1,56 +1,73 @@
-import { Suspense, useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { AdaptiveDpr, Environment, PerformanceMonitor, Stats } from '@react-three/drei';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { AdaptiveDpr, Environment, PerformanceMonitor, Stats, Text } from '@react-three/drei';
 import { Bloom, EffectComposer, SMAA, SSAO, ToneMapping } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
-import { ACESFilmicToneMapping, PCFSoftShadowMap } from 'three';
+import { ACESFilmicToneMapping, PCFSoftShadowMap, type DirectionalLight } from 'three';
 import type { WorldProduct, WorldResponse } from '@3dsfera/shared';
 import { lowerTier, settingsFor, type QualitySettings, type QualityTier } from '../quality.js';
-import { DEFAULT_PAVILION, PAVILION_THEMES, Pavilion } from './Pavilion.js';
+import { Location } from './Location.js';
 import { ProductStand } from './ProductStand.js';
-import { standPlacements, worldBounds } from './layout.js';
-import { PlayerControls } from './PlayerControls.js';
-import { useWorldMaterial } from './materials.js';
+import { standPlacements } from './layout.js';
+import { EYE_HEIGHT, PlayerControls } from './PlayerControls.js';
+import { SCENE_FONT } from './fonts.js';
+import { groundAt } from './navigation.js';
+import type { LocationData } from '../../features/world/useLocationData.js';
 
 /**
- * The world: a row of pavilions on a promenade, with the buyer walking between
- * them.
+ * The world: a street, and the suppliers who have a shop on it.
  *
- * The environment map is a real photographed HDRI, served from our own origin.
- * drei's `Environment preset` would pull one from a public bucket, which fails
- * offline and is refused by the desktop shell's content security policy.
+ * The street is the Amazon Lumberyard Bistro from the Open Research Content
+ * Archive, under CC BY 4.0. Each supplier is given one of its shop fronts —
+ * found by the asset build from the signs the artists painted — and lays their
+ * products out on the pavement in front of it.
+ *
+ * The sky and the light both come from a photographed HDRI served from our own
+ * origin. drei's `Environment preset` would pull one from a public bucket,
+ * which fails offline and is refused by the desktop shell's content security
+ * policy.
  */
 
-const GALLERY_HDRI = '/world/hdri/gallery.hdr';
+const STREET_HDRI = '/world/hdri/street.hdr';
 
-/** Depth of the walkway in front of the halls, in metres. */
-const PROMENADE_DEPTH = 34;
+/**
+ * A sun that follows the buyer.
+ *
+ * One shadow map has to cover whatever is on screen. Stretched over a hundred
+ * and seventy metres of street its texels are the size of a dinner plate and
+ * every shadow turns to mush; kept to a forty-metre box around the camera it
+ * is four centimetres a texel, which is enough to see the legs of a chair.
+ */
+function Sun({ quality }: { quality: QualitySettings }) {
+  const light = useRef<DirectionalLight>(null);
+  const shadows = quality.shadows;
 
-/** The ground outside the halls. Large enough to reach the horizon. */
-function Promenade({ quality, width }: { quality: QualitySettings; width: number }) {
-  const floor = useWorldMaterial('floor', [width / 3, 24], quality.anisotropy);
+  useFrame(({ camera }) => {
+    const sun = light.current;
+    if (!sun) return;
+
+    sun.position.set(camera.position.x + 38, 62, camera.position.z + 26);
+    sun.target.position.set(camera.position.x, 0, camera.position.z);
+    sun.target.updateMatrixWorld();
+  });
 
   return (
-    // Starts where the halls end. An earlier version was centred so that it
-    // overlapped the pavilion floors by nine metres, and two coplanar surfaces
-    // two centimetres apart produce a fan of z-fighting stripes across the
-    // whole room.
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, -0.015, DEFAULT_PAVILION.depth / 2 + PROMENADE_DEPTH / 2]}
-      receiveShadow
-    >
-      <planeGeometry args={[width + 60, PROMENADE_DEPTH]} />
-      <meshStandardMaterial
-        map={floor.map}
-        normalMap={floor.normalMap}
-        roughnessMap={floor.ormMap}
-        color="#8b8d92"
-        roughness={0.6}
-        metalness={0.04}
-        envMapIntensity={0.7}
-      />
-    </mesh>
+    <directionalLight
+      ref={light}
+      intensity={2.6}
+      color="#fff2df"
+      castShadow={shadows !== false}
+      shadow-mapSize-width={shadows ? shadows.mapSize : 1024}
+      shadow-mapSize-height={shadows ? shadows.mapSize : 1024}
+      shadow-camera-near={10}
+      shadow-camera-far={140}
+      shadow-camera-left={-40}
+      shadow-camera-right={40}
+      shadow-camera-top={40}
+      shadow-camera-bottom={-40}
+      shadow-bias={-0.0009}
+      shadow-normalBias={0.035}
+    />
   );
 }
 
@@ -64,10 +81,10 @@ function Effects({ quality }: { quality: QualitySettings }) {
           blendFunction={BlendFunction.MULTIPLY}
           samples={16}
           radius={0.09}
-          intensity={22}
-          luminanceInfluence={0.55}
-          worldDistanceThreshold={12}
-          worldDistanceFalloff={2}
+          intensity={18}
+          luminanceInfluence={0.6}
+          worldDistanceThreshold={20}
+          worldDistanceFalloff={4}
           worldProximityThreshold={0.6}
           worldProximityFalloff={0.2}
         />
@@ -75,7 +92,7 @@ function Effects({ quality }: { quality: QualitySettings }) {
         <></>
       )}
       {quality.bloom ? (
-        <Bloom intensity={0.42} luminanceThreshold={0.9} luminanceSmoothing={0.25} mipmapBlur />
+        <Bloom intensity={0.28} luminanceThreshold={0.95} luminanceSmoothing={0.3} mipmapBlur />
       ) : (
         <></>
       )}
@@ -87,6 +104,7 @@ function Effects({ quality }: { quality: QualitySettings }) {
 
 export interface WorldProps {
   world: WorldResponse;
+  location: LocationData;
   tier: QualityTier;
   onTierChange: (tier: QualityTier) => void;
   selectedProductId: string | null;
@@ -98,8 +116,77 @@ export interface WorldProps {
   controlsEnabled: boolean;
 }
 
-export function World({
+/** One supplier's frontage: their name over their products. */
+function SupplierFront({
+  name,
+  products,
+  anchor,
+  quality,
+  selectedProductId,
+  activeClip,
+  loop,
+  onSelect,
+  formatPrice,
+}: {
+  name: string;
+  products: WorldProduct[];
+  anchor: LocationData['manifest']['anchors'][number];
+  quality: QualitySettings;
+  selectedProductId: string | null;
+  activeClip: string | null;
+  loop: boolean;
+  onSelect: (product: WorldProduct | null) => void;
+  formatPrice: (cents: number, currency: string) => string;
+}) {
+  const placements = useMemo(() => standPlacements(products.length), [products.length]);
+
+  return (
+    <group position={anchor.stand} rotation={[0, anchor.facing, 0]}>
+      {/* The supplier's name, at the height of the shop sign above them and
+          turned to face the same way. The street's own painted signs stay: a
+          name board hung under one reads as a tenant, which is what they are. */}
+      <Text
+        font={SCENE_FONT}
+        position={[0, 2.9, -0.4]}
+        fontSize={0.34}
+        maxWidth={6}
+        textAlign="center"
+        anchorX="center"
+        anchorY="middle"
+        color="#f4e2c2"
+        outlineWidth={0.012}
+        outlineColor="#241a10"
+      >
+        {name}
+      </Text>
+
+      {products.map((product, index) => {
+        const stand = placements[index];
+        if (!stand) return null;
+
+        return (
+          <group key={product.id} rotation={[0, stand.rotationY, 0]}>
+            <ProductStand
+              product={product}
+              position={stand.position}
+              quality={quality}
+              selected={selectedProductId === product.id}
+              activeClip={activeClip}
+              loop={loop}
+              onSelect={onSelect}
+              formatPrice={formatPrice}
+            />
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+/** The part of the scene that lives inside the canvas. */
+function Scene({
   world,
+  location,
   tier,
   onTierChange,
   selectedProductId,
@@ -108,91 +195,66 @@ export function World({
   onSelect,
   formatPrice,
   controlsEnabled,
-}: WorldProps) {
-  const quality = settingsFor(tier);
+  quality,
+}: WorldProps & { quality: QualitySettings }) {
+  const { grid, manifest } = location;
+  const renderer = useThree((state) => state.gl);
 
-  const centres = useMemo(
-    () => world.pavilions.map((pavilion) => pavilion.worldPosition.x),
-    [world.pavilions],
-  );
-
-  const bounds = useMemo(() => worldBounds(centres, DEFAULT_PAVILION), [centres]);
-  const spread = Math.max(1, centres.length) * world.pavilionSpacing;
+  useEffect(() => {
+    // The street was authored for a renderer with a physical sky. Ours is
+    // close enough that the exposure, not the lighting, is what needs saying.
+    renderer.toneMappingExposure = 1.05;
+  }, [renderer]);
 
   return (
-    <Canvas
-      camera={{ position: [0, 1.65, DEFAULT_PAVILION.depth / 2 + 8], fov: 62, near: 0.1, far: 160 }}
-      dpr={[1, quality.maxPixelRatio]}
-      shadows={quality.shadows ? (quality.shadows.soft ? 'soft' : true) : false}
-      gl={{ antialias: quality.antialiasing === 'msaa', powerPreference: 'high-performance' }}
-      onCreated={({ gl }) => {
-        gl.toneMapping = ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.15;
-        if (quality.shadows) {
-          gl.shadowMap.enabled = true;
-          gl.shadowMap.type = PCFSoftShadowMap;
-        }
-      }}
-    >
-      <color attach="background" args={['#0b0c0e']} />
-      <fog attach="fog" args={['#0b0c0e', 30, 120]} />
-
-      <hemisphereLight args={['#cdd6e2', '#2c2f34', 0.6]} />
-
+    <>
       <Suspense fallback={null}>
-        {/* Image-based lighting from a photographed interior: this is what puts
-            believable reflections on metal and glass. `background` stays off —
-            the halls are what the buyer should see, not a photo sphere. */}
-        <Environment files={GALLERY_HDRI} environmentIntensity={0.55} />
+        {/* The sky is the backdrop as well as the light: this is an outdoors
+            scene, and a flat colour above the rooflines gives it away. */}
+        <Environment
+          files={STREET_HDRI}
+          environmentIntensity={1}
+          background
+          backgroundBlurriness={0}
+        />
 
-        <Promenade quality={quality} width={spread} />
+        <Location quality={quality} />
 
-        {world.pavilions.map((pavilion) => {
-          const theme = PAVILION_THEMES[pavilion.theme] ?? PAVILION_THEMES['GRAPHITE'];
-          if (!theme) return null;
-
-          const placements = standPlacements(pavilion.products.length, DEFAULT_PAVILION);
+        {world.pavilions.map((pavilion, index) => {
+          const anchor = manifest.anchors[index % Math.max(1, manifest.anchors.length)];
+          if (!anchor || pavilion.products.length === 0) return null;
 
           return (
-            <group
+            <SupplierFront
               key={pavilion.id}
-              position={[
-                pavilion.worldPosition.x,
-                pavilion.worldPosition.y,
-                pavilion.worldPosition.z,
-              ]}
-              rotation={[0, pavilion.worldPosition.rotationY, 0]}
-            >
-              <Pavilion theme={theme} title={pavilion.supplierName} quality={quality} />
-
-              {pavilion.products.map((product, index) => {
-                const placement = placements[index];
-                if (!placement) return null;
-
-                return (
-                  <group key={product.id} rotation={[0, placement.rotationY, 0]}>
-                    <ProductStand
-                      product={product}
-                      position={placement.position}
-                      quality={quality}
-                      selected={selectedProductId === product.id}
-                      activeClip={activeClip}
-                      loop={loop}
-                      onSelect={onSelect}
-                      formatPrice={formatPrice}
-                    />
-                  </group>
-                );
-              })}
-            </group>
+              name={pavilion.supplierName}
+              products={pavilion.products}
+              anchor={anchor}
+              quality={quality}
+              selectedProductId={selectedProductId}
+              activeClip={activeClip}
+              loop={loop}
+              onSelect={onSelect}
+              formatPrice={formatPrice}
+            />
           );
         })}
       </Suspense>
 
+      <Sun quality={quality} />
+      {/* A little sky bounce into the shaded side of the street. The HDRI does
+          most of it; this keeps the north-facing walls from going flat. */}
+      <hemisphereLight args={['#cfe0f5', '#6d6455', 0.35]} />
+
       <PlayerControls
-        bounds={bounds}
+        grid={grid}
         enabled={controlsEnabled}
-        startPosition={[centres[0] ?? 0, 1.65, DEFAULT_PAVILION.depth / 2 + 7]}
+        startPosition={[
+          manifest.spawn.position[0],
+          groundAt(grid, manifest.spawn.position[0], manifest.spawn.position[2]) + EYE_HEIGHT,
+          manifest.spawn.position[2],
+        ]}
+        startYaw={manifest.spawn.yaw}
       />
 
       <Effects quality={quality} />
@@ -209,6 +271,39 @@ export function World({
       />
 
       {import.meta.env.DEV ? <Stats /> : null}
+    </>
+  );
+}
+
+export function World(props: WorldProps) {
+  const quality = settingsFor(props.tier);
+  const { grid, manifest } = props.location;
+  const spawn = manifest.spawn;
+
+  return (
+    <Canvas
+      camera={{
+        position: [
+          spawn.position[0],
+          groundAt(grid, spawn.position[0], spawn.position[2]) + EYE_HEIGHT,
+          spawn.position[2],
+        ],
+        fov: 62,
+        near: 0.1,
+        far: 400,
+      }}
+      dpr={[1, quality.maxPixelRatio]}
+      shadows={quality.shadows ? (quality.shadows.soft ? 'soft' : true) : false}
+      gl={{ antialias: quality.antialiasing === 'msaa', powerPreference: 'high-performance' }}
+      onCreated={({ gl }) => {
+        gl.toneMapping = ACESFilmicToneMapping;
+        if (quality.shadows) {
+          gl.shadowMap.enabled = true;
+          gl.shadowMap.type = PCFSoftShadowMap;
+        }
+      }}
+    >
+      <Scene {...props} quality={quality} />
     </Canvas>
   );
 }

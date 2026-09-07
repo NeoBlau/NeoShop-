@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { BUYER_STATE, SUPPLIER_STATE } from './e2e/auth-state.js';
+import { ADMIN_STATE, BUYER_STATE, SUPPLIER_STATE } from './e2e/auth-state.js';
 
 const WEB_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 
@@ -41,9 +41,16 @@ export default defineConfig({
     {
       name: 'chromium',
       use: chromium,
-      testIgnore: [/supplier-wizard\.spec\.ts/, /checkout\.spec\.ts/, /\.setup\.ts/],
-      // The scene needs a while to compile shaders under a software renderer.
-      timeout: 90_000,
+      testIgnore: [
+        /supplier-wizard\.spec\.ts/,
+        /checkout\.spec\.ts/,
+        /admin\.spec\.ts/,
+        /\.setup\.ts/,
+      ],
+      // A street of two and a half million triangles and four hundred textures,
+      // transcoded and shaded by a software rasteriser. Three minutes is not
+      // generous here, it is the measured cost.
+      timeout: 240_000,
     },
     { name: 'setup', use: chromium, testMatch: /\.setup\.ts/ },
     // Supplier specs reuse the session the setup project signed in with.
@@ -59,6 +66,14 @@ export default defineConfig({
       use: { ...chromium, storageState: BUYER_STATE },
       testMatch: /checkout\.spec\.ts/,
       dependencies: ['setup'],
+    },
+    // Administration runs last: it takes a product off the street and puts it
+    // back, and the specs that expect to find it there should have run first.
+    {
+      name: 'admin',
+      use: { ...chromium, storageState: ADMIN_STATE },
+      testMatch: /admin\.spec\.ts/,
+      dependencies: ['setup', 'buyer'],
     },
   ],
   webServer: [

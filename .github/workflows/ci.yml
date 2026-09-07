@@ -1,0 +1,42 @@
+# The checks that run on every push: types, lint, formatting and unit tests.
+#
+# The end-to-end suite is deliberately not here. It needs Postgres, MinIO, a
+# seeded database and the location — twenty minutes of setup for a check that
+# belongs on a pull request, not on every commit. `make e2e` runs it locally
+# with one command, which is the point.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Prisma's client is generated, not committed; nothing typechecks
+      # without it.
+      - run: pnpm --filter @3dsfera/api exec prisma generate
+
+      - run: pnpm --filter @3dsfera/shared run build
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test

@@ -9,6 +9,7 @@ import type {
   ModerationStatus,
   ProcessingStatus,
   ProductCategory,
+  PublicationStatus,
   SupplierStatus,
   UserRole,
 } from './domain.js';
@@ -301,4 +302,96 @@ export interface SupplierOrderDto {
    * until the label is printed. */
   destination: { country: string; city: string };
   shipment: ShipmentDto | null;
+}
+
+/**
+ * Administration read models.
+ *
+ * The admin sees more than anyone else and therefore needs the most care about
+ * what is actually put on the wire: a moderation queue carries the model to
+ * preview and the reason it is queued, and nothing about the buyer.
+ */
+export interface ModerationItem {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  category: ProductCategory;
+  priceCents: number;
+  currency: Currency;
+  status: ModerationStatus;
+  submittedAt: string | null;
+  supplier: { id: string; companyName: string; status: SupplierStatus };
+  /** Ordered from full detail down; empty while the model is still processing. */
+  levels: WorldModelLevel[];
+  previewUrl: string | null;
+  interactions: { id: string; label: string; clipName: string | null }[];
+  /** What the upload pipeline measured, so a decision needs no second opinion. */
+  stats: { triangles: number; materials: number; textures: number; bytes: number } | null;
+}
+
+export interface AdminSupplier {
+  id: string;
+  companyName: string;
+  legalName: string | null;
+  taxId: string | null;
+  contactEmail: string | null;
+  status: SupplierStatus;
+  rejectionReason: string | null;
+  createdAt: string;
+  productCount: number;
+  pavilionCount: number;
+}
+
+export interface AdminPavilion {
+  id: string;
+  slot: number;
+  title: string;
+  theme: PavilionTheme;
+  status: PublicationStatus;
+  supplier: { id: string; companyName: string; status: SupplierStatus };
+  productCount: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  actor: { id: string; email: string; role: UserRole } | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AuditPage {
+  entries: AuditEntry[];
+  /** Pass back as `cursor` for the next page; absent at the end. */
+  nextCursor?: string;
+}
+
+export interface AdminMetrics {
+  counts: {
+    users: number;
+    suppliersPending: number;
+    suppliersApproved: number;
+    suppliersBlocked: number;
+    productsPending: number;
+    productsPublished: number;
+    pavilions: number;
+    orders: number;
+  };
+  /** Money is in minor units, like everywhere else. */
+  revenue: { currency: Currency; paidCents: number; orders: number }[];
+  /** Views and orders per product, best first. */
+  topProducts: {
+    id: string;
+    title: string;
+    supplierName: string;
+    viewCount: number;
+    orderCount: number;
+    /** Orders per hundred views, rounded to one decimal. */
+    conversion: number;
+  }[];
+  /** Orders per day for the last fortnight, oldest first. */
+  ordersByDay: { day: string; orders: number; paidCents: number }[];
 }

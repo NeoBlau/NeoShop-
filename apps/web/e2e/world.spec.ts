@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * The showroom, and the promise that buying works without it.
+ * The street, and the promise that buying works without it.
  *
  * The 3D scene itself is verified by eye and by unit tests over its pure
  * parts — asserting on pixels rendered by a software rasteriser in CI proves
@@ -10,13 +10,17 @@ import { expect, test } from '@playwright/test';
  * and that a buyer can put one in the cart either way.
  */
 
-test('the showroom loads with the seeded pavilions', async ({ page }) => {
+test('the street loads with the seeded shops', async ({ page }) => {
   test.slow();
   await page.goto('/');
 
-  await expect(page.getByText(/Павильонов: \d+/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Магазинов: \d+/)).toBeVisible({ timeout: 120_000 });
   await expect(page.getByText(/Товаров: [1-9]/)).toBeVisible();
   await expect(page.locator('canvas[data-engine]').first()).toBeVisible();
+
+  // The location is somebody else's work under CC BY 4.0. The credit is a
+  // licence condition, not decoration, so its absence is a test failure.
+  await expect(page.getByRole('link', { name: /Bistro/ })).toBeVisible();
 
   // The controls hint tells a first-time visitor what to do; its absence is
   // how a 3D scene turns into a black rectangle nobody interacts with.
@@ -26,7 +30,7 @@ test('the showroom loads with the seeded pavilions', async ({ page }) => {
 test('quality can be pinned instead of left to the device', async ({ page }) => {
   await page.goto('/');
   const select = page.getByRole('combobox');
-  await expect(select).toBeVisible({ timeout: 60_000 });
+  await expect(select).toBeVisible({ timeout: 120_000 });
 
   await select.selectOption('low');
   await expect(select).toHaveValue('low');
@@ -56,7 +60,7 @@ test('the flat catalog carries the same products and can sell them', async ({ pa
 test('the showroom can be left for the catalog at any moment', async ({ page }) => {
   test.slow();
   await page.goto('/');
-  await expect(page.getByText(/Павильонов: \d+/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Магазинов: \d+/)).toBeVisible({ timeout: 120_000 });
 
   await page.getByRole('button', { name: 'Открыть плоский каталог' }).click();
   await expect(page.getByText('Антенна спутниковая «Орбита 1.2»')).toBeVisible();

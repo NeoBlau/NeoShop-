@@ -13,3 +13,4 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const SUPPLIER_STATE = path.resolve(here, '../.auth/supplier.json');
 export const BUYER_STATE = path.resolve(here, '../.auth/buyer.json');
+export const ADMIN_STATE = path.resolve(here, '../.auth/admin.json');

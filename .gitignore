@@ -40,3 +40,13 @@ apps/web/public/world/
 # `make assets` regenerates them deterministically from committed generators.
 apps/api/prisma/seed-assets/textures/
 apps/api/prisma/seed-assets/*.glb
+
+# Downloaded source assets for the location build, and the KTX tools it fetches.
+apps/tools/.cache/
+apps/tools/.ktx/
+
+# The desktop icon set is generated from src-tauri/icon.svg by `pnpm --filter
+# @3dsfera/desktop run icons`, which the desktop build runs first.
+apps/desktop/src-tauri/icon.png
+apps/desktop/src-tauri/icons/
+apps/desktop/src-tauri/gen/
