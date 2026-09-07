@@ -36,6 +36,30 @@ Postgres, MinIO и Mailpit в докере, применяет миграции,
 Требования: Node 22+, pnpm 10+, Docker с плагином compose. Для `make installer`
 дополнительно нужен Rust — веб-версии он не нужен.
 
+Если `make dev` падает на `make: pnpm: No such file or directory`, значит
+инструментов ещё нет. На macOS:
+
+```bash
+# Homebrew, если его нет
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+eval "$(/opt/homebrew/bin/brew shellenv)"   # Apple Silicon
+
+brew install node pnpm
+brew install --cask docker                  # и запустить Docker Desktop
+```
+
+Проверка: `node -v` даёт v22 или выше, `pnpm -v` — 10 или выше, `docker ps`
+выводит список контейнеров, а не ошибку подключения к демону.
+
+Если Node стоит через `nvm`, pnpm лучше включить через corepack — версия тогда
+берётся из поля `packageManager`:
+
+```bash
+corepack enable && corepack prepare pnpm@10.33.0 --activate
+```
+
+С Homebrew-нодой этот путь не работает: corepack из формулы вырезан.
+
 Утилиту [KTX-Software](https://github.com/KhronosGroup/KTX-Software) ставить не
 нужно: `make location` скачивает её сам в `apps/tools/.ktx`. Для загрузок
 поставщиков она берётся из PATH, если есть; если нет, текстуры переводятся в
