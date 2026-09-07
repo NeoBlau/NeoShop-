@@ -33,13 +33,13 @@ Postgres, MinIO и Mailpit в докере, применяет миграции,
 | MinIO console   | http://localhost:9001 |
 | Prisma Studio   | `make db-studio`      |
 
-Требования: Node 22+, pnpm 10+, Docker с плагином compose. Для десктопной
-сборки дополнительно нужен Rust — но она понадобится только на шестом этапе.
+Требования: Node 22+, pnpm 10+, Docker с плагином compose. Для `make installer`
+дополнительно нужен Rust — веб-версии он не нужен.
 
-Необязательно: [KTX-Software](https://github.com/KhronosGroup/KTX-Software)
-(`brew install ktx`, `apt install ktx-tools`). Если утилита `ktx` есть в PATH,
-текстуры сжимаются в KTX2; если нет, они переводятся в WebP, а в отчёте
-оптимизации честно пишется, что шаг пропущен.
+Утилиту [KTX-Software](https://github.com/KhronosGroup/KTX-Software) ставить не
+нужно: `make location` скачивает её сам в `apps/tools/.ktx`. Для загрузок
+поставщиков она берётся из PATH, если есть; если нет, текстуры переводятся в
+WebP, а в отчёте оптимизации честно пишется, что шаг пропущен.
 
 ### Демоаккаунты
 
