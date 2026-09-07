@@ -43,14 +43,26 @@ test('a rejection needs a reason, and the supplier gets it', async ({ page }) =>
   await page.goto('/admin/moderation');
   await expect(page.getByRole('heading', { name: 'Модерация' })).toBeVisible();
 
-  // Anchored on position, not on the buttons inside it: pressing "reject"
-  // swaps them for the reason form, and a locator that matched on "publish"
-  // stops matching the card it was pointing at.
-  const card = page.locator('section').first();
-  await expect(card).toBeVisible({ timeout: 30_000 });
+  // Pick the first card whose company is already approved. A product belonging
+  // to a company still on moderation cannot be published at all — the server
+  // refuses it — so rejecting one would leave it rejected with no way back,
+  // which is exactly what an earlier version of this file did.
+  const candidate = page
+    .locator('section')
+    .filter({ has: page.getByRole('button', { name: 'Опубликовать' }) })
+    .filter({ hasNot: page.getByText(/ещё не одобрена/) })
+    .first();
 
-  rejectedTitle = (await card.getByRole('heading').first().textContent()) ?? '';
+  await expect(candidate).toBeVisible({ timeout: 30_000 });
+
+  rejectedTitle = (await candidate.getByRole('heading').first().textContent()) ?? '';
   expect(rejectedTitle).not.toBe('');
+
+  // Re-anchor on the title before touching anything. Locators are lazy and
+  // re-resolve on every action: pressing "reject" swaps the publish button for
+  // the reason form, the filter above stops matching this card, and the next
+  // step would quietly act on a different product.
+  const card = page.locator('section').filter({ hasText: rejectedTitle }).first();
 
   await card.getByRole('button', { name: 'Отклонить', exact: true }).click();
   // Too short: the server refuses it and the moderator is told why, rather

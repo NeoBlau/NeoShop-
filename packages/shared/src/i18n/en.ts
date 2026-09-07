@@ -95,6 +95,8 @@ export const en: Dictionary = {
     metricsHint: 'Visitors, views, conversion',
     suppliers: 'Suppliers',
     suppliersHint: 'Approve, reject, block',
+    supplierNotApproved:
+      '{{company}} is not approved yet ({{status}}). The company comes first, then its products:',
     queueEmpty: 'The queue is empty',
     queueEmptyHint: 'New products appear here as soon as suppliers submit them.',
     submittedAt: 'Submitted {{date}}',

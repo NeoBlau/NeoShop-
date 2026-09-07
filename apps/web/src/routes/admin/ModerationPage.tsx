@@ -120,6 +120,12 @@ function QueueItem({
 
   const model = item.levels[0]?.url ?? null;
 
+  // A product cannot be published while its company is still on moderation —
+  // the server refuses it, and rightly. Saying so on the card beats letting a
+  // moderator press the button and read the refusal afterwards: the thing that
+  // needs approving first is the company, and there is a link to it.
+  const supplierBlocked = item.supplier.status !== 'APPROVED';
+
   async function decide(action: 'approve' | 'reject'): Promise<void> {
     if (action === 'reject' && reason.trim().length < 8) {
       setErrorCode('reason');
@@ -216,6 +222,18 @@ function QueueItem({
         </div>
       </div>
 
+      {supplierBlocked ? (
+        <Alert tone="warning">
+          {t('admin.supplierNotApproved', {
+            company: item.supplier.companyName,
+            status: t(`supplierStatus.${item.supplier.status}`),
+          })}{' '}
+          <Link to="/admin/suppliers" className="underline">
+            {t('admin.suppliers')}
+          </Link>
+        </Alert>
+      ) : null}
+
       {errorCode ? (
         <Alert tone="danger">
           {errorCode === 'reason' ? t('admin.reasonRequired') : t(`errors.${errorCode}`)}
@@ -242,7 +260,7 @@ function QueueItem({
         </div>
       ) : (
         <div className="flex gap-2">
-          <Button loading={busy} onClick={() => void decide('approve')}>
+          <Button loading={busy} disabled={supplierBlocked} onClick={() => void decide('approve')}>
             {t('admin.approve')}
           </Button>
           <Button variant="ghost" onClick={() => setRejecting(true)}>
