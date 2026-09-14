@@ -24,50 +24,68 @@ export function idef0Layout(diagram, options = {}) {
     h: node.h,
   }]));
 
-  // boundary anchors sit outside the block of function boxes
+  // boundary anchors sit outside the block of function boxes, spread along the
+  // side of the box they belong to so that neither arrows nor labels collide
   const left = Math.min(...[...positions.values()].map((p) => p.x));
   const right = Math.max(...[...positions.values()].map((p) => p.x + p.w));
   const top = Math.min(...[...positions.values()].map((p) => p.y));
   const bottom = Math.max(...[...positions.values()].map((p) => p.y + p.h));
 
   const anchors = diagram.nodes.filter((n) => n.type === 'idef0Anchor');
-  const counters = { left: 0, top: 0, right: 0, bottom: 0 };
+  const groups = new Map();
   for (const anchor of anchors) {
     const edge = diagram.edges.find((e) => e.source === anchor.id || e.target === anchor.id);
-    const role = edge ? roleOf(edge.type) : 'input';
-    let x = anchor.x;
-    let y = anchor.y;
-    if (role === 'input') {
-      const attached = edge ? positions.get(edge.target) : null;
-      x = left - opt.anchorGap - anchor.w;
-      y = (attached ? attached.y + attached.h * 0.35 : top + counters.left * 40) - anchor.h / 2;
-      counters.left++;
-    } else if (role === 'control') {
-      const attached = edge ? positions.get(edge.target) : null;
-      x = (attached ? attached.x + attached.w * 0.4 : left + counters.top * 160) - anchor.w / 2;
-      y = top - 90 - counters.top * 34;
-      counters.top++;
-    } else if (role === 'output') {
-      const attached = edge ? positions.get(edge.source) : null;
-      x = right + opt.anchorGap;
-      y = (attached ? attached.y + attached.h * 0.5 : top + counters.right * 40) - anchor.h / 2;
-      counters.right++;
-    } else {
-      const attached = edge ? positions.get(edge.target) : null;
-      x = (attached ? attached.x + attached.w * 0.5 : left + counters.bottom * 160) - anchor.w / 2;
-      y = bottom + 70 + counters.bottom * 34;
-      counters.bottom++;
-    }
-    x = Math.round(x);
-    y = Math.round(y);
+    const role = edge ? roleOf(edge.type) : anchor.props?.role || 'input';
+    const boxId = edge ? (edge.source === anchor.id ? edge.target : edge.source) : null;
+    const key = `${role}|${boxId}`;
+    if (!groups.has(key)) groups.set(key, { role, boxId, items: [] });
+    groups.get(key).items.push(anchor);
+  }
+
+  let laneIndex = { input: 0, control: 0, output: 0, mechanism: 0 };
+  for (const group of groups.values()) {
+    const box = group.boxId ? positions.get(group.boxId) : null;
+    const count = group.items.length;
+    group.items.forEach((anchor, i) => {
+      const ratio = (i + 1) / (count + 1);
+      const step = laneIndex[group.role] ?? 0;
+      let x = anchor.x;
+      let y = anchor.y;
+      if (group.role === 'input') {
+        x = left - opt.anchorGap - anchor.w - step * 24;
+        y = (box ? box.y + box.h * ratio : top + i * 46) - anchor.h / 2;
+      } else if (group.role === 'control') {
+        x = (box ? box.x + box.w * ratio : left + i * 180) - anchor.w / 2;
+        y = top - 96 - (count - 1 - i) * 38 - step * 12;
+      } else if (group.role === 'output') {
+        x = right + opt.anchorGap + step * 24;
+        y = (box ? box.y + box.h * ratio : top + i * 46) - anchor.h / 2;
+      } else {
+        x = (box ? box.x + box.w * ratio : left + i * 180) - anchor.w / 2;
+        y = bottom + 78 + i * 38 + step * 12;
+      }
+      anchor.__x = Math.round(x);
+      anchor.__y = Math.round(y);
+    });
+    laneIndex[group.role] = (laneIndex[group.role] ?? 0) + 1;
+  }
+
+  let lowestAnchor = bottom;
+  for (const anchor of anchors) {
+    if (anchor.__x === undefined) continue;
+    const x = anchor.__x;
+    const y = anchor.__y;
+    lowestAnchor = Math.max(lowestAnchor, y + anchor.h);
+    delete anchor.__x;
+    delete anchor.__y;
     if (anchor.x !== x || anchor.y !== y) changes.push({ id: anchor.id, x, y });
   }
 
-  // title block below the diagram
+  // title block below everything else
   const title = diagram.nodes.find((n) => n.type === 'idef0Title');
   if (title) {
     const x = Math.round(left);
-    const y = Math.round(bottom + 160);
+    const y = Math.round(lowestAnchor + 70);
     if (title.x !== x || title.y !== y) changes.push({ id: title.id, x, y });
   }
 

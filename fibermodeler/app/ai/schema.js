@@ -329,7 +329,7 @@ export function buildIdef0Diagrams(spec, options = {}) {
             child.edges.push(makeIdef0Edge(producer, node, role, label));
           } else {
             const anchor = makeAnchor(child, label, role);
-            child.edges.push(makeIdef0Edge(anchor, node, role, label));
+            child.edges.push(makeIdef0Edge(anchor, node, role, ''));
           }
         }
       }
@@ -341,7 +341,7 @@ export function buildIdef0Diagrams(spec, options = {}) {
         );
         if (!consumed) {
           const anchor = makeAnchor(child, label, 'output');
-          child.edges.push(makeIdef0Edge(node, anchor, 'output', label));
+          child.edges.push(makeIdef0Edge(node, anchor, 'output', ''));
         }
       }
     });
@@ -365,9 +365,7 @@ function addIcomArrows(diagram, box, spec, locale) {
     for (const item of list) {
       const label = text(item, locale);
       const anchor = makeAnchor(diagram, label, role);
-      diagram.edges.push(
-        role === 'output' ? makeIdef0Edge(box, anchor, role, label) : makeIdef0Edge(anchor, box, role, label)
-      );
+      diagram.edges.push(role === 'output' ? makeIdef0Edge(box, anchor, role, '') : makeIdef0Edge(anchor, box, role, ''));
     }
   }
 }

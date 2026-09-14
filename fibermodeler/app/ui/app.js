@@ -551,7 +551,7 @@ export class App {
           targetSide: null,
           waypoints: [],
           routing: 'auto',
-          label: arrow.label || '',
+          label: '',
           props: {},
           style: {},
         });

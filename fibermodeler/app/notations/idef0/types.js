@@ -246,7 +246,9 @@ function arrowType(id, role, name) {
     palette: true,
     marker: role === 'call' ? 'arrow-hollow' : 'arrow-filled',
     dash: null,
-    targetSide: ICOM_SIDES[role],
+    // ICOM_SIDES tells where an arrow *leaves* its source; an output arrow ends
+    // on the left of whatever receives it (the next box or a boundary anchor)
+    targetSide: role === 'output' ? 'left' : ICOM_SIDES[role],
     sourceSide: role === 'call' ? 'bottom' : 'right',
     props: arrowProps(role),
   };
