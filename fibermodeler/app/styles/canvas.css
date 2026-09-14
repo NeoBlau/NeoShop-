@@ -1,0 +1,234 @@
+/* Canvas surface, overlays and printing. */
+
+.canvas-root {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--canvas-bg);
+  touch-action: none;
+}
+
+.canvas-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: default;
+}
+
+.canvas-root[data-tool='pan'] .canvas-svg,
+.canvas-root.is-panning .canvas-svg {
+  cursor: grab;
+}
+.canvas-root.is-panning .canvas-svg:active {
+  cursor: grabbing;
+}
+.canvas-root[data-tool='place'] .canvas-svg,
+.canvas-root[data-tool='connect'] .canvas-svg {
+  cursor: crosshair;
+}
+.canvas-root.is-drop-target {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.canvas-svg text {
+  font-family: var(--font-ui);
+  pointer-events: none;
+  user-select: none;
+}
+
+.node {
+  cursor: move;
+}
+.node:hover .el-label {
+  /* keeps labels readable while the hover outline is drawn */
+  opacity: 1;
+}
+.edge {
+  cursor: pointer;
+}
+.edge-hit {
+  pointer-events: stroke;
+}
+.edge-line,
+.edge-arrow,
+.edge-label {
+  pointer-events: none;
+}
+
+.layer-overlay {
+  pointer-events: none;
+}
+.layer-overlay .ov-handle,
+.layer-overlay .ov-quick,
+.layer-overlay .ov-waypoint,
+.layer-overlay .ov-endpoint {
+  pointer-events: all;
+}
+.layer-overlay .ov-handle {
+  cursor: nwse-resize;
+}
+.layer-overlay .ov-handle[data-handle='n'],
+.layer-overlay .ov-handle[data-handle='s'] {
+  cursor: ns-resize;
+}
+.layer-overlay .ov-handle[data-handle='e'],
+.layer-overlay .ov-handle[data-handle='w'] {
+  cursor: ew-resize;
+}
+.layer-overlay .ov-handle[data-handle='ne'],
+.layer-overlay .ov-handle[data-handle='sw'] {
+  cursor: nesw-resize;
+}
+.layer-overlay .ov-quick {
+  cursor: crosshair;
+  opacity: 0;
+  animation: quick-in 0.14s ease-out forwards;
+}
+@keyframes quick-in {
+  to {
+    opacity: 1;
+  }
+}
+.layer-overlay .ov-quick:hover circle {
+  fill: var(--accent);
+}
+.layer-overlay .ov-quick:hover path {
+  stroke: #fff;
+}
+.layer-overlay .ov-waypoint,
+.layer-overlay .ov-endpoint {
+  cursor: move;
+}
+
+.inline-editor {
+  position: absolute;
+  z-index: 40;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface-solid);
+  color: var(--text);
+  padding: 3px 5px;
+  font-family: var(--font-ui);
+  line-height: 1.25;
+  text-align: center;
+  resize: none;
+  box-shadow: var(--shadow-2);
+  user-select: text;
+}
+.inline-editor:focus {
+  outline: none;
+}
+
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-md);
+  text-align: center;
+  padding: 0 40px;
+}
+.canvas-empty svg {
+  width: 74px;
+  height: 74px;
+  opacity: 0.22;
+}
+
+/* -------------------------------------------------------------- printing */
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .titlebar,
+  .menubar,
+  .toolbar,
+  .sidebar,
+  .tabstrip,
+  .statusbar,
+  .bottom-panel,
+  .canvas-controls,
+  .palette-rail,
+  .ruler-corner,
+  canvas.ruler-h,
+  canvas.ruler-v {
+    display: none !important;
+  }
+}
+
+.print-sheet {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 1000;
+  overflow: auto;
+  display: none;
+}
+body.is-printing .print-sheet {
+  display: block;
+}
+body.is-printing #app {
+  display: none;
+}
+.print-page {
+  page-break-after: always;
+  break-after: page;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: #fff;
+  color: #111;
+}
+.print-page .print-header {
+  font-size: 11px;
+  color: #555;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+.print-page .print-figure {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+.print-page .print-figure svg {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.preview-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: var(--surface-sunken);
+  border-radius: var(--r-md);
+  max-height: 52vh;
+  overflow: auto;
+}
+.preview-page {
+  background: #fff;
+  box-shadow: var(--shadow-2);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-page svg {
+  width: 100%;
+  height: 100%;
+}

@@ -7,6 +7,8 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/node_modules/**',
+      // Standalone browser app with its own toolchain and test runner.
+      'fibermodeler/**',
       'apps/api/src/generated/**',
       'apps/desktop/src-tauri/**',
       // Vendor decoders copied out of the three package, and test output.

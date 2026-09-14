@@ -1,0 +1,5 @@
+# The single-file build is a shipped artifact, not build noise: re-include it
+# even though the repository root ignores every dist/ directory.
+!dist/
+!dist/FiberModeler.html
+.DS_Store

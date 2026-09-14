@@ -1,0 +1,12 @@
+{
+  "name": "fibermodeler",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FiberModeler — BPMN 2.0 and IDEF0 process modelling studio",
+  "scripts": {
+    "start": "python3 serve.py",
+    "test": "node tests/run.js",
+    "build": "python3 tools/build_single_file.py"
+  }
+}

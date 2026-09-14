@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="FiberModeler — редактор бизнес-процессов BPMN 2.0 и IDEF0" />
+    <title>FiberModeler</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230a6cf1'/%3E%3Cpath d='M11 27c4.5 0 4.5-14 9-14s4.5 14 9 14' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='11' cy='27' r='3' fill='white'/%3E%3Ccircle cx='29' cy='27' r='3' fill='white'/%3E%3Ccircle cx='20' cy='13' r='3' fill='white'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="app/styles/tokens.css" />
+    <link rel="stylesheet" href="app/styles/shell.css" />
+    <link rel="stylesheet" href="app/styles/canvas.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="titlebar">
+        <div class="brand">
+          <span id="brand-mark"></span>
+          <span class="brand-name">Fiber<span class="brand-accent">Modeler</span></span>
+        </div>
+        <div class="doc-title">
+          <span class="name" id="doc-name">—</span>
+          <span class="dirty-dot" title="unsaved"></span>
+          <span class="hint" id="doc-hint"></span>
+        </div>
+        <div class="titlebar-spacer"></div>
+        <button class="icon-btn" id="btn-lang" data-i18n-title="tools.language" title="Язык"></button>
+        <button class="icon-btn" id="btn-theme" data-i18n-title="view.theme" title="Тема"></button>
+        <button class="icon-btn" id="btn-help" data-i18n-title="help.guide" title="Справка"></button>
+      </header>
+
+      <nav class="menubar" id="menubar"></nav>
+      <div class="toolbar" id="toolbar"></div>
+
+      <main class="workspace" id="workspace">
+        <aside class="sidebar left">
+          <div class="panel-head">
+            <span id="explorer-title" data-i18n="explorer.title">Проект</span>
+            <div class="actions">
+              <button class="icon-btn" id="btn-add-diagram" data-i18n-title="explorer.add" title="Добавить диаграмму"></button>
+            </div>
+          </div>
+          <div class="tree" id="explorer"></div>
+        </aside>
+
+        <section class="center">
+          <div class="tabstrip" id="tabstrip" hidden></div>
+          <div class="work-row">
+          <div class="palette-rail" id="palette"></div>
+          <div class="canvas-stage" id="stage">
+            <div class="ruler-corner"></div>
+            <canvas class="ruler-h"></canvas>
+            <canvas class="ruler-v"></canvas>
+            <div id="canvas-host"></div>
+            <div class="canvas-controls">
+              <div class="minimap" id="minimap"></div>
+              <div class="zoom-widget">
+                <button class="icon-btn" id="btn-zoom-out" data-i18n-title="view.zoomOut"></button>
+                <span class="value zoom-readout">100%</span>
+                <button class="icon-btn" id="btn-zoom-in" data-i18n-title="view.zoomIn"></button>
+                <button class="icon-btn" id="btn-zoom-fit" data-i18n-title="view.fitScreen"></button>
+              </div>
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <aside class="sidebar right">
+          <div class="panel-head"><span id="props-title" data-i18n="props.title">Свойства</span></div>
+          <div class="props" id="props"></div>
+        </aside>
+      </main>
+
+      <section class="bottom-panel" id="bottom" hidden>
+        <div class="bottom-head">
+          <span class="title" data-i18n="problems.title">Проблемы</span>
+          <div style="flex: 1"></div>
+          <button class="btn ghost" id="btn-revalidate" data-i18n="problems.revalidate">Проверить снова</button>
+          <button class="icon-btn" id="btn-close-bottom" data-i18n-title="dialog.close"></button>
+        </div>
+        <div class="bottom-body"></div>
+      </section>
+
+      <footer class="statusbar">
+        <span class="chip"><span class="status-dot" id="status-dot"></span><span id="status-message">—</span></span>
+        <span class="chip" id="status-nodes"></span>
+        <span class="chip" id="status-zoom"></span>
+        <span class="spacer"></span>
+        <span class="chip clickable" id="status-problems"></span>
+        <span class="chip" id="status-saved"></span>
+        <span class="chip" id="status-position">0, 0</span>
+      </footer>
+
+      <div class="welcome" id="welcome" hidden></div>
+    </div>
+
+    <noscript>
+      <p style="padding: 40px; font-family: system-ui">FiberModeler требует включённого JavaScript. / FiberModeler needs JavaScript enabled.</p>
+    </noscript>
+    <script type="module" src="app/main.js"></script>
+  </body>
+</html>
