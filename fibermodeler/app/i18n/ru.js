@@ -260,6 +260,7 @@ export const ru = {
   'settings.guides': 'Умные направляющие',
   'settings.quickHandles': 'Быстрые кнопки вокруг выделения',
   'settings.connectionStyle': 'Стиль связей',
+  'settings.smoothEdges': 'Скруглять углы связей',
   'settings.orthogonal': 'Ортогональные',
   'settings.straight': 'Прямые',
   'settings.autosaveOn': 'Автоматически сохранять в этом браузере',

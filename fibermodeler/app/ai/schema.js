@@ -13,6 +13,7 @@ import { layeredLayout } from '../layout/layered.js';
 import { idef0Layout } from '../layout/idef0layout.js';
 
 const LANE_PADDING = 44;
+const SATELLITE_TYPES = ['dataObject', 'dataStore', 'dataInput', 'dataOutput', 'textAnnotation'];
 const LANE_MIN_HEIGHT = 130;
 const POOL_HEADER = 30;
 
@@ -127,11 +128,21 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
   const left = Math.min(...flowNodes.map((n) => n.x), 0);
   const right = Math.max(...flowNodes.map((n) => n.x + n.w), 400);
   const laneWidth = right - left + 140;
+  const SATELLITE_ROOM = 104;
+  const satelliteOwners = new Set();
+  for (const node of diagram.nodes) {
+    if (!SATELLITE_TYPES.includes(node.type)) continue;
+    const link = diagram.edges.find((e) => e.source === node.id || e.target === node.id);
+    if (link) satelliteOwners.add(link.source === node.id ? link.target : link.source);
+  }
+
   let cursorY = 70;
   for (const lane of lanes) {
     const nodes = byLane.get(lane.id) || [];
     const rows = groupByColumn(nodes);
-    const height = Math.max(LANE_MIN_HEIGHT, rows * 110 + LANE_PADDING);
+    // leave room above the flow when the lane carries data objects or notes
+    const headroom = nodes.some((node) => satelliteOwners.has(node.id)) ? SATELLITE_ROOM : 0;
+    const height = Math.max(LANE_MIN_HEIGHT + headroom, rows * 110 + LANE_PADDING + headroom);
     lane.x = 60 + POOL_HEADER;
     lane.y = cursorY;
     lane.w = laneWidth;
@@ -143,7 +154,9 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
       const index = columns.get(key) || 0;
       columns.set(key, index + 1);
       node.x = node.x - left + 60 + POOL_HEADER + 40;
-      node.y = Math.round(lane.y + LANE_PADDING / 2 + index * 108 + (height - LANE_PADDING - (rows - 1) * 108 - node.h) / 2);
+      node.y = Math.round(
+        lane.y + headroom + LANE_PADDING / 2 + index * 108 + (height - headroom - LANE_PADDING - (rows - 1) * 108 - node.h) / 2
+      );
     }
     cursorY += height;
   }
@@ -155,7 +168,7 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
 
 /** Data objects and annotations follow their owner, staying inside its lane. */
 function placeSatellites(diagram, lanes) {
-  const SATELLITES = ['dataObject', 'dataStore', 'dataInput', 'dataOutput', 'textAnnotation'];
+  const SATELLITES = SATELLITE_TYPES;
   const laneById = new Map(lanes.map((lane) => [lane.id, lane]));
   for (const node of diagram.nodes) {
     if (!SATELLITES.includes(node.type)) continue;

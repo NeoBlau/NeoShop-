@@ -168,7 +168,7 @@ export function openSettings(app, initialSection = 'general') {
             )
           )
         );
-        add(toggle(t('settings.smoothEdges') || 'Smooth corners', 'canvas.smoothEdges'));
+        add(toggle(t('settings.smoothEdges'), 'canvas.smoothEdges'));
         break;
       case 'autosave':
         add(toggle(t('settings.autosaveOn'), 'autosave.enabled'));

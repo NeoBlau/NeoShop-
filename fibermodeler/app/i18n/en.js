@@ -260,6 +260,7 @@ export const en = {
   'settings.guides': 'Smart alignment guides',
   'settings.quickHandles': 'Quick action handles around the selection',
   'settings.connectionStyle': 'Connection style',
+  'settings.smoothEdges': 'Rounded connection corners',
   'settings.orthogonal': 'Orthogonal',
   'settings.straight': 'Straight',
   'settings.autosaveOn': 'Save automatically to this browser',
