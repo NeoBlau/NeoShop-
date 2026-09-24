@@ -40,31 +40,31 @@ Postgres, MinIO и Mailpit в докере, применяет миграции,
 инструментов ещё нет. На macOS:
 
 ```bash
-# Homebrew, если его нет
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-eval "$(/opt/homebrew/bin/brew shellenv)"   # Apple Silicon
+# pnpm и Node — готовыми бинарниками, без сборки
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+source ~/.zshrc && pnpm env use --global 22
 
-brew install node pnpm
-brew install --cask docker-desktop
-open -a "Docker Desktop"
+# Docker Desktop
+brew install --cask docker-desktop && open -a "Docker Desktop"
 ```
 
-Cask называется `docker-desktop`, а приложение — «Docker Desktop.app»:
-`brew install --cask docker` и `open -a Docker` — это про старые версии, они
-не найдутся.
+Через Homebrew Node и pnpm лучше не ставить: если под вашу версию macOS нет
+готовой бутылки, brew молча уходит собирать зависимости из исходников —
+включая `llvm`, а это часы компиляции и десятки гигабайт. Собственный
+установщик pnpm кладёт один бинарник за секунды и умеет ставить Node сам.
+Cask `docker-desktop` — с бинарником, его брать через brew нормально; имена
+из старых инструкций (`--cask docker`, `open -a Docker`) уже не находятся.
 
-Проверка: `node -v` даёт v22 или выше, `pnpm -v` — 10 или выше, `docker
-compose version` — 2.1.1 или выше (Makefile использует `up --wait`), а
-`docker ps` выводит список контейнеров, а не ошибку подключения к демону.
-
-Если Node стоит через `nvm`, pnpm лучше включить через corepack — версия тогда
+Если Node стоит через `nvm`, pnpm можно включить через corepack — версия тогда
 берётся из поля `packageManager`:
 
 ```bash
 corepack enable && corepack prepare pnpm@10.33.0 --activate
 ```
 
-С Homebrew-нодой этот путь не работает: corepack из формулы вырезан.
+Проверка перед запуском: `node -v` даёт v22 или выше, `pnpm -v` — 10 или выше,
+`docker compose version` — 2.1.1 или выше (Makefile использует `up --wait`), а
+`docker ps` выводит список контейнеров, а не ошибку подключения к демону.
 
 Утилиту [KTX-Software](https://github.com/KhronosGroup/KTX-Software) ставить не
 нужно: `make location` скачивает её сам в `apps/tools/.ktx`. Для загрузок
