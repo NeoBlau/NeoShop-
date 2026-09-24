@@ -10,7 +10,7 @@ DEMO_ASSET_MARKER := apps/api/prisma/seed-assets/robot-vacuum.glb
 LOCATION_MARKER := apps/web/public/world/location/location.json
 
 .DEFAULT_GOAL := help
-.PHONY: help env install up down restart logs db-migrate db-reset db-studio seed \
+.PHONY: help env install shared up down restart logs db-migrate db-reset db-studio seed \
         app dev build lint typecheck test e2e desktop assets assets-if-missing textures \
         world-assets location location-if-missing installer clean
 
@@ -23,6 +23,12 @@ env: ## Create .env from .env.example if missing
 
 install: ## Install workspace dependencies
 	pnpm install
+
+# @3dsfera/shared exports compiled files, not sources, so everything that
+# imports it — the seed script, the api, the tests — needs it built first.
+# `pnpm dev` builds it itself; the steps that run before the app do not.
+shared: ## Build the shared types and zod schemas
+	pnpm --filter @3dsfera/shared build
 
 # Pull first, separately: a registry that refuses an image says so plainly here,
 # instead of `up` reporting "No such image" for every service after the first
@@ -74,13 +80,13 @@ assets: textures ## Regenerate the demo materials and GLB models
 assets-if-missing:
 	@test -f $(DEMO_ASSET_MARKER) || $(MAKE) assets
 
-seed: ## Load demo data (suppliers, pavilions, five animated products)
+seed: shared ## Load demo data (suppliers, pavilions, five animated products)
 	pnpm --filter @3dsfera/api run seed
 
 app: ## Run api + web with hot reload
 	pnpm dev
 
-dev: env install world-assets location-if-missing assets-if-missing up db-migrate seed app ## Full local environment, one command
+dev: env install shared world-assets location-if-missing assets-if-missing up db-migrate seed app ## Full local environment, one command
 
 build: ## Production build of every package
 	pnpm build
@@ -88,13 +94,13 @@ build: ## Production build of every package
 lint: ## ESLint over the whole workspace
 	pnpm lint
 
-typecheck: ## tsc --noEmit over the whole workspace
+typecheck: shared ## tsc --noEmit over the whole workspace
 	pnpm typecheck
 
-test: ## Vitest unit tests
+test: shared ## Vitest unit tests
 	pnpm test
 
-e2e: location-if-missing ## Playwright end-to-end tests (requires `make up` + running app)
+e2e: shared location-if-missing ## Playwright end-to-end tests (requires `make up` + running app)
 	pnpm --filter @3dsfera/web run test:e2e
 
 desktop: ## Run the Tauri shell against the dev server
