@@ -45,11 +45,17 @@ Postgres, MinIO и Mailpit в докере, применяет миграции,
 eval "$(/opt/homebrew/bin/brew shellenv)"   # Apple Silicon
 
 brew install node pnpm
-brew install --cask docker                  # и запустить Docker Desktop
+brew install --cask docker-desktop
+open -a "Docker Desktop"
 ```
 
-Проверка: `node -v` даёт v22 или выше, `pnpm -v` — 10 или выше, `docker ps`
-выводит список контейнеров, а не ошибку подключения к демону.
+Cask называется `docker-desktop`, а приложение — «Docker Desktop.app»:
+`brew install --cask docker` и `open -a Docker` — это про старые версии, они
+не найдутся.
+
+Проверка: `node -v` даёт v22 или выше, `pnpm -v` — 10 или выше, `docker
+compose version` — 2.1.1 или выше (Makefile использует `up --wait`), а
+`docker ps` выводит список контейнеров, а не ошибку подключения к демону.
 
 Если Node стоит через `nvm`, pnpm лучше включить через corepack — версия тогда
 берётся из поля `packageManager`:
