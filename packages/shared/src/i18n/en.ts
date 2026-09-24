@@ -351,7 +351,7 @@ export const en: Dictionary = {
     entering: 'Building the street…',
     loadingModels: 'Loading products…',
     controlsHint:
-      'WASD to walk, mouse to look, Shift to hurry. Shops are entered through the door. Esc releases the cursor.',
+      'WASD to walk, drag or click and move the mouse to look, Shift to hurry. Shops are entered through the door. Esc releases the cursor.',
     controlsHintTouch:
       'Left stick to walk, swipe to look. Walk in through the door, then tap a product.',
     clickToLook: 'Click to look around',

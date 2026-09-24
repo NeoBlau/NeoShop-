@@ -7,9 +7,14 @@ import { groundAt, nearestWalkable, resolveMove, type NavigationGrid } from './n
 /**
  * First-person movement through the world.
  *
- * Desktop: WASD to walk, mouse to look once the canvas is clicked (pointer
- * lock). Touch: the on-screen joystick writes into the same input store, so
- * there is one movement implementation rather than two.
+ * Desktop: WASD to walk, and two ways to look, because one is not enough.
+ * Clicking the canvas asks for pointer lock — the mouse then moves the view
+ * with the cursor hidden, which is what the crosshair is for. Dragging looks
+ * around without any lock at all, which is how a trackpad wants to be used and
+ * the only thing that works where the browser refuses the lock (WebKit does,
+ * in several versions). Touch: the on-screen joystick and its own drag area
+ * write into the same input store, so there is one movement implementation
+ * rather than a phone-shaped copy of it.
  */
 
 const EYE_HEIGHT = 1.65;
@@ -17,7 +22,16 @@ const WALK_SPEED = 3.2;
 const SPRINT_SPEED = 6.0;
 /** How quickly the camera reaches the target velocity. Higher is snappier. */
 const ACCELERATION = 9;
+/** Radians per pixel of locked mouse movement. */
 const LOOK_SENSITIVITY = 0.0022;
+/**
+ * Radians per pixel of a drag. Higher than the locked figure on purpose: a drag
+ * is bounded by how far a finger travels on a trackpad, where a locked mouse
+ * can be lifted and put back down for another sweep.
+ */
+const DRAG_SENSITIVITY = 0.004;
+/** Pixels of travel before a click counts as a drag and stops selecting things. */
+const DRAG_THRESHOLD = 6;
 const PITCH_LIMIT = Math.PI / 2 - 0.12;
 
 export function PlayerControls({
@@ -40,6 +54,8 @@ export function PlayerControls({
   const velocity = useRef(new Vector3());
   const euler = useRef(new Euler(0, 0, 0, 'YXZ'));
   const started = useRef(false);
+  const drag = useRef<{ id: number; x: number; y: number; travel: number } | null>(null);
+  const dragged = useRef(false);
 
   const setMove = useInput((state) => state.setMove);
   const addLook = useInput((state) => state.addLook);
@@ -100,8 +116,60 @@ export function PlayerControls({
       addLook(event.movementX * LOOK_SENSITIVITY, event.movementY * LOOK_SENSITIVITY);
     };
 
+    const locked = (): boolean => document.pointerLockElement === domElement;
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      // Touch has its own look area in TouchControls; handling it here as well
+      // would turn every swipe into twice the rotation.
+      if (event.pointerType === 'touch' || event.button !== 0 || locked()) return;
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, travel: 0 };
+    };
+
+    const handlePointerMove = (event: PointerEvent): void => {
+      const current = drag.current;
+      if (!current || current.id !== event.pointerId) return;
+
+      const dx = event.clientX - current.x;
+      const dy = event.clientY - current.y;
+      current.x = event.clientX;
+      current.y = event.clientY;
+      current.travel += Math.abs(dx) + Math.abs(dy);
+      if (current.travel > DRAG_THRESHOLD) dragged.current = true;
+
+      addLook(dx * DRAG_SENSITIVITY, dy * DRAG_SENSITIVITY);
+    };
+
+    const handlePointerUp = (event: PointerEvent): void => {
+      if (drag.current?.id === event.pointerId) drag.current = null;
+    };
+
+    /**
+     * Capture phase, so it runs before the renderer's own picking: a drag that
+     * happens to end over a product must not also open it. The click that asks
+     * for the lock is deliberately left alone — the request may be refused, and
+     * swallowing clicks on the strength of a request that never succeeded would
+     * make the whole street unclickable.
+     */
+    const handleClickCapture = (event: MouseEvent): void => {
+      if (dragged.current) {
+        dragged.current = false;
+        event.stopPropagation();
+        event.preventDefault();
+        return;
+      }
+
+      if (locked()) return;
+
+      // Older browsers return nothing here, newer ones a promise that rejects
+      // when the document is not allowed to lock. Neither is an error worth
+      // showing: the drag fallback is already wired up.
+      const request: unknown = domElement.requestPointerLock();
+      if (request instanceof Promise) void request.catch(() => undefined);
+    };
+
     const handlePointerLockChange = (): void => {
-      setPointerLocked(document.pointerLockElement === domElement);
+      setPointerLocked(locked());
+      if (locked()) drag.current = null;
     };
 
     // Captured for the cleanup: the ref may point elsewhere by then.
@@ -112,6 +180,13 @@ export function PlayerControls({
     window.addEventListener('blur', handleBlur);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('pointerlockchange', handlePointerLockChange);
+    domElement.addEventListener('pointerdown', handlePointerDown);
+    domElement.addEventListener('click', handleClickCapture, { capture: true });
+    // Move and release on the window: a drag that leaves the canvas should keep
+    // turning the view, and letting go outside it must still end the drag.
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
@@ -119,7 +194,14 @@ export function PlayerControls({
       window.removeEventListener('blur', handleBlur);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('pointerlockchange', handlePointerLockChange);
+      domElement.removeEventListener('pointerdown', handlePointerDown);
+      domElement.removeEventListener('click', handleClickCapture, { capture: true });
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
       heldKeys.clear();
+      drag.current = null;
+      dragged.current = false;
     };
   }, [addLook, domElement, enabled, setMove, setPointerLocked, setSprint]);
 
