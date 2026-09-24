@@ -20,29 +20,57 @@ services:
       timeout: 3s
       retries: 20
 
+  # MinIO withdrew minio/minio and minio/mc from Docker Hub in September 2026 and
+  # closed the quay.io mirrors behind authentication, so the upstream images
+  # cannot be pulled at all any more — `docker pull` answers "pull access denied"
+  # even with valid credentials. This is Bitnami's archived build of MinIO
+  # 2025.5.24, the last community release and the only copy still open to
+  # anonymous pulls. Behaviour is the MinIO the code is written against:
+  # prefix-scoped anonymous policy for public/, presigned URLs for private/.
   minio:
-    image: minio/minio:latest
+    image: bitnamilegacy/minio:latest
     container_name: sfera-minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: sfera
       MINIO_ROOT_PASSWORD: sfera-secret
+      MINIO_API_PORT_NUMBER: 9000
+      MINIO_CONSOLE_PORT_NUMBER: 9001
     ports:
       - '9000:9000'
       - '9001:9001'
+    # Bitnami serves this directory rather than /data, and runs as uid 1001. A
+    # named volume inherits the image's ownership, so the server can write to it.
     volumes:
-      - minio-data:/data
+      - minio-data:/bitnami/minio/data
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      # `mc alias set` refuses the alias unless the endpoint answers and the
+      # credentials work, which is exactly the readiness question. mc ships
+      # inside this image; the explicit config directory is because $HOME is /
+      # and uid 1001 cannot write there. The credentials are repeated rather
+      # than read from the environment so that no `$` needs escaping through
+      # both compose and the container shell.
+      test:
+        [
+          'CMD',
+          'mc',
+          '--config-dir',
+          '/tmp/mc',
+          'alias',
+          'set',
+          'health',
+          'http://127.0.0.1:9000',
+          'sfera',
+          'sfera-secret',
+        ]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 20
 
   # Creates the bucket and makes only the `public/` prefix readable. Optimized
   # models and previews live under public/, originals stay private.
   minio-init:
-    image: minio/mc:latest
+    image: bitnamilegacy/minio:latest
     container_name: sfera-minio-init
     depends_on:
       minio:

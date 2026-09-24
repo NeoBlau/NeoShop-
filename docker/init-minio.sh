@@ -2,11 +2,17 @@
 # Bucket bootstrap for local development.
 # Public prefix: optimized GLB, previews, photos. Everything else stays private
 # and is only reachable through short-lived presigned URLs issued by the API.
+#
+# Runs inside the MinIO image itself, which bundles mc. Two consequences: the
+# config directory has to be somewhere uid 1001 can write, and /tmp is the only
+# such place, since $HOME is /.
 set -eu
 
-mc alias set local http://minio:9000 sfera sfera-secret
+MC="mc --config-dir /tmp/mc"
 
-mc mb --ignore-existing local/sfera-assets
+$MC alias set local http://minio:9000 sfera sfera-secret
+
+$MC mb --ignore-existing local/sfera-assets
 
 cat > /tmp/public-prefix-policy.json <<'JSON'
 {
@@ -22,6 +28,6 @@ cat > /tmp/public-prefix-policy.json <<'JSON'
 }
 JSON
 
-mc anonymous set-json /tmp/public-prefix-policy.json local/sfera-assets
+$MC anonymous set-json /tmp/public-prefix-policy.json local/sfera-assets
 
 echo "minio: bucket sfera-assets ready (public/ prefix is world-readable)"

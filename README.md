@@ -66,6 +66,12 @@ corepack enable && corepack prepare pnpm@10.33.0 --activate
 `docker compose version` — 2.1.1 или выше (Makefile использует `up --wait`), а
 `docker ps` выводит список контейнеров, а не ошибку подключения к демону.
 
+Хранилище в докере — MinIO из архива Bitnami (`bitnamilegacy/minio`). Свои
+образы MinIO убрал с Docker Hub в сентябре 2026 и закрыл зеркала на quay.io,
+поэтому `minio/minio` больше не скачивается ни с логином, ни без. Архивная
+сборка — последний открытый релиз сообщества, семантика та же: анонимное чтение
+префикса `public/`, подписанные ссылки на приватные объекты.
+
 Утилиту [KTX-Software](https://github.com/KhronosGroup/KTX-Software) ставить не
 нужно: `make location` скачивает её сам в `apps/tools/.ktx`. Для загрузок
 поставщиков она берётся из PATH, если есть; если нет, текстуры переводятся в

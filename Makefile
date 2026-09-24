@@ -24,8 +24,12 @@ env: ## Create .env from .env.example if missing
 install: ## Install workspace dependencies
 	pnpm install
 
+# Pull first, separately: a registry that refuses an image says so plainly here,
+# instead of `up` reporting "No such image" for every service after the first
+# failure.
 up: env ## Start postgres, minio and mailpit
-	$(COMPOSE) up -d --wait postgres minio mailpit
+	$(COMPOSE) pull --quiet postgres minio mailpit
+	$(COMPOSE) up -d --wait --wait-timeout 180 postgres minio mailpit
 	$(COMPOSE) up minio-init
 
 down: ## Stop infrastructure (data volumes are kept)
