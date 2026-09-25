@@ -13,7 +13,7 @@ AMBIENCE_MARKER := apps/web/public/world/audio/street.wav
 .DEFAULT_GOAL := help
 .PHONY: help env install shared up down restart logs db-migrate db-reset db-studio seed \
         app dev build lint typecheck test e2e desktop assets assets-if-missing textures \
-        world-assets location location-if-missing ambience ambience-if-missing \
+        world-assets location location-if-missing ambience ambience-if-missing ingest \
         installer clean
 
 help: ## Show available targets
@@ -88,13 +88,20 @@ assets: textures ## Regenerate the demo materials and GLB models
 assets-if-missing:
 	@test -f $(DEMO_ASSET_MARKER) || $(MAKE) assets
 
+# Third-party product models, normalised and given their clips. Runs after the
+# generated placeholders so a real model overwrites the one made of primitives,
+# and does nothing at all when assets/incoming is empty — which is the case on
+# a clean checkout, so `make dev` still works with the placeholders.
+ingest: ## Normalise the models in assets/incoming into seed products
+	pnpm --filter @3dsfera/tools run ingest
+
 seed: shared ## Load demo data (suppliers, pavilions, five animated products)
 	pnpm --filter @3dsfera/api run seed
 
 app: ## Run api + web with hot reload
 	pnpm dev
 
-dev: env install shared world-assets location-if-missing ambience-if-missing assets-if-missing up db-migrate seed app ## Full local environment, one command
+dev: env install shared world-assets location-if-missing ambience-if-missing assets-if-missing ingest up db-migrate seed app ## Full local environment, one command
 
 build: ## Production build of every package
 	pnpm build

@@ -142,6 +142,17 @@ const products: ProductSeed[] = [
     heightMm: 98,
     status: 'PUBLISHED',
     interactions: [
+      // The clips are the ones the ingested model carries. Two of them drive
+      // the vacuum across a floor, which is why the mission zone exists: on a
+      // plinth two thirds of a metre wide, `brushes_spin` is the one that
+      // shows the mechanism without driving off the marble.
+      {
+        type: 'GLTF_ANIMATION',
+        clipName: 'brushes_spin',
+        label: 'Раскрутить щётки',
+        labelEn: 'Spin the brushes',
+        loop: true,
+      },
       {
         type: 'GLTF_ANIMATION',
         clipName: 'undock',
@@ -154,12 +165,6 @@ const products: ProductSeed[] = [
         label: 'Запустить уборку',
         labelEn: 'Start cleaning',
         loop: true,
-      },
-      {
-        type: 'GLTF_ANIMATION',
-        clipName: 'open_lid',
-        label: 'Открыть пылесборник',
-        labelEn: 'Open the bin',
       },
     ],
   },

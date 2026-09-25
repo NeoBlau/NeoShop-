@@ -26,9 +26,9 @@ describe('checkModelFile', () => {
 
     expect(result.ok).toBe(true);
     expect(result.inspection?.animations.map((clip) => clip.name)).toEqual([
+      'brushes_spin',
       'undock',
       'clean_pattern',
-      'open_lid',
     ]);
   });
 

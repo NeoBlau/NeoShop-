@@ -11,7 +11,8 @@
     "fetch:assets": "tsx src/fetch-assets.ts",
     "build:location": "tsx src/build-location.ts",
     "gen:icon": "tsx src/gen-icon.ts",
-    "gen:ambience": "tsx src/gen-ambience.ts"
+    "gen:ambience": "tsx src/gen-ambience.ts",
+    "ingest": "tsx src/ingest-product.ts"
   },
   "dependencies": {
     "@3dsfera/shared": "workspace:*",
