@@ -13,6 +13,7 @@ import {
 } from '../scene/quality.js';
 import { useProgress } from '@react-three/drei';
 import { TouchControls } from '../scene/world/TouchControls.js';
+import { useAmbience } from '../scene/world/ambience.js';
 import { useInput } from '../scene/world/input.js';
 import { useLocationData } from '../features/world/useLocationData.js';
 import { Alert } from '../ui/Alert.js';
@@ -197,6 +198,10 @@ export function WorldPage() {
   const [loop, setLoop] = useState(false);
   const [touch, setTouch] = useState(false);
 
+  // Sound belongs to the street, so it runs while the street does and stops
+  // when a product panel takes over the screen.
+  const ambience = useAmbience(mode === 'world');
+
   const formatPrice = useMemo(() => formatPriceWith(i18n.language), [i18n.language]);
 
   // The street itself: its map, its shop fronts and where a buyer arrives.
@@ -330,29 +335,44 @@ export function WorldPage() {
           </a>
         </div>
 
-        <div className="bg-void/70 border-edge pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 text-xs backdrop-blur">
-          <span className="text-ink-faint">{t('world.quality')}</span>
-          <select
-            value={autoTier ? 'auto' : tier}
-            onChange={(event) => {
-              const value = event.target.value;
-              if (value === 'auto') {
-                setAutoTier(true);
-                setTier(pickQualityTier(detectCapabilities()));
-              } else {
-                setAutoTier(false);
-                setTier(value as QualityTier);
-              }
-            }}
-            className="bg-panel-raised border-edge rounded border px-1.5 py-1 text-xs outline-none"
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={ambience.toggle}
+            aria-pressed={ambience.on}
+            title={ambience.on ? t('world.soundOff') : t('world.soundOn')}
+            className="bg-void/70 border-edge text-ink-muted hover:text-ink rounded-lg border px-2.5 py-2 text-xs backdrop-blur transition-colors"
           >
-            <option value="auto">{t('world.qualityAuto')}</option>
-            {QUALITY_TIERS.map((value) => (
-              <option key={value} value={value}>
-                {t(`world.quality_${value}`)}
-              </option>
-            ))}
-          </select>
+            <span aria-hidden="true">{ambience.on ? '🔊' : '🔇'}</span>
+            <span className="sr-only">
+              {ambience.on ? t('world.soundOff') : t('world.soundOn')}
+            </span>
+          </button>
+
+          <div className="bg-void/70 border-edge flex items-center gap-2 rounded-lg border px-3 py-2 text-xs backdrop-blur">
+            <span className="text-ink-faint">{t('world.quality')}</span>
+            <select
+              value={autoTier ? 'auto' : tier}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === 'auto') {
+                  setAutoTier(true);
+                  setTier(pickQualityTier(detectCapabilities()));
+                } else {
+                  setAutoTier(false);
+                  setTier(value as QualityTier);
+                }
+              }}
+              className="bg-panel-raised border-edge rounded border px-1.5 py-1 text-xs outline-none"
+            >
+              <option value="auto">{t('world.qualityAuto')}</option>
+              {QUALITY_TIERS.map((value) => (
+                <option key={value} value={value}>
+                  {t(`world.quality_${value}`)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

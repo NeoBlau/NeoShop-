@@ -103,6 +103,7 @@ make e2e         # сквозные тесты (Playwright)
 make lint        # ESLint
 make typecheck   # tsc --noEmit по всем пакетам
 make world-assets # скачать ассеты мира (HDRI, сканы материалов, шрифт)
+make ambience    # синтезировать звук улицы (несколько секунд)
 make location    # скачать и собрать локацию (~40 минут, один раз)
 make desktop     # Tauri-оболочка поверх дев-сервера (нужен Rust)
 make installer   # установщик под текущую платформу (нужен Rust)

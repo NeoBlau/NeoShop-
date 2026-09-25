@@ -355,6 +355,8 @@ export const en: Dictionary = {
     controlsHintTouch:
       'Left stick to walk, swipe to look. Walk in through the door, then tap a product.',
     clickToLook: 'Click to look around',
+    soundOn: 'Turn the street on',
+    soundOff: 'Turn the street off',
     showInAction: 'Show it working',
     stopAnimation: 'Stop',
     addToCart: 'Add to cart',
