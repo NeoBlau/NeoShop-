@@ -9,6 +9,7 @@ import { authRoutes } from './modules/auth/routes.js';
 import { supplierRoutes } from './modules/supplier/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { productRoutes, supplierStatsRoutes } from './modules/products/routes.js';
+import { missionRoutes } from './modules/missions/routes.js';
 import { worldRoutes } from './modules/world/routes.js';
 import { orderRoutes } from './modules/orders/routes.js';
 import { paymentRoutes } from './modules/payments/routes.js';
@@ -52,6 +53,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(healthRoutes, { prefix: '/health' });
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(worldRoutes, { prefix: '/api/world' });
+  await app.register(missionRoutes, { prefix: '/api/missions' });
   await app.register(supplierRoutes, { prefix: '/api/supplier' });
   await app.register(productRoutes, { prefix: '/api/supplier/products' });
   await app.register(supplierStatsRoutes, { prefix: '/api/supplier/stats' });

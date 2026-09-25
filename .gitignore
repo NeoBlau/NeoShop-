@@ -60,3 +60,6 @@ assets/incoming/
 
 # Menu photography, fetched by apps/tools/src/fetch-food-photos.ts
 apps/web/public/food/
+
+# Demo zones, built by apps/tools/src/build-zone.ts
+apps/web/public/world/zones/

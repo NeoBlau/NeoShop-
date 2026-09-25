@@ -462,6 +462,7 @@ export const en: Dictionary = {
     confirmIntro: 'We have received order {{number}} and passed it to the suppliers.',
     confirmItems: 'Items',
     confirmTotal: 'Total',
+    confirmDiscount: 'Promo code discount',
     confirmShipping: 'Shipping',
     confirmAddress: 'Delivery address',
     confirmTrack: 'The order status and tracking number will be here:',

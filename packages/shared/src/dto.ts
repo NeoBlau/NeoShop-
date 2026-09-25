@@ -249,6 +249,8 @@ export interface OrderSummary {
   currency: Currency;
   subtotalCents: number;
   shippingCents: number;
+  /** Money taken off by a mission's promo code. Zero for most orders. */
+  discountCents: number;
   totalCents: number;
   itemCount: number;
   createdAt: string;
@@ -394,4 +396,15 @@ export interface AdminMetrics {
   }[];
   /** Orders per day for the last fortnight, oldest first. */
   ordersByDay: { day: string; orders: number; paidCents: number }[];
+}
+
+/** A discount earned by finishing a mission, as the client sees it. */
+export interface PromoCodeView {
+  code: string;
+  productId: string;
+  /** The product the code applies to, by slug, for matching against a cart. */
+  productSlug: string;
+  percentOff: number;
+  expiresAt: string;
+  usedAt: string | null;
 }

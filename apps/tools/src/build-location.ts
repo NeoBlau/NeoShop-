@@ -37,7 +37,12 @@ import { dedup, instance, join, prune, simplify, weld } from '@gltf-transform/fu
 import draco3d from 'draco3dgltf';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { convertTextures, HIGH_BUDGETS, LOW_BUDGETS } from './location-textures.js';
-import { buildWalkableGrid, countWalkable, type WalkableGrid } from './location-walkable.js';
+import {
+  buildWalkableGrid,
+  countWalkable,
+  packMask,
+  type WalkableGrid,
+} from './location-walkable.js';
 import { findAnchors, findSpawn, type LocationAnchor } from './location-anchors.js';
 
 const run = promisify(execFile);
@@ -367,18 +372,6 @@ export async function buildNavigation(sourceDir: string): Promise<{
   return { grid, anchors, spawn };
 }
 
-/** Packs the walkable mask one bit to a cell. */
-function packMask(grid: WalkableGrid): Buffer {
-  const packed = Buffer.alloc(Math.ceil(grid.mask.length / 8));
-  for (let cell = 0; cell < grid.mask.length; cell += 1) {
-    if (grid.mask[cell]) {
-      const byte = cell >> 3;
-      packed[byte] = (packed[byte] ?? 0) | (1 << (cell & 7));
-    }
-  }
-  return packed;
-}
-
 export async function buildTextures(sourceDir: string): Promise<{ high: number; low: number }> {
   const json = JSON.parse(
     readFileSync(path.join(sourceDir, 'BistroExterior.gltf'), 'utf8'),
@@ -443,7 +436,7 @@ async function main(): Promise<void> {
   console.log('mapping the street…');
   const { grid, anchors, spawn } = await buildNavigation(sourceDir);
 
-  writeFileSync(path.join(OUT, 'walkable.bin'), packMask(grid));
+  writeFileSync(path.join(OUT, 'walkable.bin'), Buffer.from(packMask(grid)));
   writeFileSync(path.join(OUT, 'ground.bin'), Buffer.from(grid.ground));
 
   // Re-deriving the map is seconds; rebuilding four levels of geometry is

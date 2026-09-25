@@ -125,10 +125,12 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  supplier  Supplier?
-  sessions  Session[]
-  orders    Order[]
-  auditLogs AuditLog[]
+  supplier    Supplier?
+  sessions    Session[]
+  orders      Order[]
+  auditLogs   AuditLog[]
+  missionRuns MissionRun[]
+  promoCodes  PromoCode[]
 
   @@index([role])
   @@map("users")
@@ -231,6 +233,7 @@ model Product {
   interactions ProductInteraction[]
   orderItems   OrderItem[]
   modelJobs    ModelJob[]
+  promoCodes   PromoCode[]
 
   @@index([supplierId, status])
   @@index([status, category])
@@ -322,6 +325,7 @@ model Order {
 
   subtotalCents Int
   shippingCents Int @default(0)
+  discountCents Int @default(0)
   totalCents    Int
 
   paymentProvider String?
@@ -332,14 +336,68 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  buyer   User             @relation(fields: [buyerId], references: [id], onDelete: Restrict)
-  items   OrderItem[]
-  address ShippingAddress?
+  buyer     User             @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+  items     OrderItem[]
+  address   ShippingAddress?
   shipments Shipment[]
+  promoCode PromoCode?
 
   @@index([buyerId, createdAt])
   @@index([status])
   @@map("orders")
+}
+
+/// One buyer's attempt at one mission.
+///
+/// The steps happen in a browser, so this records what the client claims and
+/// when: the step index it has reached, and the moment it started. What keeps
+/// it honest is order and pace — a step cannot be skipped, and a completion
+/// that arrives faster than half the script is refused. That is deliberately a
+/// modest guarantee: it stops a loop in the console from minting discounts, and
+/// does not pretend to prove that anyone watched.
+model MissionRun {
+  id        String @id @default(cuid())
+  userId    String
+  missionId String
+
+  /// Index of the next step expected. Equal to the step count when finished.
+  step        Int       @default(0)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promo PromoCode?
+
+  @@unique([userId, missionId])
+  @@index([userId])
+  @@map("mission_runs")
+}
+
+/// A discount earned by finishing a mission.
+///
+/// Tied to the buyer who earned it and the product it demonstrates, single
+/// use, and dated: a code is a liability, and one that can be shared, reused
+/// or redeemed a year later is a bigger one than the discount it carries.
+model PromoCode {
+  id         String @id @default(cuid())
+  code       String @unique
+  userId     String
+  productId  String
+  percentOff Int
+
+  missionRunId String    @unique
+  issuedAt     DateTime  @default(now())
+  expiresAt    DateTime
+  usedAt       DateTime?
+  orderId      String?   @unique
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  run     MissionRun @relation(fields: [missionRunId], references: [id], onDelete: Cascade)
+  order   Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, usedAt])
+  @@map("promo_codes")
 }
 
 model OrderItem {

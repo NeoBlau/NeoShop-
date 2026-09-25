@@ -67,6 +67,7 @@ export interface OrderMailInput {
     currency: string;
     subtotalCents: number;
     shippingCents: number;
+    discountCents: number;
     totalCents: number;
     items: { title: string; quantity: number; unitPriceCents: number }[];
     address: {
@@ -100,6 +101,11 @@ export async function sendOrderConfirmation(input: OrderMailInput): Promise<void
     lines,
     '',
     `${dictionary.confirmShipping}: ${money(order.shippingCents, order.currency, input.locale)}`,
+    ...(order.discountCents > 0
+      ? [
+          `${dictionary.confirmDiscount}: −${money(order.discountCents, order.currency, input.locale)}`,
+        ]
+      : []),
     `${dictionary.confirmTotal}: ${money(order.totalCents, order.currency, input.locale)}`,
     '',
     `${dictionary.confirmAddress}:`,

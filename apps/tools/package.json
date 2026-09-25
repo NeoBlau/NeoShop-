@@ -13,7 +13,8 @@
     "gen:icon": "tsx src/gen-icon.ts",
     "gen:ambience": "tsx src/gen-ambience.ts",
     "ingest": "tsx src/ingest-product.ts",
-    "fetch:food": "tsx src/fetch-food-photos.ts"
+    "fetch:food": "tsx src/fetch-food-photos.ts",
+    "build:zone": "tsx src/build-zone.ts"
   },
   "dependencies": {
     "@3dsfera/shared": "workspace:*",

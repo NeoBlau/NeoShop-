@@ -465,6 +465,7 @@ export const ru = {
     confirmIntro: 'Мы приняли заказ {{number}} и передали его поставщикам.',
     confirmItems: 'Состав заказа',
     confirmTotal: 'Итого к оплате',
+    confirmDiscount: 'Скидка по промокоду',
     confirmShipping: 'Доставка',
     confirmAddress: 'Адрес доставки',
     confirmTrack: 'Статус заказа и трек-номер будут здесь:',

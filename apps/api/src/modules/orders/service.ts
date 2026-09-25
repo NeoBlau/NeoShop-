@@ -15,6 +15,7 @@ import type { Db } from '../../lib/prisma.js';
 import { publicUrl } from '../../lib/storage.js';
 import { sendOrderConfirmation } from '../../lib/mailer.js';
 import { env } from '../../env.js';
+import { resolveCode } from '../missions/service.js';
 import { paymentProvider } from '../payments/index.js';
 import { MAX_PARCEL_GRAMS, quoteShipping } from './shipping.js';
 
@@ -182,6 +183,7 @@ const orderSelect = {
   currency: true,
   subtotalCents: true,
   shippingCents: true,
+  discountCents: true,
   totalCents: true,
   createdAt: true,
   paidAt: true,
@@ -222,6 +224,7 @@ type OrderRow = {
   currency: OrderSummary['currency'];
   subtotalCents: number;
   shippingCents: number;
+  discountCents: number;
   totalCents: number;
   createdAt: Date;
   paidAt: Date | null;
@@ -260,6 +263,7 @@ function toDetail(order: OrderRow, includeAddress: boolean): OrderDetail {
     currency: order.currency,
     subtotalCents: order.subtotalCents,
     shippingCents: order.shippingCents,
+    discountCents: order.discountCents,
     totalCents: order.totalCents,
     itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
     createdAt: order.createdAt.toISOString(),
@@ -322,11 +326,39 @@ export async function checkout(
     currency,
   });
 
-  const total = goods + quote.priceCents;
+  /**
+   * A mission's discount, if one was offered.
+   *
+   * It applies to the line it was earned on and to nothing else: a code from
+   * the vacuum mission takes money off the vacuum, not off the sofa somebody
+   * added afterwards. Resolved before the transaction so a bad code is refused
+   * without touching stock, and marked used inside it so two orders cannot
+   * spend the same code.
+   */
+  const promo = input.promoCode ? await resolveCode(db, context.buyerId, input.promoCode) : null;
+  const discountable = promo ? lines.find((line) => line.productId === promo.productId) : undefined;
 
-  // One transaction: the order, its lines, the address, and the stock it
-  // consumes. `decrement` with a stock guard makes two buyers racing for the
-  // last unit resolve in the database rather than in application code.
+  if (promo && !discountable) {
+    throw new AppError({
+      status: 409,
+      code: 'ERR_CONFLICT',
+      message: 'That promo code is for a product this order does not contain',
+      issues: [{ path: 'promoCode', code: 'promo_wrong_product', message: 'wrong product' }],
+    });
+  }
+
+  const discount = discountable
+    ? Math.round(
+        (discountable.unitPriceCents * discountable.quantity * (promo?.percentOff ?? 0)) / 100,
+      )
+    : 0;
+
+  const total = goods - discount + quote.priceCents;
+
+  // One transaction: the order, its lines, the address, the stock it consumes
+  // and the code it spends. `decrement` with a stock guard makes two buyers
+  // racing for the last unit resolve in the database rather than in
+  // application code.
   const orderId = await db.$transaction(async (tx) => {
     for (const line of lines) {
       const updated = await tx.product.updateMany({
@@ -352,6 +384,7 @@ export async function checkout(
         currency,
         subtotalCents: goods,
         shippingCents: quote.priceCents,
+        discountCents: discount,
         totalCents: total,
         items: {
           create: lines.map((line) => ({
@@ -378,6 +411,25 @@ export async function checkout(
       },
       select: { id: true },
     });
+
+    // Inside the transaction and guarded on usedAt: two orders submitted at
+    // once cannot both spend the code, because the second update matches no
+    // rows and the whole order rolls back with it.
+    if (promo) {
+      const spent = await tx.promoCode.updateMany({
+        where: { id: promo.id, usedAt: null },
+        data: { usedAt: new Date(), orderId: created.id },
+      });
+
+      if (spent.count === 0) {
+        throw new AppError({
+          status: 409,
+          code: 'ERR_CONFLICT',
+          message: 'That promo code was used while the order was being placed',
+          issues: [{ path: 'promoCode', code: 'promo_used', message: 'used' }],
+        });
+      }
+    }
 
     return created.id;
   });
@@ -453,6 +505,7 @@ export async function markOrderPaid(
       currency: order.currency,
       subtotalCents: order.subtotalCents,
       shippingCents: order.shippingCents,
+      discountCents: order.discountCents,
       totalCents: order.totalCents,
       items: order.items.map((item) => ({
         title: item.titleSnapshot,

@@ -167,13 +167,23 @@ export interface WalkableOptions {
   /** Ignore anything above this: rooftops, chimneys, the sky. */
   ceiling: number;
   /**
-   * The band a floor may be in, relative to the lowest ground in the scene.
+   * The band a floor may be in, relative to `floorAt` when it is given and to
+   * the lowest ground in the scene otherwise.
    *
    * Buildings have foundations that reach well below the pavement, and the
    * lowest surface in a cell is otherwise the bottom of a wall rather than
    * the street. Anything outside this band is treated as structure.
    */
   floorBand: [number, number];
+  /**
+   * World height the band is measured from.
+   *
+   * An outdoor scene can take the scene's own minimum: the street is the
+   * lowest thing in it. An interior that ships with scenery cannot — the loft
+   * comes ringed by skyscrapers whose bases hang eight metres below its floor,
+   * and the minimum then names a rooftop in the distance rather than the room.
+   */
+  floorAt?: number;
 }
 
 /**
@@ -261,8 +271,9 @@ export function buildWalkableGrid(document: Document, options: WalkableOptions):
   const cells = width * height;
   const origin: [number, number] = [minX, minZ];
 
-  const floorLow = minY + options.floorBand[0];
-  const floorHigh = minY + options.floorBand[1];
+  const datum = options.floorAt ?? minY;
+  const floorLow = datum + options.floorBand[0];
+  const floorHigh = datum + options.floorBand[1];
 
   const floor = new Float32Array(cells).fill(Infinity);
   const blocked = new Uint8Array(cells);
@@ -413,4 +424,22 @@ export function countWalkable(grid: WalkableGrid): number {
   let total = 0;
   for (const cell of grid.mask) total += cell;
   return total;
+}
+
+/**
+ * Packs the walkable mask one bit to a cell.
+ *
+ * A whole Parisian block is eighteen kilobytes this way and a hundred and
+ * thirty as bytes, which matters because the browser downloads it before it
+ * can let anyone walk.
+ */
+export function packMask(grid: WalkableGrid): Uint8Array {
+  const packed = new Uint8Array(Math.ceil(grid.mask.length / 8));
+  for (let cell = 0; cell < grid.mask.length; cell += 1) {
+    if (grid.mask[cell]) {
+      const byte = cell >> 3;
+      packed[byte] = (packed[byte] ?? 0) | (1 << (cell & 7));
+    }
+  }
+  return packed;
 }

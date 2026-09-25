@@ -57,6 +57,18 @@ export const checkoutSchema = z.object({
   /** Where to send the confirmation for a guest checkout. */
   email: emailSchema.optional(),
   currency: z.enum(CURRENCIES).default('RUB'),
+  /**
+   * A discount code earned by finishing a mission. Case and spacing are
+   * forgiven — it is a string somebody reads off a screen — and everything
+   * else about it is decided on the server.
+   */
+  promoCode: z
+    .string()
+    .trim()
+    .min(4)
+    .max(32)
+    .transform((value) => value.toUpperCase())
+    .optional(),
 });
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>;

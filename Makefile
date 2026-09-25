@@ -13,7 +13,7 @@ AMBIENCE_MARKER := apps/web/public/world/audio/street.wav
 .DEFAULT_GOAL := help
 .PHONY: help env install shared up down restart logs db-migrate db-reset db-studio seed \
         app dev build lint typecheck test e2e desktop assets assets-if-missing textures \
-        world-assets location location-if-missing ambience ambience-if-missing ingest \
+        world-assets location location-if-missing ambience ambience-if-missing ingest zones \
         installer clean
 
 help: ## Show available targets
@@ -70,6 +70,9 @@ location: ## Fetch and build the walkable location (about forty minutes, once)
 # `make dev` skips it. Delete apps/web/public/world/location to force a rebuild.
 location-if-missing:
 	@test -f $(LOCATION_MARKER) || $(MAKE) location
+
+zones: ## Build the demo zones from assets/incoming (a few minutes each)
+	pnpm --filter @3dsfera/tools run build:zone
 
 ambience: ## Synthesise the street sound bed (a few seconds)
 	pnpm --filter @3dsfera/tools run gen:ambience
