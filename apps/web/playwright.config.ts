@@ -45,6 +45,7 @@ export default defineConfig({
         /supplier-wizard\.spec\.ts/,
         /checkout\.spec\.ts/,
         /admin\.spec\.ts/,
+        /world\.spec\.ts/,
         /\.setup\.ts/,
       ],
       // A street of two and a half million triangles and four hundred textures,
@@ -66,6 +67,15 @@ export default defineConfig({
       use: { ...chromium, storageState: BUYER_STATE },
       testMatch: /checkout\.spec\.ts/,
       dependencies: ['setup'],
+    },
+    // The showroom is behind the sign-in, so its specs need a session too. Same
+    // three-minute allowance as the anonymous project: it is the same street.
+    {
+      name: 'world',
+      use: { ...chromium, storageState: BUYER_STATE },
+      testMatch: /world\.spec\.ts/,
+      dependencies: ['setup'],
+      timeout: 240_000,
     },
     // Administration runs last: it takes a product off the street and puts it
     // back, and the specs that expect to find it there should have run first.

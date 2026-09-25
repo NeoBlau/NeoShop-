@@ -35,7 +35,17 @@ export function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<WorldPage />} />
+        {/* The exhibition is for members: a visitor signs in, and the flat
+            catalogue stays open to everyone so the shop still works without a
+            GPU or an account. */}
+        <Route
+          index
+          element={
+            <RequireAuth>
+              <WorldPage />
+            </RequireAuth>
+          }
+        />
         <Route path="catalog" element={<CatalogPage />} />
         <Route path="cart" element={<CartPage />} />
         <Route

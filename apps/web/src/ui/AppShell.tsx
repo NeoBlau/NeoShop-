@@ -36,9 +36,13 @@ export function AppShell() {
           </Link>
 
           <nav className="-mx-1 flex flex-1 items-center gap-0.5 overflow-x-auto px-1">
-            <NavLink to="/" end className={navClass}>
-              {t('nav.world')}
-            </NavLink>
+            {/* Offered only to members: the exhibition needs a session, and a
+                link that bounces a visitor to the sign-in reads as a fault. */}
+            {user ? (
+              <NavLink to="/" end className={navClass}>
+                {t('nav.world')}
+              </NavLink>
+            ) : null}
             <NavLink to="/catalog" className={navClass}>
               {t('nav.catalog')}
             </NavLink>

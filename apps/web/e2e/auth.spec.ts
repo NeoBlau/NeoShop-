@@ -57,6 +57,15 @@ test('an anonymous visitor is sent to the login page and back again', async ({ p
   await expect(page.getByRole('heading', { name: 'Мои заказы' })).toBeVisible();
 });
 
+test('the exhibition is closed to a visitor who has not signed in', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/login\?next=%2F$/);
+
+  // Closed, not hidden: the flat catalogue is still there to be shopped.
+  await page.getByRole('link', { name: 'Каталог' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Каталог' })).toBeVisible();
+});
+
 test('the interface switches to English and back', async ({ page }) => {
   await page.goto('/catalog');
   await expect(page.getByRole('heading', { name: 'Каталог' })).toBeVisible();
