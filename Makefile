@@ -15,6 +15,7 @@ AMBIENCE_MARKER := apps/web/public/world/audio/street.wav
         app dev build lint typecheck test e2e desktop assets assets-if-missing textures \
         world-assets location location-if-missing ambience ambience-if-missing ingest zones \
         props nature nature-assets nature-if-missing fonts fonts-if-missing \
+        zones-if-missing \
         installer clean
 
 help: ## Show available targets
@@ -75,6 +76,15 @@ location-if-missing:
 zones: ## Build the demo zones from assets/incoming (a few minutes each)
 	pnpm --filter @3dsfera/tools run build:zone
 
+ZONES_MARKER := apps/web/public/world/zones/zones.json
+
+# The zone sources are third-party interiors that are not ours to redistribute,
+# so they live in assets/incoming and are not in the repository. Build them
+# when they are there and say nothing when they are not: a checkout without
+# them should still bring the street up.
+zones-if-missing:
+	@test -f $(ZONES_MARKER) || ! ls assets/incoming/*.glb >/dev/null 2>&1 || $(MAKE) zones
+
 props: ## Build the street props from assets/incoming
 	pnpm --filter @3dsfera/tools run build:props
 
@@ -127,7 +137,7 @@ seed: shared ## Load demo data (suppliers, pavilions, five animated products)
 app: ## Run api + web with hot reload
 	pnpm dev
 
-dev: env install shared fonts-if-missing world-assets location-if-missing ambience-if-missing assets-if-missing ingest props up db-migrate seed app ## Full local environment, one command
+dev: env install shared fonts-if-missing world-assets location-if-missing nature-if-missing ambience-if-missing assets-if-missing ingest props zones-if-missing up db-migrate seed app ## Full local environment, one command
 
 build: ## Production build of every package
 	pnpm build
