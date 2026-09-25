@@ -6,6 +6,7 @@ import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { ACESFilmicToneMapping, PCFSoftShadowMap, type DirectionalLight } from 'three';
 import type { WorldProduct, WorldResponse } from '@3dsfera/shared';
 import { lowerTier, settingsFor, type QualitySettings, type QualityTier } from '../quality.js';
+import { Concierge, conciergePlacement } from './Concierge.js';
 import { Location } from './Location.js';
 import { ProductStand } from './ProductStand.js';
 import { standPlacements } from './layout.js';
@@ -114,6 +115,8 @@ export interface WorldProps {
   formatPrice: (cents: number, currency: string) => string;
   /** Movement is suspended while a panel or a menu has the buyer's attention. */
   controlsEnabled: boolean;
+  /** The buyer walked up to the concierge and asked for help. */
+  onConciergeOpen: () => void;
 }
 
 /** One supplier's frontage: their name over their products. */
@@ -195,10 +198,12 @@ function Scene({
   onSelect,
   formatPrice,
   controlsEnabled,
+  onConciergeOpen,
   quality,
 }: WorldProps & { quality: QualitySettings }) {
   const { grid, manifest } = location;
   const renderer = useThree((state) => state.gl);
+  const concierge = useMemo(() => conciergePlacement(grid, manifest.spawn), [grid, manifest.spawn]);
 
   useEffect(() => {
     // The street was authored for a renderer with a physical sky. Ours is
@@ -240,6 +245,10 @@ function Scene({
           );
         })}
       </Suspense>
+
+      {/* Staff. Placed from the arrival point rather than from a coordinate
+          typed into the source, so it stays right if the spawn moves. */}
+      <Concierge placement={concierge} onOpen={onConciergeOpen} />
 
       <Sun quality={quality} />
       {/* A little sky bounce into the shaded side of the street. The HDRI does

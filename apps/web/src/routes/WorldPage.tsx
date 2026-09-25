@@ -14,6 +14,7 @@ import {
 import { useProgress } from '@react-three/drei';
 import { TouchControls } from '../scene/world/TouchControls.js';
 import { useAmbience } from '../scene/world/ambience.js';
+import { ConciergePanel } from '../features/concierge/ConciergePanel.js';
 import { useInput } from '../scene/world/input.js';
 import { useLocationData } from '../features/world/useLocationData.js';
 import { Alert } from '../ui/Alert.js';
@@ -198,6 +199,8 @@ export function WorldPage() {
   const [loop, setLoop] = useState(false);
   const [touch, setTouch] = useState(false);
 
+  const [concierge, setConcierge] = useState(false);
+
   // Sound belongs to the street, so it runs while the street does and stops
   // when a product panel takes over the screen.
   const ambience = useAmbience(mode === 'world');
@@ -231,14 +234,20 @@ export function WorldPage() {
   // Releasing the pointer lock is what closes the panel on a desktop; keep the
   // two in step so the cursor is always usable when a panel is open.
   useEffect(() => {
-    if (selected && document.pointerLockElement) document.exitPointerLock();
-  }, [selected]);
+    if ((selected || concierge) && document.pointerLockElement) document.exitPointerLock();
+  }, [selected, concierge]);
 
   useEffect(() => () => useInput.getState().reset(), []);
 
   const handleSelect = useCallback((product: WorldProduct | null) => {
     setSelected(product);
     setActiveClip(null);
+    setConcierge(false);
+  }, []);
+
+  const handleConcierge = useCallback(() => {
+    setSelected(null);
+    setConcierge(true);
   }, []);
 
   const productCount = world?.pavilions.reduce(
@@ -301,14 +310,15 @@ export function WorldPage() {
           loop={loop}
           onSelect={handleSelect}
           formatPrice={formatPrice}
-          controlsEnabled={selected === null}
+          controlsEnabled={selected === null && !concierge}
+          onConciergeOpen={handleConcierge}
         />
       </Suspense>
 
       <SceneLoading />
 
       {/* Crosshair: without one it is hard to tell what a click will hit. */}
-      {!selected ? (
+      {!selected && !concierge ? (
         <div className="pointer-events-none absolute top-1/2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
       ) : null}
 
@@ -376,7 +386,7 @@ export function WorldPage() {
         </div>
       </div>
 
-      {!selected ? (
+      {!selected && !concierge ? (
         <div className="text-ink-faint pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
           <p className="bg-void/70 border-edge rounded-lg border px-3 py-1.5 text-center text-[11px] backdrop-blur">
             {touch ? t('world.controlsHintTouch') : t('world.controlsHint')}
@@ -384,7 +394,9 @@ export function WorldPage() {
         </div>
       ) : null}
 
-      {touch && !selected ? <TouchControls /> : null}
+      {touch && !selected && !concierge ? <TouchControls /> : null}
+
+      {concierge ? <ConciergePanel onClose={() => setConcierge(false)} /> : null}
 
       {selected ? (
         <ProductPanel

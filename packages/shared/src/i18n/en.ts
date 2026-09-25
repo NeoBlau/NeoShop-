@@ -475,6 +475,70 @@ export const en: Dictionary = {
     moderationRejectedBody: '"{{title}}" did not pass moderation. Reason:',
     moderationRejectedFooter: 'Fix it and submit again — the product is waiting in your dashboard.',
   },
+  concierge: {
+    name: 'Concierge',
+    role: 'Here to help',
+    greeting: 'Afternoon. I work this street. Ask me anything.',
+    opening: 'Where shall we start?',
+    back: 'Other questions',
+    close: 'Thanks, I can manage',
+
+    findQuestion: 'How do I find a particular product?',
+    findAnswer:
+      'Walk the street and read the signs: every shop has its own front, and the products stand on plinths outside it. If you already know what you want, the flat catalogue is quicker — it has search and filters.',
+
+    catalogQuestion: 'What is the flat catalogue?',
+    catalogAnswer:
+      'A plain list of products, no 3D. Same products, same prices, buying works the same. Useful on a slow device, or when you are in a hurry.',
+    catalogLink: 'Open the catalogue',
+
+    pavilionsQuestion: 'Whose shops are these?',
+    pavilionsAnswer:
+      "Each front is one supplier's pavilion. The name is on the sign and the products inside are theirs. A pavilion is granted once the company has been checked, so there is a real seller behind every window.",
+
+    walkQuestion: 'How do I walk and look around?',
+    walkAnswer:
+      'WASD or the arrow keys to walk, Shift to hurry. To look: drag across the scene, or click it and the view follows the mouse — Esc gives the cursor back. On a phone, the stick on the left and a swipe anywhere else.',
+
+    missionsQuestion: 'What are the mini-missions?',
+    missionsAnswer:
+      'A short scene where the product actually works: the antenna deploys and finds a signal, the vacuum undocks and cleans, the chair reclines. You are not watching a video — you press the buttons yourself.',
+
+    rewardQuestion: 'What do I get for finishing one?',
+    rewardAnswer:
+      'A discount code for that product. Buying does not depend on it: you can add the product to the cart before, during or after — the code simply takes money off if you have one.',
+
+    buyQuestion: 'How do I buy?',
+    buyAnswer:
+      'Click a product on its plinth and the card opens with the price and an add-to-cart button. Then the cart, a delivery address and payment. The product is real and it gets shipped.',
+    buyLink: 'Go to the cart',
+
+    paymentQuestion: 'How does payment work?',
+    paymentAnswer:
+      'By card. Payments currently run in Stripe test mode: nothing is charged, but the order is created for real so you can see the whole path through to a tracking number.',
+
+    deliveryQuestion: 'What about delivery?',
+    deliveryAnswer:
+      'Physical delivery to the address you give. Only you and a platform administrator can see that address, and it never reaches the logs. Once the parcel leaves, the supplier adds a tracking number and it shows up on the order.',
+
+    ordersQuestion: 'Where are my orders?',
+    ordersAnswer:
+      'Under My orders: the status of each one — paid, packing, shipped, delivered — and the tracking number once the parcel is on its way.',
+    ordersLink: 'My orders',
+
+    supplierQuestion: 'How do I become a supplier?',
+    supplierAnswer:
+      'Register as a supplier and fill in your company details. Once checked, you are given a pavilion on the street and you list products yourself, without us in the way.',
+    supplierLink: 'Register',
+
+    uploadQuestion: 'What do I need to list a product?',
+    uploadAnswer:
+      'A GLB model up to 50 MB with named animations — those are what show the product working. The wizard then walks you through it: processing, the actions, the card, the price.',
+
+    moderationQuestion: 'How long does moderation take?',
+    moderationAnswer:
+      'An administrator checks the model, the description and the price. If something is wrong it comes back with a reason, visible in your area, and you can resubmit once it is fixed.',
+  },
   validation: {
     required: 'This field is required',
     invalid_email: 'That address looks like a typo',
