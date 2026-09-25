@@ -49,6 +49,9 @@ export function AppShell() {
             <NavLink to="/food" className={navClass}>
               {t('nav.food')}
             </NavLink>
+            <NavLink to="/guide" className={navClass}>
+              {t('nav.guide')}
+            </NavLink>
             <NavLink to="/cart" className={navClass}>
               {t('nav.cart')}
               {cartCount > 0 ? (

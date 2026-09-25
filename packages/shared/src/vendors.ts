@@ -13,24 +13,11 @@
  */
 
 import { PRODUCT_CATEGORIES, type ProductCategory } from './domain.js';
+import type { ScriptedLine, ScriptedText } from './scripted.js';
 
-export interface VendorText {
-  ru: string;
-  en: string;
-}
-
-export interface VendorLine {
-  id: string;
-  /** What the buyer asks, as a button and as something they can say aloud. */
-  question: VendorText;
-  answer: VendorText;
-  /**
-   * Words that mean this question, for matching what a microphone heard. Kept
-   * short and lower case; matching is by whole word, so "цена" does not fire on
-   * "оценка".
-   */
-  heard: readonly string[];
-}
+/** A vendor's lines are ordinary scripted lines; the names are kept for clarity. */
+export type VendorText = ScriptedText;
+export type VendorLine = ScriptedLine;
 
 /** Questions every vendor can answer, whatever they sell. */
 export const VENDOR_COMMON: readonly VendorLine[] = [
@@ -207,70 +194,6 @@ export function dominantCategory(categories: readonly ProductCategory[]): Produc
 export function vendorLines(category: ProductCategory): VendorLine[] {
   const about = VENDOR_BY_CATEGORY[category];
   return [about, ...VENDOR_COMMON];
-}
-
-/**
- * Whether a spoken word means a keyword.
- *
- * Russian inflects, and it inflects inside the word's tail rather than after
- * it: somebody asking "а что с доставкой" says a word that does not begin with
- * "доставка" — the eighth letter already differs. So the comparison is on
- * stems, dropping the last two characters of the shorter word, which catches
- * доставка/доставкой and гарантия/гарантией.
- *
- * Words shorter than five characters must match exactly. Three letters of stem
- * is not evidence, and it is what keeps "цена" from firing on "оценка".
- */
-function meansTheSame(word: string, keyword: string): boolean {
-  const shortest = Math.min(word.length, keyword.length);
-  if (shortest < 5) return word === keyword;
-
-  const stem = shortest - 2;
-  return word.slice(0, stem) === keyword.slice(0, stem);
-}
-
-/**
- * Matches something a microphone heard to one of a vendor's lines.
- *
- * Scored by the length of the keywords that hit rather than by how many:
- * "what about delivery" contains both a generic "what" and a specific
- * "delivery", and the specific one is what the question is about.
- *
- * Deliberately dumb. The alternative is a language model that can invent a
- * refund policy, and a seller who answers the wrong scripted question is a
- * smaller problem than one who answers an unscripted one.
- */
-export function matchHeard(text: string, lines: readonly VendorLine[]): VendorLine | null {
-  const words = text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (words.length === 0) return null;
-
-  let best: VendorLine | null = null;
-  let bestScore = 0;
-
-  for (const line of lines) {
-    let score = 0;
-
-    for (const word of words) {
-      for (const keyword of line.heard) {
-        if (meansTheSame(word, keyword)) {
-          score += keyword.length;
-          break;
-        }
-      }
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = line;
-    }
-  }
-
-  return best;
 }
 
 export { PRODUCT_CATEGORIES };

@@ -11,5 +11,7 @@ export * from './glb.js';
 export * from './concierge.js';
 export * from './food.js';
 export * from './missions.js';
+export * from './guide.js';
+export * from './scripted.js';
 export * from './vendors.js';
 export { dictionaries, negotiateLocale, type Dictionary } from './i18n/index.js';

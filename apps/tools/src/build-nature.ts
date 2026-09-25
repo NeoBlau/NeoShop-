@@ -110,10 +110,13 @@ const RIM = 26;
  * first two attempts to fix it by pulling the exposure down only made a grey
  * forest — because the problem was the ambient, not the exposure.
  *
- * So the environment is turned down hard and the sun turned up: contrast, and
- * a shadow under every tree, is what a forest is made of.
+ * So the environment came down and the sun went up, and then the sun came
+ * back down again: at two the ground facing straight up burned out to pale
+ * sand while the banks stayed in shade, which is a different way of looking
+ * wrong. These numbers are the settled ones — enough sun for a shadow under
+ * every tree, not enough to bleach the floor between them.
  */
-const LIGHT = { exposure: 0.62, environment: 0.45, sun: 2.1, hemisphere: 0.18 } as const;
+const LIGHT = { exposure: 0.72, environment: 0.55, sun: 1.5, hemisphere: 0.22 } as const;
 
 /**
  * Four levels, the same ladder the street uses — but with a texture budget per
@@ -252,6 +255,26 @@ function padAt(x: number, z: number): Plot | undefined {
 }
 
 /**
+ * How much a point belongs to its pad: one at the middle, nought past the rim.
+ *
+ * The first version switched: inside the radius the ground was the pad's
+ * level, outside it was whatever the terrain said. Where a pad happened to
+ * reach the rising ground — and the treeline wanders by two metres, so some
+ * do — that left a clean vertical step a metre high, which renders as a
+ * quarry bench. Blending the last metre and a bit makes it a ramp.
+ */
+function padWeight(x: number, z: number, plot: Plot): number {
+  const from = Math.hypot(x - plot.x, z - plot.z);
+  const flat = PLOT_RADIUS - 0.6;
+  const edge = PLOT_RADIUS + 0.8;
+  if (from <= flat) return 1;
+  if (from >= edge) return 0;
+
+  const t = (from - flat) / (edge - flat);
+  return 1 - t * t * (3 - 2 * t);
+}
+
+/**
  * The gentle unevenness of the clearing floor.
  *
  * Kept small on purpose. The ground bitmap has two and a half metres of range
@@ -263,11 +286,8 @@ function clearingFloor(x: number, z: number): number {
   return relief(x, z, 23, 3) * 0.52 + relief(x + 400, z - 250, 61, 2) * 0.34;
 }
 
-/** Terrain height. */
-function heightAt(x: number, z: number): number {
-  const pad = padAt(x, z);
-  if (pad) return clearingFloor(pad.x, pad.z);
-
+/** Terrain height, before the pavilion pads are levelled into it. */
+function groundHeight(x: number, z: number): number {
   const floor = clearingFloor(x, z);
   const edge = clearingEdge(x, z);
 
@@ -293,6 +313,19 @@ function heightAt(x: number, z: number): number {
   // The clearing floor's own roll fades out as the bank takes over, so the two
   // fields do not fight each other along the join.
   return floor * (1 - into * 0.8) + climb + hummocks;
+}
+
+/** Terrain height. */
+function heightAt(x: number, z: number): number {
+  const ground = groundHeight(x, z);
+  const plot = padAt(x, z);
+  if (!plot) return ground;
+
+  // A pavilion stands on the level, so the pad is flat: the height at its own
+  // centre, blended into the surrounding ground over its rim.
+  const level = clearingFloor(plot.x, plot.z);
+  const weight = padWeight(x, z, plot);
+  return ground + (level - ground) * weight;
 }
 
 /** Gradient magnitude, for deciding what the ground is made of. */

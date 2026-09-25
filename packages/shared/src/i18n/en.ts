@@ -25,6 +25,7 @@ export const en: Dictionary = {
     comingSoon: 'This section arrives in a later stage',
   },
   nav: {
+    guide: 'Guide',
     food: 'Fast food',
     world: 'World',
     catalog: 'Catalog',
@@ -568,6 +569,37 @@ export const en: Dictionary = {
     stageNote_riding: 'Down the street — follow it on the map.',
     stageNote_arrived: 'Enjoy it.',
     photoCredits: 'Photography: {{credits}}',
+  },
+  guide: {
+    title: 'Guide to the locations',
+    intro:
+      'Questions about the showroom worlds. By default a script answers — it ships inside this page and goes nowhere. If you run a language model on your own machine, give us its address: the same facts go to it as a brief, and it answers instead.',
+    connectTitle: 'Connect a local model',
+    connectHint:
+      'The address of an OpenAI-compatible server on your own computer: Ollama listens on 11434, LM Studio on 1234. The request goes from your browser straight there, past us. The server has to allow requests from this origin — for Ollama that is OLLAMA_ORIGINS.',
+    endpointLabel: 'Local model address',
+    connect: 'Connect',
+    disconnect: 'Disconnect',
+    connected: 'Connected: {{model}}',
+    unnamedModel: 'an unnamed model',
+    checking: 'Checking the address…',
+    unreachable: 'The model is not answering',
+    unreachableHint:
+      'Either the server is not running or it will not accept the browser from this origin. Until it does, the script answers and every question below works.',
+    readingLocations: 'Reading which locations were built…',
+    noLocations: 'This build has no locations in it — build them with make assets.',
+    locationStats: '{{plots}} plots · {{triangles}} triangles at full detail',
+    empty: 'Ask in your own words, or press one of the written questions.',
+    placeholder: 'For example: how is the grove different from the street?',
+    send: 'Ask',
+    thinking: 'The model is thinking…',
+    fromModel: 'Answered by your local model',
+    fromScript: 'Answered from the script',
+    noAnswer:
+      'The script has nothing on that. Ask the concierge inside the world — they walk people through the place — or connect a local model.',
+    aiEmpty: 'The model returned an empty answer. Falling back to the script.',
+    aiFailed: 'The model could not be reached. Falling back to the script.',
+    toWorld: 'Back to the world',
   },
   npc: {
     vendorRole: 'Sales assistant · {{supplier}}',

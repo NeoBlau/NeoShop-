@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { PRODUCT_CATEGORIES } from './domain.js';
+import { matchHeard } from './scripted.js';
 import {
   VENDOR_BY_CATEGORY,
   VENDOR_COMMON,
   VENDOR_NAMES,
   dominantCategory,
-  matchHeard,
   vendorLines,
   vendorName,
 } from './vendors.js';

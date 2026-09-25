@@ -24,6 +24,7 @@ import { SupplierOrdersPage } from './routes/supplier/SupplierOrdersPage.js';
 import { WorldPage } from './routes/WorldPage.js';
 import { CatalogPage } from './routes/CatalogPage.js';
 import { FoodPage } from './routes/FoodPage.js';
+import { GuidePage } from './routes/GuidePage.js';
 import { MissionPage } from './routes/MissionPage.js';
 import { useSession } from './stores/session.js';
 
@@ -52,6 +53,11 @@ export function App() {
         {/* The counter at the end of the street, as its own tab: ordering lunch
             is a different flow from ordering a product that ships. */}
         <Route path="food" element={<FoodPage />} />
+        {/* Questions about the worlds, answered from a written script or by a
+            language model on the buyer's own machine. Open to everyone: the
+            most useful thing it can tell a visitor is what is behind the
+            sign-in. */}
+        <Route path="guide" element={<GuidePage />} />
         {/* A mission is a signed-in thing: the run and its discount code
             belong to a buyer. */}
         <Route
