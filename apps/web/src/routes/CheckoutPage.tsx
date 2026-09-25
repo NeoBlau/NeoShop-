@@ -105,6 +105,16 @@ export function CheckoutPage() {
     void loadQuote();
   }, [loadQuote]);
 
+  /**
+   * A mission's discount code.
+   *
+   * Only the server knows whether it is valid, whose it is and what it applies
+   * to, so nothing is computed from it here: the field is sent, and the order
+   * that comes back carries the discount it decided on. A wrong code fails the
+   * order with a field error rather than silently charging full price.
+   */
+  const [promoCode, setPromoCode] = useState('');
+
   const total = subtotal + (quote?.priceCents ?? 0);
 
   function field(key: keyof AddressDraft) {
@@ -131,6 +141,7 @@ export function CheckoutPage() {
         lines: toCheckoutLines(lines),
         address: toAddressInput(address),
         currency,
+        ...(promoCode.trim() ? { promoCode: promoCode.trim().toUpperCase() } : {}),
       });
       // The cart has become an order; leaving it filled invites a second one.
       clearCart();
@@ -268,6 +279,30 @@ export function CheckoutPage() {
               </li>
             ))}
           </ul>
+
+          <div>
+            <label htmlFor="promo" className="text-ink-faint block text-xs">
+              {t('order.promoLabel')}
+            </label>
+            <input
+              id="promo"
+              value={promoCode}
+              onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+              placeholder={t('order.promoPlaceholder')}
+              autoComplete="off"
+              spellCheck={false}
+              className="bg-panel-raised border-edge text-ink focus:border-edge-strong mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm tracking-wider outline-none"
+            />
+            {fieldErrors['promoCode'] ? (
+              <p className="text-danger mt-1 text-xs">
+                {t(`order.promo_${fieldErrors['promoCode']}`, {
+                  defaultValue: t('order.promo_promo_unknown'),
+                })}
+              </p>
+            ) : (
+              <p className="text-ink-faint mt-1 text-[11px]">{t('order.promoHint')}</p>
+            )}
+          </div>
 
           <dl className="border-edge flex flex-col gap-2 border-t pt-3 text-sm">
             <div className="flex justify-between gap-3">

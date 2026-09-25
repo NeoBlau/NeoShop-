@@ -204,6 +204,14 @@ export function OrderStatusPage() {
                   )}
                 </dd>
               </div>
+              {order.discountCents > 0 ? (
+                <div className="text-success flex justify-between gap-3">
+                  <dt>{t('order.discount')}</dt>
+                  <dd className="tabular-nums">
+                    −{formatPrice(order.discountCents, order.currency)}
+                  </dd>
+                </div>
+              ) : null}
               <div className="border-edge flex justify-between gap-3 border-t pt-2 text-base">
                 <dt>{t('order.total')}</dt>
                 <dd className="tabular-nums">{formatPrice(order.totalCents, order.currency)}</dd>

@@ -24,6 +24,7 @@ import { SupplierOrdersPage } from './routes/supplier/SupplierOrdersPage.js';
 import { WorldPage } from './routes/WorldPage.js';
 import { CatalogPage } from './routes/CatalogPage.js';
 import { FoodPage } from './routes/FoodPage.js';
+import { MissionPage } from './routes/MissionPage.js';
 import { useSession } from './stores/session.js';
 
 export function App() {
@@ -51,6 +52,16 @@ export function App() {
         {/* The counter at the end of the street, as its own tab: ordering lunch
             is a different flow from ordering a product that ships. */}
         <Route path="food" element={<FoodPage />} />
+        {/* A mission is a signed-in thing: the run and its discount code
+            belong to a buyer. */}
+        <Route
+          path="mission/:id"
+          element={
+            <RequireAuth>
+              <MissionPage />
+            </RequireAuth>
+          }
+        />
         <Route path="cart" element={<CartPage />} />
         <Route
           path="checkout"

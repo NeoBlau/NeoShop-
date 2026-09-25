@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { WorldProduct } from '@3dsfera/shared';
+import { missionForProduct, type WorldProduct } from '@3dsfera/shared';
 import { useWorld, useViewReporter } from '../features/world/useWorld.js';
 import { useCart } from '../stores/cart.js';
 import {
@@ -14,6 +14,7 @@ import {
 import { useProgress } from '@react-three/drei';
 import { TouchControls } from '../scene/world/TouchControls.js';
 import { useAmbience } from '../scene/world/ambience.js';
+import { useZoneIndex } from '../features/zones/useZone.js';
 import { ConciergePanel } from '../features/concierge/ConciergePanel.js';
 import { useInput } from '../scene/world/input.js';
 import { useLocationData } from '../features/world/useLocationData.js';
@@ -53,6 +54,7 @@ function ProductPanel({
   onStop,
   onClose,
   formatPrice,
+  missionId,
 }: {
   product: WorldProduct;
   activeClip: string | null;
@@ -60,6 +62,8 @@ function ProductPanel({
   onStop: () => void;
   onClose: () => void;
   formatPrice: (cents: number, currency: string) => string;
+  /** Set when this product has a mission and its zone exists in this build. */
+  missionId: string | null;
 }) {
   const { t, i18n } = useTranslation();
   const add = useCart((state) => state.add);
@@ -91,6 +95,17 @@ function ProductPanel({
       </p>
 
       <p className="text-ink-muted mt-3 text-sm leading-relaxed">{product.description}</p>
+
+      {/* The fuller demonstration, when one exists and its room has been
+          built. Offered, never required: the buy button is right below. */}
+      {missionId ? (
+        <Link
+          to={`/mission/${missionId}`}
+          className="border-accent/40 bg-accent/10 hover:border-accent text-ink mt-4 block rounded-lg border px-3 py-2 text-center text-sm transition-colors"
+        >
+          {t('mission.enter')}
+        </Link>
+      ) : null}
 
       {product.interactions.length > 0 ? (
         <div className="mt-4 flex flex-col gap-2">
@@ -200,6 +215,17 @@ export function WorldPage() {
   const [touch, setTouch] = useState(false);
 
   const [concierge, setConcierge] = useState(false);
+  const { zones } = useZoneIndex();
+
+  // A mission is only offered when its room is actually in this build: a
+  // checkout without `make zones` should show the street, not a dead link.
+  const missionFor = useCallback(
+    (slug: string): string | null => {
+      const found = missionForProduct(slug);
+      return found && zones.includes(found.zone) ? found.id : null;
+    },
+    [zones],
+  );
 
   // Sound belongs to the street, so it runs while the street does and stops
   // when a product panel takes over the screen.
@@ -409,6 +435,7 @@ export function WorldPage() {
           onStop={() => setActiveClip(null)}
           onClose={() => handleSelect(null)}
           formatPrice={formatPrice}
+          missionId={missionFor(selected.slug)}
         />
       ) : null}
 
