@@ -27,8 +27,15 @@ services:
   # 2025.5.24, the last community release and the only copy still open to
   # anonymous pulls. Behaviour is the MinIO the code is written against:
   # prefix-scoped anonymous policy for public/, presigned URLs for private/.
+  #
+  # Pinned to an exact tag, and not to `:latest`, which was a mistake that cost
+  # somebody an evening. The repository is an archive but the tag is still
+  # mutable: it moved from 2025.5.24 to 2025.7.23, the storage format moved with
+  # it, and a machine that had already written a volume under the old build came
+  # up with an unhealthy container and no explanation. An archived image is
+  # exactly the kind you pin.
   minio:
-    image: bitnamilegacy/minio:latest
+    image: bitnamilegacy/minio:2025.5.24-debian-12-r7
     container_name: sfera-minio
     restart: unless-stopped
     environment:
@@ -44,33 +51,31 @@ services:
     volumes:
       - minio-data:/bitnami/minio/data
     healthcheck:
-      # `mc alias set` refuses the alias unless the endpoint answers and the
-      # credentials work, which is exactly the readiness question. mc ships
-      # inside this image; the explicit config directory is because $HOME is /
-      # and uid 1001 cannot write there. The credentials are repeated rather
-      # than read from the environment so that no `$` needs escaping through
-      # both compose and the container shell.
+      # MinIO's own liveness endpoint, asked for with whichever fetcher the
+      # image happens to carry.
+      #
+      # This used to run `mc alias set`, which is a stronger check — it proves
+      # the credentials work as well as that the port answers. It is also a
+      # check that fails when the image stops shipping mc, and then a perfectly
+      # healthy server reports unhealthy and compose refuses to start anything
+      # that depends on it. Readiness is the question being asked here; the
+      # credentials are minio-init's problem, and it fails loudly on its own.
       test:
         [
-          'CMD',
-          'mc',
-          '--config-dir',
-          '/tmp/mc',
-          'alias',
-          'set',
-          'health',
-          'http://127.0.0.1:9000',
-          'sfera',
-          'sfera-secret',
+          'CMD-SHELL',
+          'curl -fsS http://127.0.0.1:9000/minio/health/live || wget -q -O- http://127.0.0.1:9000/minio/health/live',
         ]
       interval: 5s
       timeout: 5s
       retries: 20
+      # MinIO checks its disks before it serves; on a cold volume that is a few
+      # seconds during which a failing probe means nothing.
+      start_period: 20s
 
   # Creates the bucket and makes only the `public/` prefix readable. Optimized
   # models and previews live under public/, originals stay private.
   minio-init:
-    image: bitnamilegacy/minio:latest
+    image: bitnamilegacy/minio:2025.5.24-debian-12-r7
     container_name: sfera-minio-init
     depends_on:
       minio:

@@ -16,6 +16,7 @@ AMBIENCE_MARKER := apps/web/public/world/audio/street.wav
         world-assets location location-if-missing ambience ambience-if-missing ingest zones \
         props nature nature-assets nature-if-missing fonts fonts-if-missing \
         zones-if-missing food food-if-missing previews previews-if-missing doctor \
+        reset-storage \
         installer clean
 
 help: ## Show available targets
@@ -46,6 +47,19 @@ down: ## Stop infrastructure (data volumes are kept)
 	$(COMPOSE) down
 
 restart: down up ## Restart infrastructure
+
+# Throws away the object store and the database and starts over.
+#
+# For the one failure that looks like a broken machine and is not: a storage
+# volume written by a different build of MinIO than the one now running. The
+# container comes up unhealthy, compose refuses to start anything behind it,
+# and no log line says why. Nothing here is precious — the assets are rebuilt
+# from assets/ and the database is reseeded — so the answer is to drop it.
+reset-storage: ## Drop the minio and postgres volumes, then start clean
+	$(COMPOSE) down -v
+	$(MAKE) up
+	$(MAKE) db-migrate
+	$(MAKE) seed
 
 logs: ## Tail infrastructure logs
 	$(COMPOSE) logs -f
