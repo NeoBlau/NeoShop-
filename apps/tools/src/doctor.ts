@@ -83,6 +83,21 @@ const CHECKS: readonly Check[] = [
     count: { dir: 'apps/api/prisma/seed-assets/previews', suffix: '.png', label: 'photos' },
   },
   {
+    name: "Suppliers' own models",
+    marker: 'apps/api/prisma/seed-assets/ingested.json',
+    without:
+      'the plinths show procedural stand-ins — a vacuum made of spheres, a chair made of boxes',
+    fix: 'make ingest',
+    needs: ['robot-vacuum-source.glb'],
+  },
+  {
+    name: 'Vendor figure',
+    marker: 'apps/web/public/world/props/vendor.glb',
+    without: 'a post with a name on it stands where a person should',
+    fix: 'make props',
+    needs: ['npc-a.glb'],
+  },
+  {
     name: 'Fast-food kiosk',
     marker: 'apps/web/public/world/props/props.json',
     without: 'nothing stands at the end of the street; the menu tab still opens',
@@ -185,6 +200,22 @@ function main(): void {
 
   const rooms = zones();
   if (rooms.length > 0) console.log(`  rooms:     ${rooms.join(', ')}`);
+
+  // Which of the five demo products are the supplier's own model rather than a
+  // procedural stand-in. The filenames are identical either way, so this is
+  // the only way to tell — and looking at a plinth was the other one.
+  const ingested = path.join(ROOT, 'apps/api/prisma/seed-assets/ingested.json');
+  if (existsSync(ingested)) {
+    try {
+      const parsed = JSON.parse(readFileSync(ingested, 'utf8')) as { models?: unknown };
+      const models = Array.isArray(parsed.models)
+        ? parsed.models.filter((name): name is string => typeof name === 'string')
+        : [];
+      console.log(`  real models: ${models.join(', ') || 'none — all five are stand-ins'}`);
+    } catch {
+      console.log('  real models: ingested.json is unreadable');
+    }
+  }
 
   if (missing.length === 0) {
     console.log('\nEverything is in place. `make dev` will not rebuild any of it.\n');

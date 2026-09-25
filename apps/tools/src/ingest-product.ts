@@ -498,13 +498,13 @@ function authorClips(document: Document, root: GltfNode, recipes: ClipRecipe[]):
   return written;
 }
 
-async function ingest(recipe: Recipe): Promise<void> {
+async function ingest(recipe: Recipe): Promise<boolean> {
   const io = new NodeIO();
   const source = path.join(SOURCES, recipe.source);
 
   if (!existsSync(source)) {
     console.log(`skipped ${recipe.output}: ${recipe.source} is not in assets/incoming`);
-    return;
+    return false;
   }
 
   console.log(`\n${recipe.source} → ${recipe.output}`);
@@ -555,10 +555,32 @@ async function ingest(recipe: Recipe): Promise<void> {
   const target = path.join(OUT, recipe.output);
   writeFileSync(target, await io.writeBinary(document));
   console.log(`  written ${target}  ${(readFileSync(target).byteLength / 1e6).toFixed(1)} MB`);
+  return true;
 }
 
 async function main(): Promise<void> {
-  for (const recipe of RECIPES) await ingest(recipe);
+  const done: string[] = [];
+  for (const recipe of RECIPES) {
+    if (await ingest(recipe)) done.push(recipe.output);
+  }
+
+  /**
+   * A record of which products are the real thing.
+   *
+   * `gen-demo-assets` writes a procedural stand-in at every one of these
+   * filenames, so the file being present proves nothing: a checkout without
+   * the supplier's own model still has a robot-vacuum.glb, and it is a white
+   * blob made of spheres. That is what a buyer was looking at on the plinth
+   * while `make doctor` reported five models present and happy.
+   *
+   * So the ingest says what it actually replaced, and the doctor reads it.
+   */
+  writeFileSync(
+    path.join(OUT, 'ingested.json'),
+    `${JSON.stringify({ models: done, at: new Date().toISOString() }, null, 2)}\n`,
+  );
+
+  console.log(`\ningested: ${done.join(', ') || 'nothing'}`);
 }
 
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {

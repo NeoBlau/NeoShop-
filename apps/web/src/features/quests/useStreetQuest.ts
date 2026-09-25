@@ -174,13 +174,34 @@ export function useStreetQuest(location: string | null, signals: QuestSignals): 
     setError(null);
     setJustDone(null);
 
-    void missionsApi.start(quest.id).catch((cause: unknown) => {
-      // A quest that cannot be registered is one that cannot pay out, and
-      // saying so now is better than at the end of a walk.
-      console.error('The quest could not be started', cause);
-      setError('quest.startFailed');
-      setActive(false);
-    });
+    void missionsApi
+      .start(quest.id)
+      .then((run) => {
+        /**
+         * Carry on from where the server thinks we are, not from zero.
+         *
+         * `startRun` upserts and deliberately does not reset the step: a buyer
+         * who has already finished must not be handed a second code, and one
+         * who is halfway must not lose their place. So a second attempt at a
+         * quest comes back with the old progress — and the client used to
+         * begin at step zero regardless, report step one, and be told by the
+         * server that it expected step two. That surfaced as "the server did
+         * not accept the step, the quest has to be started again", which is
+         * precisely the thing that could never fix it.
+         */
+        setIndex(Math.min(run.step, quest.steps.length));
+
+        // An objective's progress is counted from the moment it becomes
+        // current, so the snapshot has to move with the resumed step.
+        since.current = snapshot(signals);
+      })
+      .catch((cause: unknown) => {
+        // A quest that cannot be registered is one that cannot pay out, and
+        // saying so now is better than at the end of a walk.
+        console.error('The quest could not be started', cause);
+        setError('quest.startFailed');
+        setActive(false);
+      });
   }, [quest, signals]);
 
   const give = useCallback(() => {
@@ -217,6 +238,20 @@ export function useStreetQuest(location: string | null, signals: QuestSignals): 
       .catch((cause: unknown) => {
         console.error('The quest step was refused', cause);
         setError('quest.stepFailed');
+        // Ask the server where it actually is and carry on from there. The
+        // usual cause is a step it has already recorded, and starting the
+        // whole walk again over a duplicate report is the wrong answer.
+        void missionsApi
+          .start(quest.id)
+          .then((run) => {
+            setIndex(Math.min(run.step, quest.steps.length));
+            since.current = snapshot(signals);
+            setError(null);
+          })
+          .catch(() => {
+            // Leave the message standing: two refusals in a row is a real
+            // problem and not something to paper over.
+          });
       })
       .finally(() => {
         reporting.current = false;

@@ -157,11 +157,32 @@ export function farthestWalkable(
   fromX: number,
   fromZ: number,
 ): { x: number; z: number; steps: number } | null {
+  return walkableAt(grid, fromX, fromZ, Infinity);
+}
+
+/**
+ * The walkable cell whose walking distance is closest to `metres`.
+ *
+ * `Infinity` gives the farthest one, which is what a dead end is. A finite
+ * number is for something that belongs at a walk's length rather than at its
+ * end: the street's far end is forty metres from the door, and the grove's is
+ * a hundred — putting the food counter at both meant a two-minute hike across
+ * a clearing to reach a menu.
+ *
+ * Distance along the walkable graph, not in a straight line, so a spot on the
+ * other side of a wall does not count as near.
+ */
+export function walkableAt(
+  grid: NavigationGrid,
+  fromX: number,
+  fromZ: number,
+  metres: number,
+): { x: number; z: number; steps: number } | null {
   const start = cellAt(grid, fromX, fromZ);
   if (start === null || !isWalkable(grid, fromX, fromZ)) {
     const nearest = nearestWalkable(grid, fromX, fromZ);
     if (!nearest) return null;
-    return farthestWalkable(grid, nearest.x, nearest.z);
+    return walkableAt(grid, nearest.x, nearest.z, metres);
   }
 
   const seen = new Uint8Array(grid.width * grid.height);
@@ -175,16 +196,28 @@ export function farthestWalkable(
   queue[tail++] = start;
   seen[start] = 1;
 
+  const wanted = metres === Infinity ? Infinity : metres / grid.cell;
+
   let bestCell = start;
   let bestDepth = 0;
+  let bestMiss = Infinity;
 
   while (head < tail) {
     const cell = queue[head++] ?? 0;
     const here = depth[cell] ?? 0;
 
-    if (here > bestDepth) {
-      bestDepth = here;
-      bestCell = cell;
+    if (wanted === Infinity) {
+      if (here > bestDepth) {
+        bestDepth = here;
+        bestCell = cell;
+      }
+    } else {
+      const miss = Math.abs(here - wanted);
+      if (miss < bestMiss) {
+        bestMiss = miss;
+        bestDepth = here;
+        bestCell = cell;
+      }
     }
 
     const x = cell % grid.width;

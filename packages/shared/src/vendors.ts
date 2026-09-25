@@ -153,16 +153,43 @@ export const VENDOR_NAMES: readonly VendorText[] = [
   { ru: 'Костя', en: 'Kostya' },
 ];
 
-/** Which of them stands at a given pavilion. Stable for a given id. */
-export function vendorName(key: string): VendorText {
+/**
+ * A stable number for a string. FNV-1a, which is enough to spread cuids.
+ *
+ * Exported because two things have to agree: which name a frontage's vendor
+ * has and which character model she is. Hashing the same id twice with the
+ * same function is what keeps her from being called Vera on one reload and
+ * Dasha on the next.
+ */
+export function hashKey(key: string): number {
   let hash = 0x811c9dc5;
   for (let index = 0; index < key.length; index += 1) {
     hash ^= key.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
+  return hash;
+}
 
+/** Which of them stands at a given pavilion. Stable for a given id. */
+export function vendorName(key: string): VendorText {
   const first = VENDOR_NAMES[0] ?? { ru: 'Продавец', en: 'Vendor' };
-  return VENDOR_NAMES[hash % VENDOR_NAMES.length] ?? first;
+  return VENDOR_NAMES[hashKey(key) % VENDOR_NAMES.length] ?? first;
+}
+
+/**
+ * Which character model stands at a given pavilion.
+ *
+ * Given the figures a build actually has, in a stable order. A street of six
+ * shops with one model in the props folder is six of the same person, which
+ * is honest; with two it alternates by id rather than by slot, so adding a
+ * supplier does not reshuffle everybody else.
+ */
+export function vendorFigureKey(key: string, figures: readonly string[]): string | null {
+  if (figures.length === 0) return null;
+  // Its own offset, so the name and the face are not locked to each other:
+  // hashing the same id for both would pair Vera with the same model forever.
+  const spread = hashKey(`${key}:figure`);
+  return figures[spread % figures.length] ?? null;
 }
 
 /**

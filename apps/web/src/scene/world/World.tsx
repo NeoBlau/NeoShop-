@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, Environment, PerformanceMonitor, Stats, Text } from '@react-three/drei';
 import { Bloom, EffectComposer, SMAA, SSAO, ToneMapping } from '@react-three/postprocessing';
@@ -6,6 +6,7 @@ import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { ACESFilmicToneMapping, PCFSoftShadowMap, type DirectionalLight } from 'three';
 import {
   dominantCategory,
+  vendorFigureKey,
   vendorName,
   type ProductCategory,
   type WorldProduct,
@@ -165,6 +166,7 @@ function SupplierFront({
   formatPrice,
   onVendorOpen,
   vendorSpeaking,
+  figure,
 }: {
   pavilionId: string;
   name: string;
@@ -178,6 +180,8 @@ function SupplierFront({
   formatPrice: (cents: number, currency: string) => string;
   onVendorOpen: (vendor: OpenVendor) => void;
   vendorSpeaking: boolean;
+  /** The character model for whoever stands here, when this build has one. */
+  figure: PropEntry | undefined;
 }) {
   const placements = useMemo(() => standPlacements(products.length), [products.length]);
   const counter = useMemo(() => vendorPlacement(products.length), [products.length]);
@@ -246,6 +250,7 @@ function SupplierFront({
         name={vendor.name}
         supplierName={name}
         speaking={vendorSpeaking}
+        figure={figure}
         onOpen={() => onVendorOpen(vendor)}
       />
     </group>
@@ -283,6 +288,30 @@ function Scene({
   // cells is cheap, and doing it per frame would not be.
   const stand = useMemo(() => standPlacement(grid, manifest.spawn), [grid, manifest.spawn]);
   const foodStand = props['food-stand'];
+
+  /**
+   * Which character model stands on a given frontage.
+   *
+   * Whatever `make props` produced, in a stable order, chosen by the
+   * pavilion's own id — so a street of six shops is not six copies of one
+   * person, and adding a supplier does not reshuffle the others. No figures
+   * in the build means the counter-and-sign fallback.
+   */
+  const figures = useMemo(
+    () =>
+      Object.keys(props)
+        .filter((key) => key.startsWith('vendor-'))
+        .sort(),
+    [props],
+  );
+
+  const figureFor = useCallback(
+    (pavilionId: string) => {
+      const key = vendorFigureKey(pavilionId, figures);
+      return key === null ? undefined : props[key];
+    },
+    [figures, props],
+  );
 
   // The places a quest can ask somebody to reach. Derived from the placements
   // the scene has already worked out, so a quest never names a coordinate.
@@ -342,6 +371,7 @@ function Scene({
               formatPrice={formatPrice}
               onVendorOpen={onVendorOpen}
               vendorSpeaking={speakingVendorId === pavilion.id}
+              figure={figureFor(pavilion.id)}
             />
           );
         })}

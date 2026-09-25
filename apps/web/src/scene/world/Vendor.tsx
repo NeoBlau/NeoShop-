@@ -1,26 +1,29 @@
-import { useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { MathUtils, Vector3, type Mesh } from 'three';
+import { Box3, MathUtils, Mesh, Vector3, type Object3D } from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useTranslation } from 'react-i18next';
+import { extendGltfLoader } from '../loaders.js';
 import { SCENE_FONT } from './fonts.js';
+import { propUrl, type PropEntry } from '../../features/world/useProps.js';
 
 /**
  * The person on the supplier's frontage.
  *
- * A counter with a name on it rather than a figure, and that is a decision
- * rather than a gap. There is no CC0 photoscanned human: every realistic
- * character model that could stand here is behind a marketplace licence that
- * does not cover redistributing the geometry in a web build, and the two
- * alternatives are both worse than furniture. A human built out of primitives
- * reads as a mannequin, and a stylised low-poly figure standing on a
- * photographed pavement next to a photogrammetry armchair reads as a bug. So
- * the vendor is a staffed counter: the voice, the name and the conversation
- * are real, and the body is honestly absent.
+ * A person when `make props` has one to give, and a counter with a name on it
+ * when it does not.
  *
- * If a licence-clear character arrives, it takes this spot and nothing else
- * changes — the placement, the proximity glow and the click target are all
- * local to the supplier's frontage group, not to the model.
+ * The figure comes from `assets/incoming/npc-a.glb` through the prop build —
+ * a rigged 1.70 m character, so she is placed at her own scale rather than
+ * fitted to a round number, which is the one prop that must never be
+ * rescaled. Her animation is a third of a second long and is not worth
+ * playing; she stands.
+ *
+ * The fallback is not a placeholder for its own sake. A checkout without that
+ * file still has suppliers who need naming and a conversation that needs
+ * somewhere to be clicked, and a post with a sign does that honestly — where
+ * a human built out of primitives would read as a mannequin.
  */
 
 const TOP_HEIGHT = 1.02;
@@ -49,11 +52,51 @@ export function vendorPlacement(products: number): {
   return { position: [span / 2 + 1.8, 0, 0.75], yaw: -0.38 };
 }
 
+/**
+ * The figure, seated on the ground and turned to face the street.
+ *
+ * Measured rather than trusted: the prop build centres a model and drops it
+ * to the floor, but a character exported from a different tool can still
+ * arrive with its origin at the hips.
+ */
+function VendorFigure({ entry, onSized }: { entry: PropEntry; onSized: (height: number) => void }) {
+  const renderer = useThree((state) => state.gl);
+  const gltf = useLoader(GLTFLoader, propUrl(entry.model), (loader) => {
+    extendGltfLoader(loader, renderer);
+  });
+
+  const fit = useMemo(() => {
+    const box = new Box3().setFromObject(gltf.scene);
+    const centre = box.getCenter(new Vector3());
+    return {
+      offset: [-centre.x, -box.min.y, -centre.z] as [number, number, number],
+      height: box.max.y - box.min.y,
+    };
+  }, [gltf.scene]);
+
+  useEffect(() => {
+    onSized(fit.height);
+    gltf.scene.traverse((object: Object3D) => {
+      if (object instanceof Mesh) {
+        object.castShadow = true;
+        object.receiveShadow = true;
+      }
+    });
+  }, [gltf.scene, fit.height, onSized]);
+
+  return (
+    <group position={fit.offset}>
+      <primitive object={gltf.scene} />
+    </group>
+  );
+}
+
 export function Vendor({
   placement,
   name,
   supplierName,
   speaking,
+  figure,
   onOpen,
 }: {
   placement: { position: [number, number, number]; yaw: number };
@@ -61,10 +104,13 @@ export function Vendor({
   supplierName: string;
   /** True while the browser is reading one of this vendor's answers aloud. */
   speaking: boolean;
+  /** The character model, when this build has one. */
+  figure?: PropEntry | undefined;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
+  const [figureHeight, setFigureHeight] = useState(1.7);
   const strip = useRef<Mesh>(null);
   const glow = useRef(0);
 
@@ -89,6 +135,9 @@ export function Vendor({
     }
   });
 
+  /** Where the name hangs: over her head, or over the counter. */
+  const labelHeight = figure ? figureHeight + 0.3 : SIGN_HEIGHT - 0.24;
+
   return (
     <group position={placement.position} rotation={[0, placement.yaw, 0]}>
       <group
@@ -106,68 +155,81 @@ export function Vendor({
           onOpen();
         }}
       >
-        <mesh position={[0, TOP_HEIGHT, 0]} castShadow receiveShadow>
-          <boxGeometry args={[TOP_WIDTH, 0.07, TOP_DEPTH]} />
-          <meshStandardMaterial color="#3b3226" roughness={0.55} metalness={0.15} />
-        </mesh>
+        {figure ? (
+          <>
+            <Suspense fallback={null}>
+              <VendorFigure entry={figure} onSized={setFigureHeight} />
+            </Suspense>
 
-        {/* The body of the counter, set back so the top reads as a top. */}
-        <mesh position={[0, TOP_HEIGHT / 2, -0.03]} castShadow receiveShadow>
-          <boxGeometry args={[TOP_WIDTH - 0.16, TOP_HEIGHT, TOP_DEPTH - 0.12]} />
-          <meshStandardMaterial color="#24282e" roughness={0.4} metalness={0.7} />
-        </mesh>
+            {/* A hit target around her rather than her own geometry: a
+                character is a hundred thousand triangles and raycasting them
+                makes the cursor flicker. */}
+            <mesh position={[0, figureHeight / 2, 0]} visible={false}>
+              <cylinderGeometry args={[0.55, 0.55, figureHeight, 10]} />
+            </mesh>
 
-        {/* The lit strip is the affordance and the mouth: it is what tells a
-            buyer across the street that this is something to walk up to, and
-            what shows which counter a voice is coming from. */}
-        <mesh ref={strip} position={[0, TOP_HEIGHT - 0.11, TOP_DEPTH / 2 - 0.01]}>
-          <boxGeometry args={[TOP_WIDTH - 0.3, 0.025, 0.012]} />
-          <meshStandardMaterial
-            color="#e5b25a"
-            emissive="#e5b25a"
-            emissiveIntensity={1}
-            toneMapped={false}
-          />
-        </mesh>
+            {/* Underfoot rather than on a post: something has to say which
+                figure is talking, and it doubles as the thing you can see from
+                down the street. */}
+            <mesh ref={strip} position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[0.46, 0.56, 40]} />
+              <meshStandardMaterial
+                color="#e5b25a"
+                emissive="#e5b25a"
+                emissiveIntensity={1}
+                toneMapped={false}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={-2}
+              />
+            </mesh>
+          </>
+        ) : (
+          <>
+            <mesh position={[0, TOP_HEIGHT, 0]} castShadow receiveShadow>
+              <boxGeometry args={[TOP_WIDTH, 0.07, TOP_DEPTH]} />
+              <meshStandardMaterial color="#3b3226" roughness={0.55} metalness={0.15} />
+            </mesh>
+
+            <mesh position={[0, TOP_HEIGHT / 2, -0.03]} castShadow receiveShadow>
+              <boxGeometry args={[TOP_WIDTH - 0.16, TOP_HEIGHT, TOP_DEPTH - 0.12]} />
+              <meshStandardMaterial color="#24282e" roughness={0.4} metalness={0.7} />
+            </mesh>
+
+            <mesh ref={strip} position={[0, TOP_HEIGHT - 0.11, TOP_DEPTH / 2 - 0.01]}>
+              <boxGeometry args={[TOP_WIDTH - 0.3, 0.025, 0.012]} />
+              <meshStandardMaterial
+                color="#e5b25a"
+                emissive="#e5b25a"
+                emissiveIntensity={1}
+                toneMapped={false}
+              />
+            </mesh>
+
+            <mesh position={[0, SIGN_HEIGHT / 2, -0.16]} castShadow>
+              <boxGeometry args={[0.07, SIGN_HEIGHT, 0.07]} />
+              <meshStandardMaterial color="#20242a" roughness={0.42} metalness={0.75} />
+            </mesh>
+          </>
+        )}
       </group>
 
-      {/* A standing sign, because the counter alone was invisible.
-          A metre-high box in a dim street, behind a row of plinths, from
-          thirty metres away: there was nothing to see and nothing to walk
-          towards. The post carries the name at eye level and the lit band up
-          where it clears the products — which is the whole job of a shop
-          sign. */}
-      <mesh position={[0, SIGN_HEIGHT / 2, -0.16]} castShadow>
-        <boxGeometry args={[0.07, SIGN_HEIGHT, 0.07]} />
-        <meshStandardMaterial color="#20242a" roughness={0.42} metalness={0.75} />
-      </mesh>
-
-      <mesh position={[0, SIGN_HEIGHT - 0.02, -0.16]}>
-        <boxGeometry args={[0.52, 0.03, 0.03]} />
-        <meshStandardMaterial
-          color="#e5b25a"
-          emissive="#e5b25a"
-          emissiveIntensity={2.2}
-          toneMapped={false}
-        />
-      </mesh>
-
-      <group position={[0, SIGN_HEIGHT - 0.24, -0.14]}>
+      <group position={[0, labelHeight, figure ? 0 : -0.14]}>
         <Text
           font={SCENE_FONT}
-          fontSize={0.135}
+          fontSize={0.125}
           anchorX="center"
           anchorY="middle"
           color={hovered ? '#f7ecdb' : '#dfe2e7'}
-          outlineWidth={0.006}
+          outlineWidth={0.005}
           outlineColor="#0b0d10"
         >
           {name}
         </Text>
         <Text
           font={SCENE_FONT}
-          position={[0, -0.16, 0]}
-          fontSize={0.078}
+          position={[0, -0.15, 0]}
+          fontSize={0.075}
           maxWidth={2.4}
           textAlign="center"
           anchorX="center"

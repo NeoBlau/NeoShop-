@@ -603,6 +603,20 @@ interface PropRecipe {
    * rest dropped within a couple of metres of it.
    */
   clump?: [number, number];
+  /**
+   * Whether a person walks through it.
+   *
+   * The walkable map blocks a cell when anything stands between shin and head
+   * height in it, which is correct for a tree and wrong for a fern. With
+   * eleven hundred ferns, six hundred shrubs and eighteen hundred grass tufts
+   * scattered across the clearing, every one of them blocking, the glade
+   * became a minefield of invisible walls — you could see the way through and
+   * not walk it.
+   *
+   * So undergrowth is placed *after* the map is built, the same trick the sea
+   * needed on the coastal version. A trunk stops you; bracken does not.
+   */
+  undergrowth?: boolean;
 }
 
 const PROPS: PropRecipe[] = [
@@ -762,6 +776,7 @@ const PROPS: PropRecipe[] = [
   },
   {
     id: 'dry_branches_medium_01',
+    undergrowth: true,
     budget: 2_500,
     count: 70,
     edge: [-17, 14],
@@ -829,6 +844,7 @@ const PROPS: PropRecipe[] = [
   },
   {
     id: 'stone_01',
+    undergrowth: true,
     budget: 3_000,
     error: 0.3,
     count: 150,
@@ -847,6 +863,7 @@ const PROPS: PropRecipe[] = [
   // walkable map is concerned. That is the right answer for a fern.
   {
     id: 'fern_02',
+    undergrowth: true,
     budget: 1_600,
     // The green in this palette. The canopy scans are dry-climate broadleaves
     // with grey-green foliage and the grass is dry tufts, so without a lot of
@@ -861,6 +878,7 @@ const PROPS: PropRecipe[] = [
   },
   {
     id: 'shrub_01',
+    undergrowth: true,
     budget: 6_000,
     error: 0.5,
     count: 260,
@@ -872,6 +890,7 @@ const PROPS: PropRecipe[] = [
   },
   {
     id: 'shrub_02',
+    undergrowth: true,
     budget: 2_500,
     error: 0.5,
     count: 340,
@@ -883,6 +902,7 @@ const PROPS: PropRecipe[] = [
   },
   {
     id: 'shrub_03',
+    undergrowth: true,
     budget: 2_100,
     count: 420,
     edge: [-19, 18],
@@ -896,6 +916,7 @@ const PROPS: PropRecipe[] = [
   // across the path, which is what stops it looking swept.
   {
     id: 'grass_medium_01',
+    undergrowth: true,
     // Fifteen hundred triangles a tuft, which is what it ships as: simplified
     // to nine hundred the blades come out as twigs, and a tuft is only ever a
     // third of a metre across.
@@ -908,6 +929,7 @@ const PROPS: PropRecipe[] = [
   },
   {
     id: 'grass_medium_02',
+    undergrowth: true,
     budget: 1_600,
     count: 1_800,
     edge: [-21, 4],
@@ -1229,43 +1251,56 @@ async function main(): Promise<void> {
 
   scene.addChild(document.createNode('terrain').setMesh(terrainMesh));
 
-  console.log('planting the scans…');
   let placements = 0;
 
-  for (const [index, recipe] of PROPS.entries()) {
-    const variants = await loadVariants(io, document, recipe);
-    if (variants.length === 0) continue;
+  /**
+   * Plants one pass of the recipe list.
+   *
+   * Called twice: everything a person has to walk around before the walkable
+   * map is built, and everything they push through after it. The scatter is
+   * seeded from the recipe's index in `PROPS`, so splitting the loop does not
+   * move a single rock.
+   */
+  async function plant(wanted: boolean): Promise<void> {
+    for (const [index, recipe] of PROPS.entries()) {
+      if ((recipe.undergrowth ?? false) !== wanted) continue;
 
-    const spots = scatter(recipe, index, variants.length);
-    // What was placed, not what was asked for: a band that turns out to be
-    // mostly out of bounds comes in short, and that is worth seeing.
-    if (spots.length < recipe.count) {
-      console.log(`    ${recipe.id}: ${spots.length} of ${recipe.count} placed`);
-    }
+      const variants = await loadVariants(io, document, recipe);
+      if (variants.length === 0) continue;
 
-    for (const spot of spots) {
-      const variant = variants[spot.variant] ?? variants[0];
-      if (!variant) continue;
+      const spots = scatter(recipe, index, variants.length);
+      // What was placed, not what was asked for: a band that turns out to be
+      // mostly out of bounds comes in short, and that is worth seeing.
+      if (spots.length < recipe.count) {
+        console.log(`    ${recipe.id}: ${spots.length} of ${recipe.count} placed`);
+      }
 
-      const node: GltfNode = document
-        .createNode(`${recipe.id}-${placements}`)
-        .setMesh(variant.mesh)
-        // Seated rather than dropped: the scan's own base goes to the ground,
-        // and then it sinks by its share of its height so a curved terrain
-        // does not leave it resting on one corner.
-        .setTranslation([
-          spot.x,
-          spot.y - (variant.base + variant.height * (recipe.bury ?? 0.04)) * spot.scale,
-          spot.z,
-        ])
-        .setRotation([0, Math.sin(spot.yaw / 2), 0, Math.cos(spot.yaw / 2)])
-        .setScale([spot.scale, spot.scale, spot.scale]);
+      for (const spot of spots) {
+        const variant = variants[spot.variant] ?? variants[0];
+        if (!variant) continue;
 
-      scene.addChild(node);
-      placements += 1;
+        const node: GltfNode = document
+          .createNode(`${recipe.id}-${placements}`)
+          .setMesh(variant.mesh)
+          // Seated rather than dropped: the scan's own base goes to the ground,
+          // and then it sinks by its share of its height so a curved terrain
+          // does not leave it resting on one corner.
+          .setTranslation([
+            spot.x,
+            spot.y - (variant.base + variant.height * (recipe.bury ?? 0.04)) * spot.scale,
+            spot.z,
+          ])
+          .setRotation([0, Math.sin(spot.yaw / 2), 0, Math.cos(spot.yaw / 2)])
+          .setScale([spot.scale, spot.scale, spot.scale]);
+
+        scene.addChild(node);
+        placements += 1;
+      }
     }
   }
 
+  console.log('planting what you walk around…');
+  await plant(false);
   console.log(
     `  ${placements} placements, ${triangleCount(document).toLocaleString('en')} unique tris`,
   );
@@ -1311,6 +1346,14 @@ async function main(): Promise<void> {
   mkdirSync(OUT, { recursive: true });
   writeFileSync(path.join(OUT, 'walkable.bin'), Buffer.from(packMask(grid)));
   writeFileSync(path.join(OUT, 'ground.bin'), Buffer.from(grid.ground));
+
+  // The undergrowth goes in now that the map is decided. Bracken and grass are
+  // things you walk through, and blocking a cell for every one of them turned
+  // the clearing into a field of invisible walls.
+  console.log('planting what you walk through…');
+  const before = placements;
+  await plant(true);
+  console.log(`  ${placements - before} more placements`);
 
   console.log('compressing textures…');
   await document.transform(

@@ -32,10 +32,51 @@ interface PropRecipe {
   source: string;
   /** Metres across the widest horizontal axis. Null keeps the model's own size. */
   width: number | null;
+  /**
+   * Metres tall, when height is the measurement that matters.
+   *
+   * A kiosk is defined by how wide it is; a person is defined by how tall.
+   * Scaling a character by her horizontal span is how you get a shop
+   * assistant a metre high — the span of a standing figure is her shoulders,
+   * which is not a number anybody has an intuition about. Takes precedence
+   * over `width`.
+   */
+  height?: number;
   credit: { title: string; author: string; licence: string; url: string };
 }
 
 const PROPS: PropRecipe[] = [
+  // The people on the frontages. Two of them, so a street of six shops is not
+  // six copies of the same person; which one stands where is decided from the
+  // pavilion's own id, the same way her name is.
+  //
+  // Neither is animated — the clip one of them carries is a third of a second
+  // long — so they stand. A standing person is still a person; the alternative
+  // on the frontage was a post with a label on it.
+  {
+    id: 'vendor-1',
+    source: 'npc-b.glb',
+    width: null,
+    height: 1.66,
+    credit: {
+      title: 'Shop assistant',
+      author: 'NEO_ASSETS',
+      licence: 'CC BY 4.0',
+      url: 'https://creativecommons.org/licenses/by/4.0/',
+    },
+  },
+  {
+    id: 'vendor-2',
+    source: 'npc-a.glb',
+    width: null,
+    height: 1.7,
+    credit: {
+      title: 'Shop assistant',
+      author: 'NEO_ASSETS',
+      licence: 'CC BY 4.0',
+      url: 'https://creativecommons.org/licenses/by/4.0/',
+    },
+  },
   {
     id: 'food-stand',
     source: 'mcdonalds-stand.glb',
@@ -80,12 +121,22 @@ async function buildProp(recipe: PropRecipe): Promise<string | null> {
   const raw = sceneBounds(document);
   const floor = findFloorLevel(document);
   const span = Math.max(raw.hi[0] - raw.lo[0], raw.hi[2] - raw.lo[2]);
-  const scale = recipe.width === null || span === 0 ? 1 : recipe.width / span;
+  const tall = raw.hi[1] - raw.lo[1];
+
+  const scale =
+    recipe.height !== undefined && tall > 0
+      ? recipe.height / tall
+      : recipe.width === null || span === 0
+        ? 1
+        : recipe.width / span;
 
   root.setScale([scale, scale, scale]);
   root.setTranslation([
     -((raw.lo[0] + raw.hi[0]) / 2) * scale,
-    -floor * scale,
+    // A figure stands on her lowest point. The area-weighted floor detection
+    // is for rooms and kiosks; on a person the biggest flat up-facing surface
+    // is the top of a shoe, and seating her by it sinks her to the ankles.
+    -(recipe.height !== undefined ? raw.lo[1] : floor) * scale,
     -((raw.lo[2] + raw.hi[2]) / 2) * scale,
   ]);
 
