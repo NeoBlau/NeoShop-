@@ -15,7 +15,7 @@ AMBIENCE_MARKER := apps/web/public/world/audio/street.wav
         app dev build lint typecheck test e2e desktop assets assets-if-missing textures \
         world-assets location location-if-missing ambience ambience-if-missing ingest zones \
         props nature nature-assets nature-if-missing fonts fonts-if-missing \
-        zones-if-missing \
+        zones-if-missing food food-if-missing previews previews-if-missing doctor \
         installer clean
 
 help: ## Show available targets
@@ -107,6 +107,25 @@ FONTS_MARKER := apps/web/public/fonts/fonts.css
 fonts-if-missing:
 	@test -f $(FONTS_MARKER) || $(MAKE) fonts
 
+doctor: ## What this checkout has, what is missing, and how to fix it
+	@pnpm --filter @3dsfera/tools run doctor
+
+previews: ## Photograph the demo products for their cards (needs a browser)
+	pnpm --filter @3dsfera/web run previews
+
+PREVIEW_MARKER := apps/api/prisma/seed-assets/previews/robot-vacuum.png
+
+previews-if-missing:
+	@test -f $(PREVIEW_MARKER) || $(MAKE) previews
+
+food: ## Download the menu photography from Openverse (~40 images, a minute)
+	pnpm --filter @3dsfera/tools run fetch:food
+
+FOOD_MARKER := apps/web/public/food/credits.json
+
+food-if-missing:
+	@test -f $(FOOD_MARKER) || $(MAKE) food
+
 ambience: ## Synthesise the street sound bed (a few seconds)
 	pnpm --filter @3dsfera/tools run gen:ambience
 
@@ -137,7 +156,7 @@ seed: shared ## Load demo data (suppliers, pavilions, five animated products)
 app: ## Run api + web with hot reload
 	pnpm dev
 
-dev: env install shared fonts-if-missing world-assets location-if-missing nature-if-missing ambience-if-missing assets-if-missing ingest props zones-if-missing up db-migrate seed app ## Full local environment, one command
+dev: env install shared fonts-if-missing food-if-missing world-assets location-if-missing nature-if-missing ambience-if-missing assets-if-missing ingest previews-if-missing props zones-if-missing up db-migrate seed app ## Full local environment, one command
 
 build: ## Production build of every package
 	pnpm build

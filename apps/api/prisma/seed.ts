@@ -8,13 +8,13 @@
  * optimization pipeline a supplier's file does — the seeded world is not a
  * special case.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InteractionType, ProductCategory } from '@3dsfera/shared';
 import { prisma } from '../src/lib/prisma.js';
 import { hashPassword } from '../src/lib/password.js';
-import { attachModel, runModelJob } from '../src/modules/products/processing.js';
+import { attachModel, attachPreview, runModelJob } from '../src/modules/products/processing.js';
 
 const DEMO_PASSWORD = 'sfera-demo-2026';
 
@@ -390,6 +390,20 @@ async function seedProduct(supplierId: string, seed: ProductSeed): Promise<void>
     await runModelJob(jobId);
   }
 
+  // The card photograph, when `make previews` has taken one. Optional on
+  // purpose: it needs a browser to render with, and a checkout without one
+  // should still seed. Without it the card falls back to its placeholder,
+  // which is what every seeded product used to get.
+  const photograph = path.join(ASSET_DIR, 'previews', `${path.parse(seed.file).name}.png`);
+  const hasPreview = await prisma.productAsset.findFirst({
+    where: { productId: product.id, kind: 'PREVIEW' },
+    select: { id: true },
+  });
+
+  if (!hasPreview && existsSync(photograph)) {
+    await attachPreview(prisma, product.id, new Uint8Array(readFileSync(photograph)));
+  }
+
   await prisma.productInteraction.deleteMany({ where: { productId: product.id } });
   await prisma.productInteraction.createMany({
     data: seed.interactions.map((interaction, index) => ({
@@ -431,6 +445,59 @@ async function main(): Promise<void> {
   }
   console.log(`  pavilions: ${pavilions}, published: ${published}, pending: ${pending}`);
   console.log(`  assets:    ${assets} objects in storage`);
+
+  await reportProductsWithoutGeometry();
+}
+
+/**
+ * Refuses to call a seed successful when it produced a showroom with nothing
+ * in it.
+ *
+ * `runModelJob` catches an optimisation failure, writes FAILED on the job and
+ * carries on — which is right for a supplier's upload, because one broken
+ * model must not take the request down. For the seed it was quietly fatal: the
+ * products existed with titles and prices, none of them had geometry, the
+ * world endpoint filters those out, and the street came up empty with no
+ * pavilions, no plinths and no vendors on them. The only trace was one
+ * `[processing] optimization failed` line scrolled off the top of the log.
+ *
+ * So the check is here, at the end, where somebody reading the output will see
+ * it: which products came out without a model, and the reason their job gave.
+ */
+async function reportProductsWithoutGeometry(): Promise<void> {
+  const products = await prisma.product.findMany({
+    select: {
+      id: true,
+      title: true,
+      assets: { where: { kind: 'GLB_OPTIMIZED' }, select: { id: true } },
+      modelJobs: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { status: true, error: true, errorCode: true },
+      },
+    },
+  });
+
+  const broken = products.filter((product) => product.assets.length === 0);
+  if (broken.length === 0) return;
+
+  console.error(`
+${broken.length} of ${products.length} products have no model:`);
+  for (const product of broken) {
+    const job = product.modelJobs[0];
+    const reason = job
+      ? `${job.status}${job.errorCode ? ` (${job.errorCode})` : ''}: ${job.error ?? 'no message'}`
+      : 'no processing job was ever created';
+    console.error(`  ${product.title} — ${reason}`);
+  }
+
+  console.error(
+    '\nA product without geometry is dropped from the 3D world, so its pavilion\n' +
+      'comes up empty — no plinths and no vendor on the frontage. Fix the cause\n' +
+      'above and run `make seed` again.',
+  );
+
+  process.exitCode = 1;
 }
 
 main()

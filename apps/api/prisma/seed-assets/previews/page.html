@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  html,
+  body {
+    margin: 0;
+    background: #121419;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "/apps/web/node_modules/three/build/three.module.js",
+      "three/": "/apps/web/node_modules/three/"
+    }
+  }
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+  import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+  import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
+  import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(1280, 960);
+  renderer.setPixelRatio(1);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.append(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  // The panel colour, so a card reads as a photograph on the surface rather
+  // than as a cut-out floating on it.
+  scene.background = new THREE.Color('#121419');
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+  const key = new THREE.DirectionalLight('#fff4e4', 2.4);
+  key.position.set(3.5, 5, 4);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  scene.add(key);
+  scene.add(new THREE.DirectionalLight('#cfe0f5', 0.5).translateX(-4).translateZ(-3));
+
+  const camera = new THREE.PerspectiveCamera(35, 1280 / 960, 0.01, 200);
+
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/apps/web/public/draco/'));
+  loader.setKTX2Loader(
+    new KTX2Loader().setTranscoderPath('/apps/web/public/basis/').detectSupport(renderer),
+  );
+
+  let current = null;
+
+  window.__shoot = async (url) => {
+    if (current) {
+      scene.remove(current);
+      current = null;
+    }
+
+    const gltf = await loader.loadAsync(url);
+    current = gltf.scene;
+    current.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+    });
+    scene.add(current);
+
+    const box = new THREE.Box3().setFromObject(current);
+    const size = box.getSize(new THREE.Vector3());
+    const centre = box.getCenter(new THREE.Vector3());
+
+    // A catcher for the contact shadow, at the object's own base. Without one
+    // the product floats; with a visible floor it stops being a product shot.
+    const catcher = new THREE.Mesh(
+      new THREE.PlaneGeometry(Math.max(size.x, size.z) * 6, Math.max(size.x, size.z) * 6),
+      new THREE.ShadowMaterial({ opacity: 0.45 }),
+    );
+    catcher.rotation.x = -Math.PI / 2;
+    catcher.position.set(centre.x, box.min.y, centre.z);
+    catcher.receiveShadow = true;
+    current.add(catcher);
+
+    key.target.position.copy(centre);
+    key.target.updateMatrixWorld();
+    scene.add(key.target);
+
+    // Framed from the object's bounding sphere, so a lamp and a recliner are
+    // both the same size on the card.
+    const radius = size.length() / 2 || 1;
+    const distance = (radius / Math.sin((35 * Math.PI) / 360)) * 0.95;
+    const angle = Math.PI * 0.28;
+    camera.position.set(
+      centre.x + Math.sin(angle) * distance * 0.82,
+      centre.y + radius * 0.55,
+      centre.z + Math.cos(angle) * distance * 0.82,
+    );
+    camera.lookAt(centre);
+    renderer.render(scene, camera);
+    return true;
+  };
+
+  window.__ready = true;
+</script>

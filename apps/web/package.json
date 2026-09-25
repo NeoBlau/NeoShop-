@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "decoders": "node scripts/copy-decoders.mjs"
+    "decoders": "node scripts/copy-decoders.mjs",
+    "previews": "node scripts/copy-decoders.mjs && node scripts/render-previews.mjs"
   },
   "dependencies": {
     "@3dsfera/shared": "workspace:*",
