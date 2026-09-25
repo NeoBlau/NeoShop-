@@ -24,6 +24,7 @@ export interface MissionText {
 }
 
 export type MissionGoal =
+  // ── In a demo room, about one product ────────────────────────────────────
   /** Press the button that plays this clip, and let it finish. */
   | { kind: 'play'; clip: string; seconds: number }
   /** Walk to within this many metres of the product. */
@@ -31,7 +32,18 @@ export type MissionGoal =
   /** Stand and watch for this long. */
   | { kind: 'watch'; seconds: number }
   /** Answer a question about what just happened. */
-  | { kind: 'answer'; options: MissionText[]; correct: number };
+  | { kind: 'answer'; options: MissionText[]; correct: number }
+  // ── Out on the location, about the place ─────────────────────────────────
+  /** Cover this much ground on foot, anywhere in the location. */
+  | { kind: 'stroll'; metres: number }
+  /** Come within `metres` of this many different supplier frontages. */
+  | { kind: 'frontages'; count: number; metres: number }
+  /** Get this many different vendors talking. */
+  | { kind: 'vendors'; count: number }
+  /** Play an action on this many different products, out on the plinths. */
+  | { kind: 'demos'; count: number }
+  /** Reach something the location's own map knows how to find. */
+  | { kind: 'landmark'; landmark: 'counter' | 'concierge' | 'far-end'; metres: number };
 
 export interface MissionStep {
   id: string;
@@ -43,10 +55,26 @@ export interface MissionStep {
 
 export interface Mission {
   id: string;
+  /**
+   * Where it happens.
+   *
+   * `zone` is the original kind: a product alone in a room built for it.
+   * `street` is the same contract — ordered steps, a pace floor, a code at
+   * the end — carried out on a main location instead, with objectives the
+   * browser can observe while somebody walks around. The server does not
+   * distinguish them, and should not have to: what it guards is the run.
+   */
+  where: 'zone' | 'street';
   /** The product this demonstrates, by slug, as the seed writes it. */
   productSlug: string;
   /** The demo zone it happens in, by id, as the zone build writes it. */
-  zone: string;
+  zone?: string;
+  /**
+   * Which main locations a street quest is offered in. Absent means all of
+   * them, which suits a quest whose objectives are about frontages and
+   * vendors rather than about a particular street.
+   */
+  locations?: readonly string[];
   title: MissionText;
   intro: MissionText;
   outro: MissionText;
@@ -75,6 +103,19 @@ export function stepSeconds(step: MissionStep): number {
       return 6;
     case 'answer':
       return 8;
+    // Walking takes as long as walking takes. A metre and a half a second is
+    // a shade under the player's own speed, so the pace floor stays honest
+    // without punishing somebody who took the direct route.
+    case 'stroll':
+      return step.goal.metres / 1.5;
+    case 'frontages':
+      return step.goal.count * 12;
+    case 'vendors':
+      return step.goal.count * 10;
+    case 'demos':
+      return step.goal.count * 8;
+    case 'landmark':
+      return 25;
   }
 }
 
@@ -90,6 +131,7 @@ export function earliestCompletion(mission: Mission): number {
 export const MISSIONS: readonly Mission[] = [
   {
     id: 'vacuum-loft',
+    where: 'zone',
     productSlug: 'robot-vacuum-domovoy-x2',
     zone: 'loft',
     title: { ru: 'Уборка в лофте', en: 'Cleaning the loft' },
@@ -166,7 +208,8 @@ export const MISSIONS: readonly Mission[] = [
   },
   {
     id: 'chair-billiards',
-    productSlug: 'recliner-chair-fjord',
+    where: 'zone',
+    productSlug: 'recliner-kronos',
     zone: 'billiards',
     title: { ru: 'Кресло в бильярдной', en: 'The chair in the billiards room' },
     intro: {
@@ -213,7 +256,8 @@ export const MISSIONS: readonly Mission[] = [
   },
   {
     id: 'lamp-gallery',
-    productSlug: 'desk-lamp-lumen',
+    where: 'zone',
+    productSlug: 'desk-lamp-meridian',
     zone: 'gallery',
     title: { ru: 'Лампа в галерее', en: 'The lamp in the gallery' },
     intro: {
@@ -257,6 +301,7 @@ export const MISSIONS: readonly Mission[] = [
   },
   {
     id: 'drone-gallery',
+    where: 'zone',
     productSlug: 'inspection-drone-skyeye',
     zone: 'gallery',
     title: { ru: 'Осмотр в галерее', en: 'An inspection in the gallery' },
@@ -301,6 +346,7 @@ export const MISSIONS: readonly Mission[] = [
   },
   {
     id: 'antenna-loft',
+    where: 'zone',
     productSlug: 'antenna-orbita-1-2',
     zone: 'loft',
     title: { ru: 'Антенна у окна', en: 'The dish by the window' },
@@ -340,10 +386,158 @@ export const MISSIONS: readonly Mission[] = [
       },
     ],
   },
+
+  // ── Out on the locations ─────────────────────────────────────────────────
+  //
+  // The same contract as a room mission — ordered steps, a pace floor, a code
+  // at the end — with objectives a browser can watch somebody do while they
+  // walk about. They exist because the street is worth walking and nothing was
+  // asking anybody to walk it: a buyer who arrives, clicks the nearest plinth
+  // and leaves has seen one frontage out of six.
+  {
+    id: 'street-round',
+    where: 'street',
+    productSlug: 'desk-lamp-meridian',
+    title: { ru: 'Обход витрин', en: 'The round of the frontages' },
+    intro: {
+      ru: 'Пройдите вдоль всех витрин, а не только до первой. На каждой стоит свой поставщик и свой продавец — и по дороге станет видно, чем они друг от друга отличаются.',
+      en: 'Walk the length of the frontages rather than stopping at the first. Each one is a different supplier with a different person on it, and the walk is what shows you the difference.',
+    },
+    outro: {
+      ru: 'Вы обошли выставку целиком и поговорили с теми, кто за ней стоит. Промокод на настольную лампу — ваш.',
+      en: 'You have been round the whole showroom and spoken to the people behind it. The code for the desk lamp is yours.',
+    },
+    percentOff: 7,
+    steps: [
+      {
+        id: 'walk',
+        prompt: { ru: 'Пройдите сто метров', en: 'Cover a hundred metres' },
+        done: {
+          ru: 'Отсюда видно, что выставка не заканчивается на первой витрине.',
+          en: 'From here it is obvious the showroom does not end at the first frontage.',
+        },
+        goal: { kind: 'stroll', metres: 100 },
+      },
+      {
+        id: 'frontages',
+        prompt: { ru: 'Подойдите к трём витринам', en: 'Walk up to three frontages' },
+        done: {
+          ru: 'У каждого поставщика своя полка: техника, свет, мебель. Вывеска над витриной — его имя.',
+          en: 'Each supplier has their own shelf: electronics, lighting, furniture. The board over the frontage is their name.',
+        },
+        goal: { kind: 'frontages', count: 3, metres: 7 },
+      },
+      {
+        id: 'vendors',
+        prompt: { ru: 'Поговорите с двумя продавцами', en: 'Talk to two of the vendors' },
+        done: {
+          ru: 'Отвечают по написанному — и это нарочно: продавец, который сочиняет условия доставки, хуже продавца, который повторяется.',
+          en: 'They answer from a script, on purpose: a seller who improvises delivery terms is worse than one who repeats themselves.',
+        },
+        goal: { kind: 'vendors', count: 2 },
+      },
+      {
+        id: 'demos',
+        prompt: { ru: 'Включите два товара', en: 'Switch two products on' },
+        done: {
+          ru: 'Это и есть смысл выставки: механизм видно до покупки, а не после.',
+          en: 'That is what the showroom is for: you see the mechanism before you pay, not after.',
+        },
+        goal: { kind: 'demos', count: 2 },
+      },
+    ],
+  },
+  {
+    id: 'street-counter',
+    where: 'street',
+    productSlug: 'robot-vacuum-domovoy-x2',
+    locations: ['street'],
+    title: { ru: 'До конца улицы', en: 'To the end of the street' },
+    intro: {
+      ru: 'В тупике за витринами стоит стойка Neo Burger. Дойдите до неё — заодно увидите, докуда улица вообще идёт.',
+      en: 'There is a Neo Burger counter in the dead end past the frontages. Walk to it, and find out how far the street actually goes.',
+    },
+    outro: {
+      ru: 'Дошли. Обед — в отдельной вкладке, там же симуляция доставки. Промокод на пылесос — ваш.',
+      en: 'You made it. Lunch is its own tab, delivery simulation included. The code for the vacuum is yours.',
+    },
+    percentOff: 6,
+    steps: [
+      {
+        id: 'walk',
+        prompt: { ru: 'Идите вдоль улицы', en: 'Head down the street' },
+        done: { ru: 'Половина пути.', en: 'Halfway.' },
+        goal: { kind: 'stroll', metres: 60 },
+      },
+      {
+        id: 'counter',
+        prompt: { ru: 'Дойдите до стойки', en: 'Reach the counter' },
+        done: {
+          ru: 'Стойка стоит там, где улица кончается — это место нашла сама карта проходимости, а не координата в коде.',
+          en: 'The counter stands where the street runs out — a spot the walkable map found, not a coordinate typed into the source.',
+        },
+        goal: { kind: 'landmark', landmark: 'counter', metres: 4 },
+      },
+    ],
+  },
+  {
+    id: 'grove-round',
+    where: 'street',
+    productSlug: 'recliner-kronos',
+    locations: ['grove'],
+    title: { ru: 'Поляна по кругу', en: 'Around the clearing' },
+    intro: {
+      ru: 'Площадки в роще стоят по краям поляны, спиной к лесу. Обойдите их — и заодно поймёте, где кончается трава и начинается откос.',
+      en: 'The plots in the grove stand around the edge of the clearing with their backs to the trees. Go round them, and find out where the grass stops and the bank starts.',
+    },
+    outro: {
+      ru: 'Вы обошли поляну. Промокод на кресло — ваш.',
+      en: 'You have been round the clearing. The code for the recliner is yours.',
+    },
+    percentOff: 7,
+    steps: [
+      {
+        id: 'walk',
+        prompt: { ru: 'Пройдите восемьдесят метров', en: 'Cover eighty metres' },
+        done: {
+          ru: 'Поляна длиннее, чем кажется от тропы.',
+          en: 'The clearing is longer than it looks from the path.',
+        },
+        goal: { kind: 'stroll', metres: 80 },
+      },
+      {
+        id: 'frontages',
+        prompt: { ru: 'Обойдите четыре площадки', en: 'Visit four of the plots' },
+        done: {
+          ru: 'Каждая площадка — ровная земля, вписанная в склон: ниже был бы обрыв, выше — насыпь.',
+          en: 'Each plot is level ground blended into the slope: lower and it would be a pit, higher and it would be a bench.',
+        },
+        goal: { kind: 'frontages', count: 4, metres: 8 },
+      },
+      {
+        id: 'demos',
+        prompt: { ru: 'Включите товар', en: 'Switch a product on' },
+        done: {
+          ru: 'Товары одни и те же в любой локации — меняется только то, где вы на них смотрите.',
+          en: 'The products are the same in every location; only where you look at them changes.',
+        },
+        goal: { kind: 'demos', count: 1 },
+      },
+    ],
+  },
 ];
 
 const BY_ID = new Map(MISSIONS.map((mission) => [mission.id, mission]));
-const BY_SLUG = new Map(MISSIONS.map((mission) => [mission.productSlug, mission]));
+
+// Only the room missions are looked up by product: a product card offers "see
+// it in its own room", and a street quest is not that — it is offered by the
+// location, not by the thing it happens to pay out on.
+const BY_SLUG = new Map(
+  MISSIONS.filter((mission) => mission.where === 'zone').map((mission) => [
+    mission.productSlug,
+    mission,
+  ]),
+);
 
 export function mission(id: string): Mission | null {
   return BY_ID.get(id) ?? null;
@@ -354,7 +548,16 @@ export function missionForProduct(slug: string): Mission | null {
 }
 
 export function missionsInZone(zone: string): Mission[] {
-  return MISSIONS.filter((entry) => entry.zone === zone);
+  return MISSIONS.filter((entry) => entry.where === 'zone' && entry.zone === zone);
+}
+
+/** The quests on offer out on a main location. */
+export function streetQuests(location: string): Mission[] {
+  return MISSIONS.filter(
+    (entry) =>
+      entry.where === 'street' &&
+      (entry.locations === undefined || entry.locations.includes(location)),
+  );
 }
 
 export function stepIndex(mission: Mission, stepId: string): number {

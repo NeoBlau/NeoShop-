@@ -14,6 +14,7 @@ import {
 import { lowerTier, settingsFor, type QualitySettings, type QualityTier } from '../quality.js';
 import { Concierge, conciergePlacement } from './Concierge.js';
 import { Vendor, vendorPlacement } from './Vendor.js';
+import { QuestSensors, type QuestLandmark } from './QuestSensors.js';
 import { FoodStand, standPlacement } from './FoodStand.js';
 import { Location } from './Location.js';
 import { ProductStand } from './ProductStand.js';
@@ -135,6 +136,10 @@ export interface WorldProps {
   onVendorOpen: (vendor: OpenVendor) => void;
   /** Which counter is reading an answer aloud, so the right strip pulses. */
   speakingVendorId: string | null;
+  /** What a street quest needs to know, and only the world can tell it. */
+  onWalked: (metres: number) => void;
+  onNearFrontage: (pavilionId: string) => void;
+  onLandmark: (name: string) => void;
 }
 
 /** Everything the dialogue panel needs about the person being spoken to. */
@@ -260,6 +265,9 @@ function Scene({
   onFoodOpen,
   onVendorOpen,
   speakingVendorId,
+  onWalked,
+  onNearFrontage,
+  onLandmark,
   quality,
 }: WorldProps & { quality: QualitySettings }) {
   const { grid, manifest } = location;
@@ -271,6 +279,14 @@ function Scene({
   // cells is cheap, and doing it per frame would not be.
   const stand = useMemo(() => standPlacement(grid, manifest.spawn), [grid, manifest.spawn]);
   const foodStand = props['food-stand'];
+
+  // The places a quest can ask somebody to reach. Derived from the placements
+  // the scene has already worked out, so a quest never names a coordinate.
+  const landmarks = useMemo<QuestLandmark[]>(() => {
+    const found: QuestLandmark[] = [{ name: 'concierge', position: concierge.position }];
+    if (stand) found.push({ name: 'counter', position: stand.position });
+    return found;
+  }, [concierge.position, stand]);
 
   // Lighting belongs to the location, not to this file. The street is a
   // Parisian noon; the grove is a hazy morning under a pure sky, and the
@@ -330,6 +346,18 @@ function Scene({
       {foodStand && stand ? (
         <FoodStand entry={foodStand} placement={stand} onOpen={onFoodOpen} />
       ) : null}
+
+      {/* The quest's eyes. Placed here rather than in the page because the
+          camera lives inside the canvas, and everything it measures is a
+          distance from it. */}
+      <QuestSensors
+        anchors={manifest.anchors}
+        pavilionIds={world.pavilions.map((pavilion) => pavilion.id)}
+        landmarks={landmarks}
+        onWalked={onWalked}
+        onNearFrontage={onNearFrontage}
+        onLandmark={onLandmark}
+      />
 
       <Sun quality={quality} intensity={light.sun} />
       {/* A little sky bounce into the shaded side of the street. The HDRI does

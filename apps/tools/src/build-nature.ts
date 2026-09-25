@@ -82,17 +82,28 @@ const SEED = 0x2f9a41c7;
 const AREA = { minX: -82, maxX: 82, minZ: -58, maxZ: 58 } as const;
 /** Terrain vertex spacing. One metre is finer than anything the eye catches. */
 const TERRAIN_STEP = 1;
-/** Metres of surface one tile of a ground texture covers. */
-const GROUND_TILE = 2.8;
+/**
+ * Metres of surface one tile of each ground texture covers.
+ *
+ * Per material, because they are looked at from completely different
+ * distances. The path is underfoot and wants detail; the banks are a wall
+ * twenty metres off, and at three metres a tile the repeat reads as
+ * wallpaper — the eye finds a grid long before it runs out of resolution.
+ */
+const GROUND_TILE: Record<Ground, number> = {
+  trodden: 2.2,
+  forest: 3.4,
+  rock: 5.6,
+};
 
 /** How far the clearing reaches along X before the forest closes across it. */
 const CLEARING_HALF_LENGTH = 54;
 /** Half-width of the trodden path down the clearing. */
-const PATH_HALF = 1.7;
+const PATH_HALF = 1.45;
 
 /** Supplier plots: flat pads inside the clearing, backed by the treeline. */
 const PLOT_COUNT = 6;
-const PLOT_RADIUS = 3.6;
+const PLOT_RADIUS = 3.3;
 /** How far short of the treeline a pad sits, so the trees are behind it. */
 const PLOT_INSET = 8.2;
 
@@ -466,7 +477,8 @@ function buildTerrain(): TerrainMesh {
           : axis === 0
             ? [point[2], point[1]]
             : [point[0], point[1]];
-      target.uv.push(u / GROUND_TILE, v / GROUND_TILE);
+      const tile = GROUND_TILE[ground];
+      target.uv.push(u / tile, v / tile);
     }
   };
 
@@ -836,20 +848,24 @@ const PROPS: PropRecipe[] = [
   {
     id: 'fern_02',
     budget: 1_600,
-    count: 700,
-    edge: [-19, 4],
-    clearOfPath: 2.4,
-    scale: [1, 1.9],
-    spacing: 1.05,
-    clump: [3, 9],
+    // The green in this palette. The canopy scans are dry-climate broadleaves
+    // with grey-green foliage and the grass is dry tufts, so without a lot of
+    // fern right up against the path the clearing reads as a dry wash rather
+    // than a glade — which is exactly how the first three builds of it read.
+    count: 1_100,
+    edge: [-19, 5],
+    clearOfPath: 1.7,
+    scale: [1, 2.1],
+    spacing: 0.95,
+    clump: [4, 11],
   },
   {
     id: 'shrub_01',
     budget: 6_000,
     error: 0.5,
-    count: 190,
+    count: 260,
     edge: [-17, 18],
-    clearOfPath: 2.6,
+    clearOfPath: 2,
     scale: [0.7, 1.3],
     spacing: 1.8,
     clump: [1, 3],
@@ -858,9 +874,9 @@ const PROPS: PropRecipe[] = [
     id: 'shrub_02',
     budget: 2_500,
     error: 0.5,
-    count: 280,
+    count: 340,
     edge: [-17, 20],
-    clearOfPath: 2.6,
+    clearOfPath: 2,
     scale: [0.7, 1.2],
     spacing: 1.6,
     clump: [1, 3],

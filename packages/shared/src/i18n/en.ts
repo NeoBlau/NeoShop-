@@ -601,6 +601,19 @@ export const en: Dictionary = {
     aiFailed: 'The model could not be reached. Falling back to the script.',
     toWorld: 'Back to the world',
   },
+  quest: {
+    reward: 'Finishing it earns a code for {{percent}}% off one product.',
+    accept: 'Take it',
+    hide: 'Hide',
+    stepOf: 'Step {{index}} of {{total}}',
+    tally: '{{done}} of {{needed}}',
+    wrappingUp: 'Issuing the code…',
+    finished: 'Quest finished',
+    promoNote: 'A {{percent}}% code, good for two weeks, applied in the cart.',
+    toCart: 'To the cart',
+    startFailed: 'The quest could not be started. Try again.',
+    stepFailed: 'The server refused the step. The quest has to be started again.',
+  },
   npc: {
     vendorRole: 'Sales assistant · {{supplier}}',
     vendorGreeting:

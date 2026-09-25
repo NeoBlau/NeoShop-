@@ -78,13 +78,13 @@ zones: ## Build the demo zones from assets/incoming (a few minutes each)
 props: ## Build the street props from assets/incoming
 	pnpm --filter @3dsfera/tools run build:props
 
-nature-assets: ## Download the CC0 scans the natural location is built from (~700 MB)
+nature-assets: ## Download the CC0 scans the forest location is built from (~930 MB)
 	pnpm --filter @3dsfera/tools run fetch:nature
 
-nature: nature-assets ## Compose the natural location (about ten minutes)
+nature: nature-assets ## Compose the forest clearing (about fifteen minutes)
 	pnpm --filter @3dsfera/tools run build:nature
 
-NATURE_MARKER := apps/web/public/world/locations/trail/location.json
+NATURE_MARKER := apps/web/public/world/locations/grove/location.json
 
 nature-if-missing:
 	@test -f $(NATURE_MARKER) || $(MAKE) nature

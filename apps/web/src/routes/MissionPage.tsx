@@ -390,6 +390,7 @@ export function MissionPage() {
  */
 const FALLBACK_MISSION = {
   id: '',
+  where: 'zone',
   productSlug: '',
   zone: '',
   title: { ru: '', en: '' },

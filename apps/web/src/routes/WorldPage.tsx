@@ -24,6 +24,8 @@ import {
 } from '../features/world/LocationPicker.js';
 import { ConciergePanel } from '../features/concierge/ConciergePanel.js';
 import { VendorPanel } from '../features/npc/VendorPanel.js';
+import { QuestPanel } from '../features/quests/QuestPanel.js';
+import { useStreetQuest, type QuestSignals } from '../features/quests/useStreetQuest.js';
 import { useInput } from '../scene/world/input.js';
 import { useLocationData, useLocationIndex } from '../features/world/useLocationData.js';
 import { Alert } from '../ui/Alert.js';
@@ -227,6 +229,38 @@ export function WorldPage() {
   // pulsing because the browser is reading an answer out.
   const [vendor, setVendor] = useState<OpenVendor | null>(null);
   const [vendorSpeaking, setVendorSpeaking] = useState(false);
+
+  /**
+   * What the buyer has done in this location, for whatever quest is running.
+   *
+   * Held here rather than in the hook because three of the five signals come
+   * from the canvas and two come from clicks this component already handles.
+   * The sets are replaced rather than mutated, so a quest's progress is a
+   * plain derivation of them.
+   */
+  const [signals, setSignals] = useState<QuestSignals>({
+    metres: 0,
+    frontages: new Set<string>(),
+    vendors: new Set<string>(),
+    demos: new Set<string>(),
+    landmarks: new Set<string>(),
+  });
+
+  const noteWalked = useCallback((metres: number) => {
+    setSignals((current) => ({ ...current, metres }));
+  }, []);
+
+  const noteSet = useCallback(
+    (key: 'frontages' | 'vendors' | 'demos' | 'landmarks', id: string) => {
+      setSignals((current) => {
+        if (current[key].has(id)) return current;
+        const grown = new Set(current[key]);
+        grown.add(id);
+        return { ...current, [key]: grown };
+      });
+    },
+    [],
+  );
   const { zones } = useZoneIndex();
   const { props: streetProps } = useProps();
   const navigate = useNavigate();
@@ -254,6 +288,14 @@ export function WorldPage() {
     setSelected(null);
     setConcierge(false);
     setVendor(null);
+    // Metres walked down the street are not metres walked round the clearing.
+    setSignals({
+      metres: 0,
+      frontages: new Set<string>(),
+      vendors: new Set<string>(),
+      demos: new Set<string>(),
+      landmarks: new Set<string>(),
+    });
   }, []);
 
   // A mission is only offered when its room is actually in this build: a
@@ -261,10 +303,16 @@ export function WorldPage() {
   const missionFor = useCallback(
     (slug: string): string | null => {
       const found = missionForProduct(slug);
-      return found && zones.includes(found.zone) ? found.id : null;
+      // `missionForProduct` only ever returns a room mission, so the zone is
+      // there; the check is for the build that never ran `make zones`.
+      if (!found?.zone) return null;
+      return zones.includes(found.zone) ? found.id : null;
     },
     [zones],
   );
+
+  // Whatever quest this location offers, and how far through it the buyer is.
+  const quest = useStreetQuest(chosen, signals);
 
   // Sound belongs to the street, so it runs while the street does and stops
   // when a product panel takes over the screen.
@@ -319,11 +367,15 @@ export function WorldPage() {
     setConcierge(true);
   }, []);
 
-  const handleVendor = useCallback((who: OpenVendor) => {
-    setSelected(null);
-    setConcierge(false);
-    setVendor(who);
-  }, []);
+  const handleVendor = useCallback(
+    (who: OpenVendor) => {
+      setSelected(null);
+      setConcierge(false);
+      setVendor(who);
+      noteSet('vendors', who.pavilionId);
+    },
+    [noteSet],
+  );
 
   const closeVendor = useCallback(() => {
     setVendor(null);
@@ -405,6 +457,9 @@ export function WorldPage() {
           onFoodOpen={() => navigate('/food')}
           onVendorOpen={handleVendor}
           speakingVendorId={vendorSpeaking ? (vendor?.pavilionId ?? null) : null}
+          onWalked={noteWalked}
+          onNearFrontage={(id) => noteSet('frontages', id)}
+          onLandmark={(name) => noteSet('landmarks', name)}
         />
       </Suspense>
 
@@ -501,6 +556,12 @@ export function WorldPage() {
 
       {touch && !selected && !concierge && !vendor ? <TouchControls /> : null}
 
+      {/* The quest hides while a panel has the screen: two overlays in the
+          same corner is one too many on a phone. */}
+      {!selected && !concierge && !vendor ? (
+        <QuestPanel quest={quest} language={i18n.language === 'en' ? 'en' : 'ru'} />
+      ) : null}
+
       {concierge ? <ConciergePanel onClose={() => setConcierge(false)} /> : null}
 
       {vendor ? (
@@ -521,6 +582,7 @@ export function WorldPage() {
           onPlay={(clipName, shouldLoop) => {
             setActiveClip(clipName);
             setLoop(shouldLoop);
+            noteSet('demos', selected.id);
           }}
           onStop={() => setActiveClip(null)}
           onClose={() => handleSelect(null)}

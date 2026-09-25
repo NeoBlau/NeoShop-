@@ -605,6 +605,19 @@ export const ru = {
     aiFailed: 'Не удалось получить ответ от модели. Отвечаем по сценарию.',
     toWorld: 'Вернуться в мир',
   },
+  quest: {
+    reward: 'За прохождение — промокод на {{percent}}% на один товар.',
+    accept: 'Взять',
+    hide: 'Убрать',
+    stepOf: 'Шаг {{index}} из {{total}}',
+    tally: '{{done}} из {{needed}}',
+    wrappingUp: 'Выдаём промокод…',
+    finished: 'Квест пройден',
+    promoNote: 'Код на {{percent}}% — действует две недели, применяется в корзине.',
+    toCart: 'В корзину',
+    startFailed: 'Квест не удалось начать. Попробуйте ещё раз.',
+    stepFailed: 'Сервер не принял шаг. Квест придётся начать заново.',
+  },
   npc: {
     vendorRole: 'Продавец · {{supplier}}',
     vendorGreeting:

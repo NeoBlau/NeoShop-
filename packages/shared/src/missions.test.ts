@@ -10,14 +10,22 @@ import {
   pace,
   stepIndex,
   stepSeconds,
+  streetQuests,
 } from './missions.js';
 
 describe('the missions', () => {
-  it('have unique ids, one per product', () => {
+  it('have unique ids, and one room mission per product', () => {
     const ids = MISSIONS.map((entry) => entry.id);
-    const slugs = MISSIONS.map((entry) => entry.productSlug);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(new Set(slugs).size).toBe(slugs.length);
+
+    // Only the room missions: a product card offers "see it in its own room"
+    // and there can be one of those. A street quest also names a product, but
+    // only as what it pays out on, and two quests may well pay out on the same
+    // thing.
+    const rooms = MISSIONS.filter((entry) => entry.where === 'zone').map(
+      (entry) => entry.productSlug,
+    );
+    expect(new Set(rooms).size).toBe(rooms.length);
   });
 
   it('are found by id, by product and by zone', () => {
@@ -51,7 +59,7 @@ describe('the missions', () => {
   });
 
   it('start by asking the buyer to walk over, before asking them to press anything', () => {
-    for (const entry of MISSIONS) {
+    for (const entry of MISSIONS.filter((mission) => mission.where === 'zone')) {
       expect(entry.steps[0]?.goal.kind, entry.id).toBe('approach');
     }
   });
@@ -119,5 +127,66 @@ describe('the pace check', () => {
   it('is not fooled by a start time in the future', () => {
     if (!entry) return;
     expect(pace(entry, 10_000, 0).ok).toBe(false);
+  });
+});
+
+describe('street quests', () => {
+  it('offers a quest on each main location', () => {
+    expect(streetQuests('street').length).toBeGreaterThan(0);
+    expect(streetQuests('grove').length).toBeGreaterThan(0);
+  });
+
+  it('only offers a location-specific quest on its own location', () => {
+    expect(streetQuests('grove').map((quest) => quest.id)).not.toContain('street-counter');
+    expect(streetQuests('street').map((quest) => quest.id)).not.toContain('grove-round');
+  });
+
+  it('never offers a room mission out on a location', () => {
+    for (const quest of [...streetQuests('street'), ...streetQuests('grove')]) {
+      expect(quest.where, quest.id).toBe('street');
+    }
+  });
+
+  it('keeps street quests out of the product cards', () => {
+    for (const quest of streetQuests('street')) {
+      const offered = missionForProduct(quest.productSlug);
+      expect(offered?.id, quest.id).not.toBe(quest.id);
+    }
+  });
+
+  it('gives every street objective a believable amount of time', () => {
+    for (const quest of [...streetQuests('street'), ...streetQuests('grove')]) {
+      for (const step of quest.steps) {
+        expect(stepSeconds(step), `${quest.id}/${step.id}`).toBeGreaterThan(0);
+      }
+      // Long enough that a console loop cannot collect the code instantly,
+      // short enough that a walk is not a sentence.
+      expect(earliestCompletion(quest), quest.id).toBeGreaterThan(5_000);
+      expect(earliestCompletion(quest), quest.id).toBeLessThan(120_000);
+    }
+  });
+
+  it('pays out on a product the seed actually has', () => {
+    // The five slugs prisma/seed.ts creates. A mission whose product is
+    // missing throws at completion, after the buyer has done the work — which
+    // is exactly the bug this catches.
+    const seeded = new Set([
+      'antenna-orbita-1-2',
+      'robot-vacuum-domovoy-x2',
+      'inspection-drone-skyeye',
+      'desk-lamp-meridian',
+      'recliner-kronos',
+    ]);
+
+    for (const entry of MISSIONS) {
+      expect(seeded.has(entry.productSlug), `${entry.id} → ${entry.productSlug}`).toBe(true);
+    }
+  });
+
+  it('gives a room mission a zone and a street quest none', () => {
+    for (const entry of MISSIONS) {
+      if (entry.where === 'zone') expect(entry.zone, entry.id).toBeTruthy();
+      else expect(entry.zone, entry.id).toBeUndefined();
+    }
   });
 });
