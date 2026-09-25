@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { MathUtils, type Mesh } from 'three';
+import { MathUtils, Vector3, type Mesh } from 'three';
 import { useTranslation } from 'react-i18next';
 import { SCENE_FONT } from './fonts.js';
 
@@ -28,6 +28,11 @@ const TOP_WIDTH = 1.5;
 const TOP_DEPTH = 0.56;
 /** Metres at which the counter starts inviting a conversation. */
 const NOTICE_DISTANCE = 7;
+/** How high the sign stands. Tall enough to clear the row of plinths. */
+const SIGN_HEIGHT = 2.35;
+
+/** Scratch, reused every frame by every counter. */
+const WORLD_POSITION = new Vector3();
 
 /**
  * Where the counter stands on a frontage, in the frontage group's own
@@ -67,7 +72,7 @@ export function Vendor({
     const mesh = strip.current;
     if (!mesh) return;
 
-    const distance = state.camera.position.distanceTo(mesh.getWorldPosition(mesh.position.clone()));
+    const distance = state.camera.position.distanceTo(mesh.getWorldPosition(WORLD_POSITION));
     const wanted = hovered ? 1 : distance < NOTICE_DISTANCE ? 0.5 : 0.16;
     glow.current = MathUtils.lerp(glow.current, wanted, Math.min(1, delta * 4));
 
@@ -126,28 +131,49 @@ export function Vendor({
         </mesh>
       </group>
 
-      <group position={[0, TOP_HEIGHT + 0.3, 0]}>
+      {/* A standing sign, because the counter alone was invisible.
+          A metre-high box in a dim street, behind a row of plinths, from
+          thirty metres away: there was nothing to see and nothing to walk
+          towards. The post carries the name at eye level and the lit band up
+          where it clears the products — which is the whole job of a shop
+          sign. */}
+      <mesh position={[0, SIGN_HEIGHT / 2, -0.16]} castShadow>
+        <boxGeometry args={[0.07, SIGN_HEIGHT, 0.07]} />
+        <meshStandardMaterial color="#20242a" roughness={0.42} metalness={0.75} />
+      </mesh>
+
+      <mesh position={[0, SIGN_HEIGHT - 0.02, -0.16]}>
+        <boxGeometry args={[0.52, 0.03, 0.03]} />
+        <meshStandardMaterial
+          color="#e5b25a"
+          emissive="#e5b25a"
+          emissiveIntensity={2.2}
+          toneMapped={false}
+        />
+      </mesh>
+
+      <group position={[0, SIGN_HEIGHT - 0.24, -0.14]}>
         <Text
           font={SCENE_FONT}
-          fontSize={0.115}
+          fontSize={0.135}
           anchorX="center"
           anchorY="middle"
-          color={hovered ? '#f3e8d5' : '#cdd1d7'}
-          outlineWidth={0.004}
+          color={hovered ? '#f7ecdb' : '#dfe2e7'}
+          outlineWidth={0.006}
           outlineColor="#0b0d10"
         >
           {name}
         </Text>
         <Text
           font={SCENE_FONT}
-          position={[0, -0.145, 0]}
-          fontSize={0.072}
+          position={[0, -0.16, 0]}
+          fontSize={0.078}
           maxWidth={2.4}
           textAlign="center"
           anchorX="center"
           anchorY="top"
-          color="#8f949c"
-          outlineWidth={0.003}
+          color="#9aa0a8"
+          outlineWidth={0.004}
           outlineColor="#0b0d10"
         >
           {t('npc.vendorRole', { supplier: supplierName })}

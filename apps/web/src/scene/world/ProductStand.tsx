@@ -40,6 +40,9 @@ const UNLOAD_DISTANCE = 28;
 
 const LOD_DISTANCES = [6, 13] as const;
 
+/** Scratch, reused every frame by every stand: allocating here would churn. */
+const WORLD_POSITION = new Vector3();
+
 function extendLoader(loader: GLTFLoader, renderer: WebGLRenderer): void {
   loader.setDRACOLoader(new DRACOLoader().setDecoderPath(DRACO_DECODER_PATH));
   loader.setKTX2Loader(
@@ -193,7 +196,23 @@ export function ProductStand({
     const node = group.current;
     if (!node) return;
 
-    const distance = state.camera.position.distanceTo(node.position);
+    /**
+     * The plinth's position *in the world*, which is not `node.position`.
+     *
+     * That property is the group's offset inside its parent, and the parents
+     * here are the supplier's frontage — placed at the shop's anchor and
+     * rotated to face the street — and the row layout inside it. So
+     * `node.position` is something like [-2.1, 0, 0.35]: two metres to the
+     * left of a shop that is itself sixty metres down the street.
+     *
+     * Measuring the camera against that compared it against a point next to
+     * the world origin, so every product in the location loaded and unloaded
+     * together according to how far the buyer was from the origin — visible
+     * while standing back, and gone the moment they walked past twenty-eight
+     * metres, however close to a plinth they were.
+     */
+    const here = node.getWorldPosition(WORLD_POSITION);
+    const distance = state.camera.position.distanceTo(here);
 
     if (!visible && distance < LOAD_DISTANCE) setVisible(true);
     else if (visible && distance > UNLOAD_DISTANCE) setVisible(false);
