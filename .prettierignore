@@ -3,3 +3,9 @@ node_modules
 pnpm-lock.yaml
 apps/api/src/generated
 apps/api/prisma/migrations
+
+# Third-party source assets. Downloaded, never edited, and a scanned .gltf is
+# one line of two megabytes that nothing should try to reformat.
+assets/
+.incoming/
+.preview/

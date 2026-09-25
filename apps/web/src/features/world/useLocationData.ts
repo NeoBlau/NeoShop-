@@ -26,6 +26,16 @@ export interface LocationSource {
 }
 
 export interface LocationManifest {
+  id: string;
+  /** Broad kind, for the picker's own copy: a city street, the outdoors. */
+  kind?: string;
+  title?: { ru: string; en: string };
+  blurb?: { ru: string; en: string };
+  /**
+   * The sky and the light. A path relative to the location's own directory, or
+   * an absolute one when the HDRI is shared.
+   */
+  sky?: string;
   source: LocationSource;
   levels: { level: number; file: string; triangles: number; bytes: number }[];
   navigation: {
@@ -44,19 +54,30 @@ export interface LocationManifest {
 export interface LocationData {
   manifest: LocationManifest;
   grid: NavigationGrid;
+  /** Where this location's files live, so geometry URLs need no guessing. */
+  base: string;
+  /** Absolute URL of its sky. */
+  skyUrl: string;
 }
 
-const BASE = '/world/location';
+const BASE = '/world/locations';
+/** Used when a location's manifest predates the sky field. */
+const FALLBACK_SKY = '/world/hdri/street.hdr';
 
-async function loadLocation(signal: AbortSignal): Promise<LocationData> {
-  const response = await fetch(`${BASE}/location.json`, { signal });
+export function locationBase(id: string): string {
+  return `${BASE}/${id}`;
+}
+
+async function loadLocation(id: string, signal: AbortSignal): Promise<LocationData> {
+  const base = locationBase(id);
+  const response = await fetch(`${base}/location.json`, { signal });
   if (!response.ok) throw new Error(`location.json: ${response.status}`);
 
   const manifest = (await response.json()) as LocationManifest;
 
   const [mask, ground] = await Promise.all(
     [manifest.navigation.mask, manifest.navigation.ground].map(async (file) => {
-      const binary = await fetch(`${BASE}/${file}`, { signal });
+      const binary = await fetch(`${base}/${file}`, { signal });
       if (!binary.ok) throw new Error(`${file}: ${binary.status}`);
       return new Uint8Array(await binary.arrayBuffer());
     }),
@@ -64,8 +85,12 @@ async function loadLocation(signal: AbortSignal): Promise<LocationData> {
 
   if (!mask || !ground) throw new Error('The location map is incomplete');
 
+  const sky = manifest.sky ?? FALLBACK_SKY;
+
   return {
     manifest,
+    base,
+    skyUrl: sky.startsWith('/') ? sky : `${base}/${sky}`,
     grid: {
       origin: manifest.navigation.origin,
       cell: manifest.navigation.cell,
@@ -85,19 +110,28 @@ async function loadLocation(signal: AbortSignal): Promise<LocationData> {
  * it before anything can be placed, so it is fetched ahead of the geometry
  * rather than suspended alongside it.
  */
-export function useLocationData(): {
+export function useLocationData(id: string | null): {
   location: LocationData | null;
   loading: boolean;
   failed: boolean;
 } {
   const [location, setLocation] = useState<LocationData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(id !== null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const controller = new AbortController();
+    if (id === null) {
+      setLocation(null);
+      setLoading(false);
+      setFailed(false);
+      return;
+    }
 
-    loadLocation(controller.signal)
+    const controller = new AbortController();
+    setLoading(true);
+    setFailed(false);
+
+    loadLocation(id, controller.signal)
       .then((data) => {
         setLocation(data);
         setLoading(false);
@@ -113,7 +147,38 @@ export function useLocationData(): {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [id]);
 
   return { location, loading, failed };
+}
+
+/**
+ * Which locations this build has.
+ *
+ * Written by the location builds; an empty list means nobody ran them, which
+ * is a checkout without assets rather than an error.
+ */
+export function useLocationIndex(): { ids: string[]; loading: boolean } {
+  const [ids, setIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void fetch(`${BASE}/locations.json`, { signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<string[]>) : []))
+      .then((list) => {
+        setIds(Array.isArray(list) ? list : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setIds([]);
+        setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  return { ids, loading };
 }

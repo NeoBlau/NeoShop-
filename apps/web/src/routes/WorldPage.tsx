@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { missionForProduct, type WorldProduct } from '@3dsfera/shared';
 import { useWorld, useViewReporter } from '../features/world/useWorld.js';
@@ -15,9 +15,15 @@ import { useProgress } from '@react-three/drei';
 import { TouchControls } from '../scene/world/TouchControls.js';
 import { useAmbience } from '../scene/world/ambience.js';
 import { useZoneIndex } from '../features/zones/useZone.js';
+import { useProps } from '../features/world/useProps.js';
+import {
+  LocationPicker,
+  rememberLocation,
+  rememberedLocation,
+} from '../features/world/LocationPicker.js';
 import { ConciergePanel } from '../features/concierge/ConciergePanel.js';
 import { useInput } from '../scene/world/input.js';
-import { useLocationData } from '../features/world/useLocationData.js';
+import { useLocationData, useLocationIndex } from '../features/world/useLocationData.js';
 import { Alert } from '../ui/Alert.js';
 import { Button, Spinner } from '../ui/Button.js';
 import { CatalogGrid } from './CatalogPage.js';
@@ -216,6 +222,32 @@ export function WorldPage() {
 
   const [concierge, setConcierge] = useState(false);
   const { zones } = useZoneIndex();
+  const { props: streetProps } = useProps();
+  const navigate = useNavigate();
+
+  /**
+   * Which world. Remembered between visits, and only asked about when there is
+   * more than one to choose from — a build with a single location should not
+   * put a menu in front of it.
+   */
+  const { ids: locationIds, loading: indexLoading } = useLocationIndex();
+  const [chosen, setChosen] = useState<string | null>(rememberedLocation);
+
+  useEffect(() => {
+    if (indexLoading || locationIds.length === 0) return;
+
+    setChosen((current) => {
+      if (current && locationIds.includes(current)) return current;
+      return locationIds.length === 1 ? (locationIds[0] ?? null) : null;
+    });
+  }, [indexLoading, locationIds]);
+
+  const pickLocation = useCallback((id: string) => {
+    rememberLocation(id);
+    setChosen(id);
+    setSelected(null);
+    setConcierge(false);
+  }, []);
 
   // A mission is only offered when its room is actually in this build: a
   // checkout without `make zones` should show the street, not a dead link.
@@ -236,7 +268,7 @@ export function WorldPage() {
   // The street itself: its map, its shop fronts and where a buyer arrives.
   // Small enough to fetch ahead of the geometry, and required before anything
   // can be placed in it.
-  const { location, loading: locationLoading, failed: locationFailed } = useLocationData();
+  const { location, loading: locationLoading, failed: locationFailed } = useLocationData(chosen);
 
   // Capabilities are probed once: each probe allocates a WebGL context, and
   // browsers cap how many may exist at a time.
@@ -281,7 +313,7 @@ export function WorldPage() {
     0,
   );
 
-  if (loading || locationLoading || mode === 'deciding') {
+  if (loading || indexLoading || locationLoading || mode === 'deciding') {
     return (
       <div className="text-ink-muted flex items-center justify-center gap-2 py-24 text-sm">
         <Spinner />
@@ -292,6 +324,15 @@ export function WorldPage() {
 
   if (errorCode || !world) {
     return <Alert tone="danger">{t(`errors.${errorCode ?? 'ERR_INTERNAL'}`)}</Alert>;
+  }
+
+  // More than one world and no choice made yet. Asked before the geometry is
+  // fetched, because the two locations are tens of megabytes each and picking
+  // afterwards would mean downloading the one nobody wanted.
+  if (chosen === null && locationIds.length > 1) {
+    return (
+      <LocationPicker ids={locationIds} onChoose={pickLocation} onSkip={() => setMode('flat')} />
+    );
   }
 
   // No location, no street to walk. The catalogue sells the same products and
@@ -338,6 +379,8 @@ export function WorldPage() {
           formatPrice={formatPrice}
           controlsEnabled={selected === null && !concierge}
           onConciergeOpen={handleConcierge}
+          props={streetProps}
+          onFoodOpen={() => navigate('/food')}
         />
       </Suspense>
 
@@ -372,6 +415,18 @@ export function WorldPage() {
         </div>
 
         <div className="pointer-events-auto flex items-center gap-2">
+          {locationIds.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => setChosen(null)}
+              title={t('world.changeLocation')}
+              className="bg-void/70 border-edge text-ink-muted hover:text-ink rounded-lg border px-2.5 py-2 text-xs backdrop-blur transition-colors"
+            >
+              <span aria-hidden="true">🗺</span>
+              <span className="sr-only">{t('world.changeLocation')}</span>
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={ambience.toggle}

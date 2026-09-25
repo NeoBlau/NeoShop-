@@ -348,6 +348,10 @@ export const en: Dictionary = {
     empty: 'No data yet — statistics appear once a product is published',
   },
   world: {
+    pickTitle: 'Where to?',
+    pickSubtitle: 'Both are walkable, and both carry supplier pavilions.',
+    pickFacts: '{{triangles}}M triangles · {{plots}} plots',
+    changeLocation: 'Change location',
     enter: 'Step onto the street',
     entering: 'Building the street…',
     loadingModels: 'Loading products…',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cellAt,
+  farthestWalkable,
   groundAt,
   isWalkable,
   nearestWalkable,
@@ -148,5 +149,46 @@ describe('nearestWalkable', () => {
   it('gives up rather than searching the whole map', () => {
     const solid = gridFrom(['###', '###']);
     expect(nearestWalkable(solid, 0.5, 0.5, 2)).toBeNull();
+  });
+});
+
+describe('farthestWalkable', () => {
+  /** A dead end: one long corridor with a pocket at the far end. */
+  const CUL_DE_SAC = gridFrom([
+    '##########',
+    '#........#',
+    '########.#',
+    '######...#',
+    '##########',
+  ]);
+
+  it('finds the far end of a street rather than the far side of a wall', () => {
+    const far = farthestWalkable(CUL_DE_SAC, 0.75, 0.75);
+    expect(far).not.toBeNull();
+    if (!far) return;
+
+    // Walking distance, not straight-line: the pocket at the bottom right is
+    // the furthest place you can actually get to.
+    expect(far.steps).toBeGreaterThan(8);
+    expect(far.x).toBeGreaterThan(2.5);
+    expect(far.z).toBeGreaterThan(1);
+  });
+
+  it('starts from the nearest floor when handed a position inside a wall', () => {
+    const far = farthestWalkable(CUL_DE_SAC, 0.25, 0.25);
+    expect(far).not.toBeNull();
+  });
+
+  it('returns nothing for a map with no floor at all', () => {
+    expect(farthestWalkable(gridFrom(['###', '###']), 0.5, 0.5)).toBeNull();
+  });
+
+  it('never leaves the island it started on', () => {
+    // Two rooms, no door between them: the search must stay in the first.
+    const SPLIT = gridFrom(['#####', '#.#.#', '#.#.#', '#####']);
+    const far = farthestWalkable(SPLIT, 0.75, 0.75);
+    expect(far).not.toBeNull();
+    if (!far) return;
+    expect(far.x).toBeLessThan(1);
   });
 });

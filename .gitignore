@@ -63,3 +63,6 @@ apps/web/public/food/
 
 # Demo zones, built by apps/tools/src/build-zone.ts
 apps/web/public/world/zones/
+
+# Poly Haven scans for the natural location, fetched by fetch-nature.ts
+assets/nature/

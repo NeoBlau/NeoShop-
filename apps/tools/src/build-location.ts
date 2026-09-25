@@ -66,7 +66,7 @@ export const SOURCE = {
 } as const;
 
 const CACHE = path.resolve(HERE, '../.cache/location');
-const OUT = path.resolve(HERE, '../../web/public/world/location');
+const OUT = path.resolve(HERE, '../../web/public/world/locations/street');
 const SCRATCH = path.resolve(HERE, '../.cache/location-scratch');
 
 /** Detail levels, coarsest last. Ratio is of the original triangle count. */
@@ -451,6 +451,17 @@ async function main(): Promise<void> {
         })();
 
   const manifest = {
+    id: 'street',
+    kind: 'city',
+    title: {
+      ru: 'Парижская улица',
+      en: 'A street in Paris',
+    },
+    blurb: {
+      ru: 'Настоящая улица с витринами. Шесть магазинов, товары на подиумах перед входом.',
+      en: 'A real street with shop fronts. Six shops, products on plinths outside.',
+    },
+    sky: '/world/hdri/street.hdr',
     source: SOURCE,
     levels,
     textures: {
@@ -472,6 +483,18 @@ async function main(): Promise<void> {
   };
 
   writeFileSync(path.join(OUT, 'location.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+
+  // The index the app reads to offer a choice of locations. Merged rather than
+  // overwritten, so building one location does not forget the others.
+  const indexFile = path.resolve(OUT, '../locations.json');
+  const known: string[] = existsSync(indexFile)
+    ? (JSON.parse(readFileSync(indexFile, 'utf8')) as string[])
+    : [];
+  const all = [...new Set([...known, 'street'])].filter((id) =>
+    existsSync(path.resolve(OUT, '..', id, 'location.json')),
+  );
+  writeFileSync(indexFile, `${JSON.stringify(all, null, 2)}\n`);
+
   rmSync(SCRATCH, { recursive: true, force: true });
 
   console.log(

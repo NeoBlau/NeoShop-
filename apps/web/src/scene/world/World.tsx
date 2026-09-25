@@ -7,6 +7,7 @@ import { ACESFilmicToneMapping, PCFSoftShadowMap, type DirectionalLight } from '
 import type { WorldProduct, WorldResponse } from '@3dsfera/shared';
 import { lowerTier, settingsFor, type QualitySettings, type QualityTier } from '../quality.js';
 import { Concierge, conciergePlacement } from './Concierge.js';
+import { FoodStand, standPlacement } from './FoodStand.js';
 import { Location } from './Location.js';
 import { ProductStand } from './ProductStand.js';
 import { standPlacements } from './layout.js';
@@ -14,6 +15,7 @@ import { EYE_HEIGHT, PlayerControls } from './PlayerControls.js';
 import { SCENE_FONT } from './fonts.js';
 import { groundAt } from './navigation.js';
 import type { LocationData } from '../../features/world/useLocationData.js';
+import type { PropEntry } from '../../features/world/useProps.js';
 
 /**
  * The world: a street, and the suppliers who have a shop on it.
@@ -28,8 +30,6 @@ import type { LocationData } from '../../features/world/useLocationData.js';
  * which fails offline and is refused by the desktop shell's content security
  * policy.
  */
-
-const STREET_HDRI = '/world/hdri/street.hdr';
 
 /**
  * A sun that follows the buyer.
@@ -117,6 +117,10 @@ export interface WorldProps {
   controlsEnabled: boolean;
   /** The buyer walked up to the concierge and asked for help. */
   onConciergeOpen: () => void;
+  /** Street props this build has. Empty is normal: `make props` is optional. */
+  props: Record<string, PropEntry>;
+  /** The buyer walked up to the food counter. */
+  onFoodOpen: () => void;
 }
 
 /** One supplier's frontage: their name over their products. */
@@ -199,11 +203,19 @@ function Scene({
   formatPrice,
   controlsEnabled,
   onConciergeOpen,
+  props,
+  onFoodOpen,
   quality,
 }: WorldProps & { quality: QualitySettings }) {
   const { grid, manifest } = location;
   const renderer = useThree((state) => state.gl);
   const concierge = useMemo(() => conciergePlacement(grid, manifest.spawn), [grid, manifest.spawn]);
+
+  // The counter goes at the end of the street, which the map knows and this
+  // file does not. Computed once: a breadth-first walk over twenty thousand
+  // cells is cheap, and doing it per frame would not be.
+  const stand = useMemo(() => standPlacement(grid, manifest.spawn), [grid, manifest.spawn]);
+  const foodStand = props['food-stand'];
 
   useEffect(() => {
     // The street was authored for a renderer with a physical sky. Ours is
@@ -217,13 +229,13 @@ function Scene({
         {/* The sky is the backdrop as well as the light: this is an outdoors
             scene, and a flat colour above the rooflines gives it away. */}
         <Environment
-          files={STREET_HDRI}
+          files={location.skyUrl}
           environmentIntensity={1}
           background
           backgroundBlurriness={0}
         />
 
-        <Location quality={quality} />
+        <Location quality={quality} base={location.base} levels={manifest.levels} />
 
         {world.pavilions.map((pavilion, index) => {
           const anchor = manifest.anchors[index % Math.max(1, manifest.anchors.length)];
@@ -249,6 +261,10 @@ function Scene({
       {/* Staff. Placed from the arrival point rather than from a coordinate
           typed into the source, so it stays right if the spawn moves. */}
       <Concierge placement={concierge} onOpen={onConciergeOpen} />
+
+      {foodStand && stand ? (
+        <FoodStand entry={foodStand} placement={stand} onOpen={onFoodOpen} />
+      ) : null}
 
       <Sun quality={quality} />
       {/* A little sky bounce into the shaded side of the street. The HDRI does

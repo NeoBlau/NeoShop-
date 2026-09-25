@@ -8,26 +8,51 @@ import type { QualitySettings, QualityTier } from '../quality.js';
 /**
  * The place the showroom happens in.
  *
- * This is the Amazon Lumberyard Bistro from the Open Research Content Archive
- * — a Parisian street corner modelled by a professional art team and released
- * under CC BY 4.0. It replaced a street built here out of primitives, which
- * was legible and cheap and looked exactly like what it was.
+ * Two of them so far, and this component knows about neither: it is handed a
+ * directory and a list of levels, both read from the location's own manifest,
+ * because the second location is assembled from different parts by a different
+ * build and only its manifest can say what it produced.
  *
- * `apps/tools/src/build-location.ts` turns the research asset into something a
- * browser can hold: four levels of detail down from 2.8 million triangles, and
- * two texture budgets with the mip chains the original never had.
+ * The street is the Amazon Lumberyard Bistro from the Open Research Content
+ * Archive, under CC BY 4.0. The trail is composed from Poly Haven scans. Each
+ * arrives as four levels of detail; `apps/tools` turns megabytes of research
+ * asset into something a browser can hold.
  */
 
 const LEVEL_BY_TIER: Record<QualityTier, number> = { ultra: 0, high: 1, medium: 2, low: 3 };
 
-export function locationUrl(tier: QualityTier): string {
-  return `/world/location/street-lod${LEVEL_BY_TIER[tier]}.gltf`;
+export interface LocationLevel {
+  level: number;
+  file: string;
+}
+
+/**
+ * The file for a tier.
+ *
+ * Falls back to the coarsest level a location actually has: a build that
+ * stopped after two levels should still render, at the price of detail.
+ */
+export function locationUrl(base: string, levels: LocationLevel[], tier: QualityTier): string {
+  const wanted = LEVEL_BY_TIER[tier];
+  const exact = levels.find((entry) => entry.level === wanted);
+  const coarsest = [...levels].sort((a, b) => b.level - a.level)[0];
+  const chosen = exact ?? coarsest;
+
+  return chosen ? `${base}/${chosen.file}` : '';
 }
 
 /** Every level is one file; preloading the next tier up is not worth the bytes. */
-export function Location({ quality }: { quality: QualitySettings }) {
+export function Location({
+  quality,
+  base,
+  levels,
+}: {
+  quality: QualitySettings;
+  base: string;
+  levels: LocationLevel[];
+}) {
   const renderer = useThree((state) => state.gl);
-  const url = locationUrl(quality.tier);
+  const url = locationUrl(base, levels, quality.tier);
 
   const gltf = useLoader(GLTFLoader, url, (loader) => {
     extendGltfLoader(loader, renderer);

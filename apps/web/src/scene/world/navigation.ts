@@ -142,3 +142,83 @@ export function nearestWalkable(
 
   return null;
 }
+
+/**
+ * The furthest place on the map you can walk to from a given point.
+ *
+ * A breadth-first search over walkable cells, which for a street means the far
+ * end of it: the dead end where the road stops. Used to decide where the food
+ * counter goes, because a counter belongs at the end of a street rather than
+ * in the middle of it, and because hard-coding a coordinate would break the
+ * first time the location is rebuilt.
+ */
+export function farthestWalkable(
+  grid: NavigationGrid,
+  fromX: number,
+  fromZ: number,
+): { x: number; z: number; steps: number } | null {
+  const start = cellAt(grid, fromX, fromZ);
+  if (start === null || !isWalkable(grid, fromX, fromZ)) {
+    const nearest = nearestWalkable(grid, fromX, fromZ);
+    if (!nearest) return null;
+    return farthestWalkable(grid, nearest.x, nearest.z);
+  }
+
+  const seen = new Uint8Array(grid.width * grid.height);
+  // A plain array used as a ring buffer: the grid is a few tens of thousands
+  // of cells, and a queue of objects would allocate more than the search costs.
+  const queue = new Int32Array(grid.width * grid.height);
+  const depth = new Int32Array(grid.width * grid.height);
+
+  let head = 0;
+  let tail = 0;
+  queue[tail++] = start;
+  seen[start] = 1;
+
+  let bestCell = start;
+  let bestDepth = 0;
+
+  while (head < tail) {
+    const cell = queue[head++] ?? 0;
+    const here = depth[cell] ?? 0;
+
+    if (here > bestDepth) {
+      bestDepth = here;
+      bestCell = cell;
+    }
+
+    const x = cell % grid.width;
+    const z = Math.floor(cell / grid.width);
+
+    // Four neighbours, not eight: a diagonal step between two blocked cells is
+    // a squeeze through a corner, and the walk should not find routes the
+    // player cannot take.
+    for (const [dx, dz] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const nx = x + dx;
+      const nz = z + dz;
+      if (nx < 0 || nz < 0 || nx >= grid.width || nz >= grid.height) continue;
+
+      const next = nz * grid.width + nx;
+      if (seen[next]) continue;
+
+      const byteIndex = next >> 3;
+      const open = ((grid.mask[byteIndex] ?? 0) >> (next & 7)) & 1;
+      if (!open) continue;
+
+      seen[next] = 1;
+      depth[next] = here + 1;
+      queue[tail++] = next;
+    }
+  }
+
+  return {
+    x: (bestCell % grid.width) * grid.cell + grid.origin[0] + grid.cell / 2,
+    z: Math.floor(bestCell / grid.width) * grid.cell + grid.origin[1] + grid.cell / 2,
+    steps: bestDepth,
+  };
+}
