@@ -71,13 +71,35 @@ function ProductModel({ url, activeClip, loop, castShadows, onSized }: ProductMo
   const mixer = useMemo(() => new AnimationMixer(gltf.scene as unknown as Object3D), [gltf.scene]);
   const actionRef = useRef<AnimationAction | null>(null);
 
-  // Measured after mount, not during render: reporting up while React is
-  // rendering the parent is exactly the "setState during render" warning, and
+  /**
+   * Where the model has to move so that it stands on the plinth.
+   *
+   * Exporters disagree about the origin: Blender leaves it wherever the artist
+   * left it, a CAD converter puts it at the assembly centre, a scan puts it
+   * nowhere in particular. Rather than demand one convention from every
+   * supplier, measure the bounds and lift the base to the plinth top, centred
+   * over it. Computed while the asset is loaded rather than in an effect: the
+   * value is a pure reading of the file, and doing it afterwards would show one
+   * frame of the product half-buried in marble.
+   */
+  const fit = useMemo(() => {
+    const box = new Box3().setFromObject(gltf.scene);
+    const size = box.getSize(new Vector3());
+    const centre = box.getCenter(new Vector3());
+
+    return {
+      offset: [-centre.x, -box.min.y, -centre.z] as [number, number, number],
+      height: size.y,
+      radius: Math.max(size.x, size.z) / 2,
+    };
+  }, [gltf.scene]);
+
+  // Reported after mount, not during render: writing to the parent's state while
+  // React is rendering it is exactly the "setState during render" warning, and
   // in a scene it shows up as a frame of wrong layout.
   useEffect(() => {
-    const size = new Box3().setFromObject(gltf.scene).getSize(new Vector3());
-    onSized({ height: size.y, radius: Math.max(size.x, size.z) / 2 });
-  }, [gltf.scene, onSized]);
+    onSized({ height: fit.height, radius: fit.radius });
+  }, [fit, onSized]);
 
   useEffect(() => {
     gltf.scene.traverse((object: Object3D) => {
@@ -108,7 +130,11 @@ function ProductModel({ url, activeClip, loop, castShadows, onSized }: ProductMo
 
   useFrame((_state, delta) => mixer.update(delta));
 
-  return <primitive object={gltf.scene} />;
+  return (
+    <group position={fit.offset}>
+      <primitive object={gltf.scene} />
+    </group>
+  );
 }
 
 export interface ProductStandProps {
