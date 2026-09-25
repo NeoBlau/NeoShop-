@@ -16,7 +16,7 @@ AMBIENCE_MARKER := apps/web/public/world/audio/street.wav
         world-assets location location-if-missing ambience ambience-if-missing ingest zones \
         props nature nature-assets nature-if-missing fonts fonts-if-missing \
         zones-if-missing food food-if-missing previews previews-if-missing doctor \
-        reset-storage \
+        reset-storage reseed \
         installer clean
 
 help: ## Show available targets
@@ -166,6 +166,13 @@ ingest: ## Normalise the models in assets/incoming into seed products
 
 seed: shared ## Load demo data (suppliers, pavilions, five animated products)
 	pnpm --filter @3dsfera/api run seed
+
+# The seed will not re-upload a model for a product that already has one, which
+# is right for a repeat `make dev` and wrong after `make assets` or `make
+# ingest`: the database keeps pointing at the old file and nothing says so. This
+# is the target to run after rebuilding a model.
+reseed: shared ## Re-seed and re-process the models (after `make assets` or `make ingest`)
+	SEED_REPROCESS=1 pnpm --filter @3dsfera/api run seed
 
 app: ## Run api + web with hot reload
 	pnpm dev
