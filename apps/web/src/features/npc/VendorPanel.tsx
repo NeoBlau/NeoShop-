@@ -27,7 +27,8 @@ export function VendorPanel({
 }: {
   name: string;
   supplierName: string;
-  category: ProductCategory;
+  /** Null when the frontage has nothing on it. */
+  category: ProductCategory | null;
   /** So the counter in the scene can show which vendor is talking. */
   onSpeakingChange: (speaking: boolean) => void;
   onClose: () => void;

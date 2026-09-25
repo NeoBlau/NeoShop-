@@ -190,9 +190,41 @@ export function dominantCategory(categories: readonly ProductCategory[]): Produc
   return best;
 }
 
-/** The lines one vendor offers: what they sell, then the common questions. */
-export function vendorLines(category: ProductCategory): VendorLine[] {
-  const about = VENDOR_BY_CATEGORY[category];
+/**
+ * What somebody on a frontage with nothing on it says.
+ *
+ * A supplier whose products are still in processing, or were taken down, or
+ * never got past moderation, still has a pavilion and still has somebody on
+ * it. Pretending otherwise was worse: the frontage rendered nothing at all,
+ * so a street with a problem behind it looked like a street with no shops.
+ */
+export const VENDOR_EMPTY: VendorLine = {
+  id: 'about',
+  question: { ru: 'Что у вас продаётся?', en: 'What do you sell here?' },
+  answer: {
+    ru: 'Сегодня — ничего. Товары ещё обрабатываются или сняты с витрины. Заходите позже, а пока посмотрите соседние витрины или откройте плоский каталог.',
+    en: 'Nothing today. The products are still processing or have been taken down. Come back later — meanwhile there are the other frontages, or the flat catalogue.',
+  },
+  heard: [
+    'интересного',
+    'ассортимент',
+    'товар',
+    'товары',
+    'продаётся',
+    'what',
+    'assortment',
+    'sell',
+  ],
+};
+
+/**
+ * The lines one vendor offers: what they sell, then the common questions.
+ *
+ * A null category means an empty frontage, which is a different opening line
+ * rather than a missing one.
+ */
+export function vendorLines(category: ProductCategory | null): VendorLine[] {
+  const about = category === null ? VENDOR_EMPTY : VENDOR_BY_CATEGORY[category];
   return [about, ...VENDOR_COMMON];
 }
 

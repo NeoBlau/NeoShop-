@@ -4,6 +4,7 @@ import { matchHeard } from './scripted.js';
 import {
   VENDOR_BY_CATEGORY,
   VENDOR_COMMON,
+  VENDOR_EMPTY,
   VENDOR_NAMES,
   dominantCategory,
   vendorLines,
@@ -91,6 +92,23 @@ describe('vendorName', () => {
 
   it('only ever names somebody from the list', () => {
     expect(VENDOR_NAMES).toContainEqual(vendorName('pav-anything'));
+  });
+});
+
+describe('an empty frontage', () => {
+  it('still has somebody on it, with something to say', () => {
+    const lines = vendorLines(null);
+    expect(lines[0]).toBe(VENDOR_EMPTY);
+    expect(lines.length).toBe(VENDOR_COMMON.length + 1);
+  });
+
+  it('says plainly that there is nothing out, rather than describing a shelf', () => {
+    expect(VENDOR_EMPTY.answer.ru).toContain('ничего');
+    expect(VENDOR_EMPTY.answer.en.toLowerCase()).toContain('nothing');
+  });
+
+  it('answers a question about the range the same way a stocked one would', () => {
+    expect(matchHeard('что у вас есть из товаров', vendorLines(null))?.id).toBe('about');
   });
 });
 

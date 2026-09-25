@@ -147,7 +147,8 @@ export interface OpenVendor {
   pavilionId: string;
   supplierName: string;
   name: string;
-  category: ProductCategory;
+  /** Null when the frontage has nothing on it, which has its own opening line. */
+  category: ProductCategory | null;
 }
 
 /** One supplier's frontage: their name over their products. */
@@ -189,7 +190,10 @@ function SupplierFront({
       pavilionId,
       supplierName: name,
       name: vendorName(pavilionId).ru,
-      category: dominantCategory(products.map((product) => product.category)),
+      category:
+        products.length === 0
+          ? null
+          : dominantCategory(products.map((product) => product.category)),
     }),
     [pavilionId, name, products],
   );
@@ -317,7 +321,11 @@ function Scene({
 
         {world.pavilions.map((pavilion, index) => {
           const anchor = manifest.anchors[index % Math.max(1, manifest.anchors.length)];
-          if (!anchor || pavilion.products.length === 0) return null;
+          // An empty frontage is still a frontage: the supplier exists, their
+          // name goes over the shop and somebody stands at the counter. It used
+          // to render nothing at all, which made a street with a processing
+          // problem behind it look like a street with no shops in it.
+          if (!anchor) return null;
 
           return (
             <SupplierFront
