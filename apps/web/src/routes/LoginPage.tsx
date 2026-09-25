@@ -5,6 +5,7 @@ import { useSession } from '../stores/session.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
 import { Alert } from '../ui/Alert.js';
+import { AuthLayout } from '../ui/AuthLayout.js';
 import {
   describeFailure,
   landingRouteFor,
@@ -49,11 +50,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-sm">
-      <h1 className="text-xl font-semibold">{t('auth.loginTitle')}</h1>
-      <p className="text-ink-muted mt-1 text-sm">{t('auth.loginSubtitle')}</p>
-
-      <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 flex flex-col gap-4">
+    <AuthLayout title={t('auth.loginTitle')} subtitle={t('auth.loginSubtitle')}>
+      <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
         {failure ? <Alert tone="danger">{t(`errors.${failure}`)}</Alert> : null}
 
         <Field
@@ -86,6 +84,6 @@ export function LoginPage() {
           {t('common.signUp')}
         </Link>
       </p>
-    </div>
+    </AuthLayout>
   );
 }

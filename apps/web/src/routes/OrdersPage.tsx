@@ -45,7 +45,7 @@ export function OrdersPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-semibold">{t('order.ordersTitle')}</h1>
+      <h1 className="page-title">{t('order.ordersTitle')}</h1>
 
       {errorCode ? <Alert tone="danger">{t(`errors.${errorCode}`)}</Alert> : null}
 

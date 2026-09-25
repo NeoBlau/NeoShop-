@@ -7,6 +7,29 @@
     <meta name="theme-color" content="#0b0c0e" />
     <title>3DSFERA</title>
     <meta name="description" content="Товар в действии — до покупки" />
+
+    <!--
+      Type from our own origin. A stylesheet from fonts.googleapis.com is a
+      render block on somebody else's uptime, a third party told about every
+      visitor, and the first thing the desktop shell's content security policy
+      refuses. `make fonts` writes these; the two preloads are the subsets the
+      Russian interface needs on the first paint.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/inter-cyrillic.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/playfair-cyrillic.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
   </head>
   <body>
     <div id="root"></div>

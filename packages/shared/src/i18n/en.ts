@@ -25,6 +25,7 @@ export const en: Dictionary = {
     comingSoon: 'This section arrives in a later stage',
   },
   nav: {
+    primary: 'Primary navigation',
     guide: 'Guide',
     food: 'Fast food',
     world: 'World',
@@ -38,6 +39,19 @@ export const en: Dictionary = {
   auth: {
     registerTitle: 'Create an account',
     registerSubtitle: 'Buyers order products, suppliers sell them',
+    eyebrow: 'A 3D showroom',
+    promise: 'Watch the product work before you pay for it',
+    promiseDetail:
+      'You walk the location on foot, step up to a frontage and switch things on: the vacuum undocks, the chair reclines, the antenna finds a signal. If you like it, you order it and it is delivered.',
+    factWorkTerm: 'Mechanisms, not renders',
+    factWorkDetail:
+      "Every animation comes out of the product's own model. The supplier wires up the buttons, not us.",
+    factShipTerm: 'It actually ships',
+    factShipDetail:
+      'This is a shop rather than a demo: the order is packed, sent and given a tracking number. Only you and an administrator see the address.',
+    factOpenTerm: 'The catalogue is open',
+    factOpenDetail:
+      'The showroom needs an account; the list of products does not. Without WebGL and without signing in, buying works the same.',
     loginTitle: 'Sign in',
     loginSubtitle: 'Welcome back',
     iAmBuyer: "I'm a buyer",

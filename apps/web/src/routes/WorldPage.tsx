@@ -423,7 +423,7 @@ export function WorldPage() {
   if (productCount === 0) {
     return (
       <div className="py-20 text-center">
-        <h1 className="text-xl font-semibold">{t('world.emptyWorld')}</h1>
+        <h1 className="page-title">{t('world.emptyWorld')}</h1>
         <p className="text-ink-muted mx-auto mt-2 max-w-md text-sm">{t('world.emptyWorldHint')}</p>
       </div>
     );

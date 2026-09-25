@@ -50,7 +50,7 @@ export function AuditPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{t('admin.audit')}</h1>
+          <h1 className="page-title">{t('admin.audit')}</h1>
           <p className="text-ink-muted mt-1 text-sm">{t('admin.auditHint')}</p>
         </div>
         <Link to="/admin" className="text-ink-faint hover:text-ink text-sm">

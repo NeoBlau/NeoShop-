@@ -3,21 +3,34 @@
 /*
  * Dark, low-contrast chrome. The product and its demonstration are the bright
  * thing on screen; the interface stays out of the way. No neon, no glow.
+ *
+ * What does the work instead of colour is type and spacing: a high-contrast
+ * serif for the things you look at, a neutral sans for the things you read,
+ * hairline rules rather than boxes, and one warm accent used sparingly enough
+ * that it still means something when it appears.
  */
 @theme {
-  --color-void: #0b0c0e;
-  --color-panel: #131519;
-  --color-panel-raised: #191c21;
-  --color-edge: #24272d;
-  --color-edge-strong: #333740;
+  /* Surfaces. Four steps, warm-shifted by a degree or two as they rise, which
+     is what keeps a dark interface from reading as grey plastic. */
+  --color-void: #0a0b0d;
+  --color-panel: #121419;
+  --color-panel-raised: #181b21;
+  --color-panel-high: #1e2229;
 
-  --color-ink: #e8e9ec;
-  --color-ink-muted: #9ba0a9;
-  --color-ink-faint: #6b7079;
+  /* Lines. The hairline is for separating things that belong together; the
+     edge for containing them; the strong edge only where something is
+     interactive. */
+  --color-hairline: #1c1f25;
+  --color-edge: #24272d;
+  --color-edge-strong: #343943;
+
+  --color-ink: #e9eaee;
+  --color-ink-muted: #9ba1ab;
+  --color-ink-faint: #6a7079;
 
   --color-accent: #d8a244;
-  --color-accent-hover: #e5b25a;
-  --color-accent-ink: #1a1408;
+  --color-accent-hover: #e8b862;
+  --color-accent-ink: #17120a;
 
   --color-danger: #d1584f;
   --color-success: #4f9d6b;
@@ -26,35 +39,111 @@
   --font-sans:
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     sans-serif;
+  --font-display: 'Playfair Display', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
 
-  --radius-panel: 0.75rem;
+  --radius-panel: 0.875rem;
+
+  /* Motion. Short and eased out: an interface that animates for a third of a
+     second feels like it is thinking about it. */
+  --ease-out-quiet: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 @layer base {
   html {
     background-color: var(--color-void);
     color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     @apply bg-void text-ink font-sans antialiased;
     margin: 0;
     min-height: 100dvh;
+    /* Inter's own numerals are proportional; tabular ones keep a price column
+       from dancing as the digits change. */
+    font-feature-settings: 'cv11' 1;
+  }
+
+  /*
+   * A very faint grain over the whole page.
+   *
+   * Large flat areas of near-black band on eight-bit panels — visible steps
+   * across a gradient that is mathematically smooth. A couple of per cent of
+   * noise dithers them away, and it is also the cheapest way to make a dark
+   * interface feel like a material rather than an absence of light.
+   */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    /* Playfair sets loose by default; at display sizes it wants pulling in. */
+    letter-spacing: -0.015em;
   }
 
   /* Visible focus everywhere; a 3D scene is no excuse for losing the caret. */
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+    border-radius: 2px;
   }
 
   ::selection {
     background: color-mix(in oklab, var(--color-accent) 35%, transparent);
   }
+
+  /* Somebody who asked for less movement gets none of ours. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
+  /*
+   * The panel: a surface, a hairline, and a single highlight along the top
+   * edge. The highlight is one pixel of a five per cent white — the trick a
+   * physical bezel plays, and the only lighting effect in the interface.
+   */
   .panel {
     @apply bg-panel border-edge rounded-[var(--radius-panel)] border;
+    position: relative;
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 5%, transparent),
+      0 1px 2px rgb(0 0 0 / 0.4);
+  }
+
+  /* A heading and its explanation, which is a pattern on nearly every page. */
+  .page-title {
+    @apply text-ink text-[1.75rem] leading-tight sm:text-[2.125rem];
+  }
+
+  .page-lede {
+    @apply text-ink-muted mt-2 max-w-prose text-sm leading-relaxed sm:text-[0.9375rem];
+  }
+
+  /* Small caps labels above a group. Sparing: it is the only decoration here. */
+  .eyebrow {
+    @apply text-ink-faint text-[0.6875rem] font-medium tracking-[0.14em] uppercase;
+  }
+
+  .hairline {
+    @apply border-hairline border-t;
   }
 }

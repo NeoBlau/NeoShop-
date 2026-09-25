@@ -340,7 +340,7 @@ export function MissionBuilderPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{t('missionBuilder.title')}</h1>
+          <h1 className="page-title">{t('missionBuilder.title')}</h1>
           <p className="text-ink-muted mt-1 max-w-xl text-sm leading-relaxed">
             {t('missionBuilder.intro')}
           </p>

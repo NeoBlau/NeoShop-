@@ -17,7 +17,8 @@
     "build:zone": "tsx src/build-zone.ts",
     "build:props": "tsx src/build-props.ts",
     "fetch:nature": "tsx src/fetch-nature.ts",
-    "build:nature": "tsx src/build-nature.ts"
+    "build:nature": "tsx src/build-nature.ts",
+    "fetch:fonts": "tsx src/fetch-fonts.ts"
   },
   "dependencies": {
     "@3dsfera/shared": "workspace:*",

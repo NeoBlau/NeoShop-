@@ -5,6 +5,7 @@ import { useSession } from '../stores/session.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
 import { Alert } from '../ui/Alert.js';
+import { AuthLayout } from '../ui/AuthLayout.js';
 import {
   describeFailure,
   emptyRegisterForm,
@@ -57,11 +58,8 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-md">
-      <h1 className="text-xl font-semibold">{t('auth.registerTitle')}</h1>
-      <p className="text-ink-muted mt-1 text-sm">{t('auth.registerSubtitle')}</p>
-
-      <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 flex flex-col gap-4">
+    <AuthLayout title={t('auth.registerTitle')} subtitle={t('auth.registerSubtitle')}>
+      <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
         {failure ? <Alert tone="danger">{t(`errors.${failure}`)}</Alert> : null}
 
         <fieldset className="grid gap-2 sm:grid-cols-2">
@@ -151,6 +149,6 @@ export function RegisterPage() {
           {t('common.signIn')}
         </Link>
       </p>
-    </div>
+    </AuthLayout>
   );
 }

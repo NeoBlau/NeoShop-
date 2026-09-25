@@ -104,7 +104,10 @@ make lint        # ESLint
 make typecheck   # tsc --noEmit по всем пакетам
 make world-assets # скачать ассеты мира (HDRI, сканы материалов, шрифт)
 make ambience    # синтезировать звук улицы (несколько секунд)
-make location    # скачать и собрать локацию (~40 минут, один раз)
+make location    # скачать и собрать уличную локацию (~40 минут, один раз)
+make nature      # скачать сканы и собрать горную рощу (~930 МБ, ~15 минут)
+make zones       # собрать демо-комнаты для миссий
+make fonts       # скачать Inter и Playfair Display (~250 КБ, один раз)
 make desktop     # Tauri-оболочка поверх дев-сервера (нужен Rust)
 make installer   # установщик под текущую платформу (нужен Rust)
 make textures    # сгенерировать библиотеку 4K PBR-материалов (~6 минут)

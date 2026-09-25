@@ -33,7 +33,7 @@ export function CartPage() {
   if (lines.length === 0) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-xl font-semibold">{t('order.cartTitle')}</h1>
+        <h1 className="page-title">{t('order.cartTitle')}</h1>
         <Panel className="flex flex-col items-center gap-3 py-16 text-center">
           <p className="text-ink-muted text-sm">{t('order.cartEmpty')}</p>
           <p className="text-ink-faint max-w-sm text-sm">{t('order.cartEmptyHint')}</p>
@@ -56,7 +56,7 @@ export function CartPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-semibold">{t('order.cartTitle')}</h1>
+      <h1 className="page-title">{t('order.cartTitle')}</h1>
 
       {mixed ? <Alert tone="warning">{t('order.mixedCurrency')}</Alert> : null}
 

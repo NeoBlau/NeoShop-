@@ -71,9 +71,7 @@ export function OrderStatusPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">
-            {t('order.orderNumber', { number: order.number })}
-          </h1>
+          <h1 className="page-title">{t('order.orderNumber', { number: order.number })}</h1>
           <p className="text-ink-muted mt-1 text-sm">
             {t('order.placedAt', { date: formatDate(order.createdAt, i18n.language) })}
             {order.paidAt

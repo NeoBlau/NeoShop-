@@ -158,7 +158,7 @@ export function MissionsPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{t('adminMissions.title')}</h1>
+          <h1 className="page-title">{t('adminMissions.title')}</h1>
           <p className="text-ink-muted mt-1 max-w-2xl text-sm leading-relaxed">
             {t('adminMissions.hint')}
           </p>

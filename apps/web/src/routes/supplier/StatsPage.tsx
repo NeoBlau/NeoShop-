@@ -42,7 +42,7 @@ export function StatsPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">{t('stats.title')}</h1>
+        <h1 className="page-title">{t('stats.title')}</h1>
         <p className="text-ink-muted mt-1 text-sm">{t('stats.hint')}</p>
       </div>
 

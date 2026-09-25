@@ -66,3 +66,6 @@ apps/web/public/world/zones/
 
 # Poly Haven scans for the natural location, fetched by fetch-nature.ts
 assets/nature/
+
+# Typefaces, fetched by `make fonts`. A megabyte of woff2 is not source.
+apps/web/public/fonts/

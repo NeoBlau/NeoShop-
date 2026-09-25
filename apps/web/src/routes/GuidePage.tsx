@@ -203,7 +203,7 @@ export function GuidePage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <header>
-        <h1 className="text-xl font-semibold">{t('guide.title')}</h1>
+        <h1 className="page-title">{t('guide.title')}</h1>
         <p className="text-ink-muted mt-1 text-sm leading-relaxed">{t('guide.intro')}</p>
       </header>
 

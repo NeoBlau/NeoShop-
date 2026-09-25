@@ -404,7 +404,7 @@ function Tracking() {
           <p className="text-ink-faint text-xs">
             {t('food.orderNumber', { number: order.number })}
           </p>
-          <h2 className="text-ink text-xl font-semibold">
+          <h2 className="text-ink text-lg">
             {progress.done
               ? t('food.arrived')
               : t('food.minutesLeft', { minutes: progress.minutesLeft })}

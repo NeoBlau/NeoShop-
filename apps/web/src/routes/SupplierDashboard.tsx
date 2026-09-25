@@ -34,7 +34,7 @@ export function SupplierDashboard() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{t('supplier.dashboardTitle')}</h1>
+          <h1 className="page-title">{t('supplier.dashboardTitle')}</h1>
           <p className="text-ink-muted mt-1 text-sm">
             {t('supplier.welcome', { company: profile.companyName })}
           </p>

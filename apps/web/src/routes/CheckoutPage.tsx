@@ -182,7 +182,7 @@ export function CheckoutPage() {
   return (
     <form className="flex flex-col gap-5" onSubmit={(event) => void placeOrder(event)}>
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-xl font-semibold">{t('order.checkoutTitle')}</h1>
+        <h1 className="page-title">{t('order.checkoutTitle')}</h1>
         <Link to="/cart" className="text-ink-faint hover:text-ink text-sm">
           {t('order.cartTitle')}
         </Link>
@@ -408,7 +408,7 @@ function PaymentStep({
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold">{t('order.orderPlaced')}</h1>
+        <h1 className="page-title">{t('order.orderPlaced')}</h1>
         <p className="text-ink-muted mt-1 text-sm">
           {t('order.orderNumber', { number: order.number })}
         </p>

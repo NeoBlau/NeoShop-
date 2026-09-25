@@ -108,7 +108,7 @@ export function CatalogPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{t('catalog.title')}</h1>
+          <h1 className="page-title">{t('catalog.title')}</h1>
           <p className="text-ink-muted mt-1 text-sm">{t('catalog.subtitle')}</p>
         </div>
         <Link to="/" className="text-accent text-sm hover:underline">

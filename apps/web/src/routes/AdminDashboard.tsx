@@ -50,7 +50,7 @@ export function AdminDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">{t('admin.title')}</h1>
+      <h1 className="page-title">{t('admin.title')}</h1>
 
       {errorCode ? <Alert tone="danger">{t(`errors.${errorCode}`)}</Alert> : null}
 

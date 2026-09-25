@@ -47,7 +47,7 @@ function NewProductForm() {
 
   return (
     <div className="mx-auto w-full max-w-md">
-      <h1 className="text-xl font-semibold">{t('wizard.newTitle')}</h1>
+      <h1 className="page-title">{t('wizard.newTitle')}</h1>
 
       <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 flex flex-col gap-4">
         {errorCode ? <Alert tone="danger">{t(`errors.${errorCode}`)}</Alert> : null}
@@ -157,9 +157,7 @@ export function ProductWizardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">
-            {t('wizard.editTitle', { title: product.title })}
-          </h1>
+          <h1 className="page-title">{t('wizard.editTitle', { title: product.title })}</h1>
           <p className="text-ink-faint mt-1 text-sm">
             {t('wizard.stepOf', { current: current + 1, total: WIZARD_STEPS.length })}
           </p>
