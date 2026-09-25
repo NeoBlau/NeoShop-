@@ -50,3 +50,10 @@ apps/tools/.ktx/
 apps/desktop/src-tauri/icon.png
 apps/desktop/src-tauri/icons/
 apps/desktop/src-tauri/gen/
+
+# Third-party source models handed over for ingestion. Not committed until
+# their licences are on record: apps/tools/src/ingest-product.ts reads from
+# here and writes the normalised result into the seed assets.
+assets/incoming/
+.incoming/
+.preview/

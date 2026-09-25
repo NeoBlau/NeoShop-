@@ -41,12 +41,16 @@ export default tseslint.config(
   },
   {
     // Plain Node scripts: no TypeScript, so `no-undef` needs the globals named.
+    // URL is a Node global; window belongs to the page a script evaluates code
+    // in, which is why the preview harness mentions it.
     files: ['**/*.mjs'],
     languageOptions: {
       globals: {
         console: 'readonly',
         process: 'readonly',
         __dirname: 'readonly',
+        URL: 'readonly',
+        window: 'readonly',
       },
     },
   },
