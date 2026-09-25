@@ -11,35 +11,29 @@ import { propUrl, type PropEntry } from '../../features/world/useProps.js';
 /**
  * The person on the supplier's frontage.
  *
- * A person when `make props` has one to give, and a counter with a name on it
- * when it does not.
+ * A person, or nobody. There used to be a fallback here — a counter with a
+ * post and a name board on it, for a checkout whose props folder was empty —
+ * and it was the wrong call twice over: it is what a buyer saw on every
+ * frontage while the real figures were being built a hundred times too large,
+ * and a labelled post is not a shop assistant. So a frontage with no model to
+ * put on it has nobody on it, which is at least not a lie, and `make doctor`
+ * says whose file is missing.
  *
- * The figure comes from `assets/incoming/npc-a.glb` through the prop build —
- * a rigged 1.70 m character, so she is placed at her own scale rather than
- * fitted to a round number, which is the one prop that must never be
- * rescaled. Her animation is a third of a second long and is not worth
- * playing; she stands.
- *
- * The fallback is not a placeholder for its own sake. A checkout without that
- * file still has suppliers who need naming and a conversation that needs
- * somewhere to be clicked, and a post with a sign does that honestly — where
- * a human built out of primitives would read as a mannequin.
+ * The figures come from `assets/incoming/npc-a.glb` and `npc-b.glb` through
+ * the prop build: rigged characters, 1.70 m and 1.66 m, placed at their own
+ * scale. Neither's animation is worth playing — one is a third of a second
+ * long — so they stand.
  */
 
-const TOP_HEIGHT = 1.02;
-const TOP_WIDTH = 1.5;
-const TOP_DEPTH = 0.56;
-/** Metres at which the counter starts inviting a conversation. */
+/** Metres at which she starts inviting a conversation. */
 const NOTICE_DISTANCE = 7;
-/** How high the sign stands. Tall enough to clear the row of plinths. */
-const SIGN_HEIGHT = 2.35;
 
-/** Scratch, reused every frame by every counter. */
+/** Scratch, reused every frame by every frontage. */
 const WORLD_POSITION = new Vector3();
 
 /**
- * Where the counter stands on a frontage, in the frontage group's own
- * coordinates: +X along the shop front, +Z towards the buyer.
+ * Where she stands on a frontage, in the frontage group's own coordinates:
+ * +X along the shop front, +Z towards the buyer.
  *
  * At the end of the row of plinths and a step forward of it, so it neither
  * hides a product nor stands in the walking line.
@@ -104,8 +98,8 @@ export function Vendor({
   supplierName: string;
   /** True while the browser is reading one of this vendor's answers aloud. */
   speaking: boolean;
-  /** The character model, when this build has one. */
-  figure?: PropEntry | undefined;
+  /** The character model. A frontage without one has no vendor on it. */
+  figure: PropEntry;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
@@ -135,8 +129,8 @@ export function Vendor({
     }
   });
 
-  /** Where the name hangs: over her head, or over the counter. */
-  const labelHeight = figure ? figureHeight + 0.3 : SIGN_HEIGHT - 0.24;
+  /** Where the name hangs: just over her head. */
+  const labelHeight = figureHeight + 0.3;
 
   return (
     <group position={placement.position} rotation={[0, placement.yaw, 0]}>
@@ -155,66 +149,35 @@ export function Vendor({
           onOpen();
         }}
       >
-        {figure ? (
-          <>
-            <Suspense fallback={null}>
-              <VendorFigure entry={figure} onSized={setFigureHeight} />
-            </Suspense>
+        <Suspense fallback={null}>
+          <VendorFigure entry={figure} onSized={setFigureHeight} />
+        </Suspense>
 
-            {/* A hit target around her rather than her own geometry: a
-                character is a hundred thousand triangles and raycasting them
-                makes the cursor flicker. */}
-            <mesh position={[0, figureHeight / 2, 0]} visible={false}>
-              <cylinderGeometry args={[0.55, 0.55, figureHeight, 10]} />
-            </mesh>
+        {/* A hit target around her rather than her own geometry: a character
+            is a hundred thousand triangles and raycasting them makes the
+            cursor flicker. */}
+        <mesh position={[0, figureHeight / 2, 0]} visible={false}>
+          <cylinderGeometry args={[0.55, 0.55, figureHeight, 10]} />
+        </mesh>
 
-            {/* Underfoot rather than on a post: something has to say which
-                figure is talking, and it doubles as the thing you can see from
-                down the street. */}
-            <mesh ref={strip} position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <ringGeometry args={[0.46, 0.56, 40]} />
-              <meshStandardMaterial
-                color="#e5b25a"
-                emissive="#e5b25a"
-                emissiveIntensity={1}
-                toneMapped={false}
-                depthWrite={false}
-                polygonOffset
-                polygonOffsetFactor={-2}
-              />
-            </mesh>
-          </>
-        ) : (
-          <>
-            <mesh position={[0, TOP_HEIGHT, 0]} castShadow receiveShadow>
-              <boxGeometry args={[TOP_WIDTH, 0.07, TOP_DEPTH]} />
-              <meshStandardMaterial color="#3b3226" roughness={0.55} metalness={0.15} />
-            </mesh>
-
-            <mesh position={[0, TOP_HEIGHT / 2, -0.03]} castShadow receiveShadow>
-              <boxGeometry args={[TOP_WIDTH - 0.16, TOP_HEIGHT, TOP_DEPTH - 0.12]} />
-              <meshStandardMaterial color="#24282e" roughness={0.4} metalness={0.7} />
-            </mesh>
-
-            <mesh ref={strip} position={[0, TOP_HEIGHT - 0.11, TOP_DEPTH / 2 - 0.01]}>
-              <boxGeometry args={[TOP_WIDTH - 0.3, 0.025, 0.012]} />
-              <meshStandardMaterial
-                color="#e5b25a"
-                emissive="#e5b25a"
-                emissiveIntensity={1}
-                toneMapped={false}
-              />
-            </mesh>
-
-            <mesh position={[0, SIGN_HEIGHT / 2, -0.16]} castShadow>
-              <boxGeometry args={[0.07, SIGN_HEIGHT, 0.07]} />
-              <meshStandardMaterial color="#20242a" roughness={0.42} metalness={0.75} />
-            </mesh>
-          </>
-        )}
+        {/* Underfoot rather than on a post: something has to say which figure
+            is talking, and it doubles as the thing you can see from down the
+            street. */}
+        <mesh ref={strip} position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.46, 0.56, 40]} />
+          <meshStandardMaterial
+            color="#e5b25a"
+            emissive="#e5b25a"
+            emissiveIntensity={1}
+            toneMapped={false}
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-2}
+          />
+        </mesh>
       </group>
 
-      <group position={[0, labelHeight, figure ? 0 : -0.14]}>
+      <group position={[0, labelHeight, 0]}>
         <Text
           font={SCENE_FONT}
           fontSize={0.125}

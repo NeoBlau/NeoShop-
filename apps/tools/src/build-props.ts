@@ -18,7 +18,7 @@ import sharp from 'sharp';
 import { Logger, NodeIO, type Transform } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, KHRDracoMeshCompression } from '@gltf-transform/extensions';
 import { dedup, prune, simplify, textureCompress, weld } from '@gltf-transform/functions';
-import { findFloorLevel, sceneBounds, triangleCount } from './gltf-space.js';
+import { sceneBounds, triangleCount } from './gltf-space.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOURCES = path.resolve(HERE, '../../../assets/incoming');
@@ -119,7 +119,6 @@ async function buildProp(recipe: PropRecipe): Promise<string | null> {
   scene.addChild(root);
 
   const raw = sceneBounds(document);
-  const floor = findFloorLevel(document);
   const span = Math.max(raw.hi[0] - raw.lo[0], raw.hi[2] - raw.lo[2]);
   const tall = raw.hi[1] - raw.lo[1];
 
@@ -133,10 +132,13 @@ async function buildProp(recipe: PropRecipe): Promise<string | null> {
   root.setScale([scale, scale, scale]);
   root.setTranslation([
     -((raw.lo[0] + raw.hi[0]) / 2) * scale,
-    // A figure stands on her lowest point. The area-weighted floor detection
-    // is for rooms and kiosks; on a person the biggest flat up-facing surface
-    // is the top of a shoe, and seating her by it sinks her to the ankles.
-    -(recipe.height !== undefined ? raw.lo[1] : floor) * scale,
+    // A prop stands on its lowest point, and the area-weighted floor detection
+    // is not for props. It answers "which surface do I walk on inside this
+    // room", and on something you walk *around* it finds the wrong thing every
+    // time: on a person, the top of a shoe, sinking her to the ankles; on the
+    // kiosk, its canopy — which buried three and a half metres of counter under
+    // the pavement and left a 0.9 m hut with a serving window at knee height.
+    -raw.lo[1] * scale,
     -((raw.lo[2] + raw.hi[2]) / 2) * scale,
   ]);
 

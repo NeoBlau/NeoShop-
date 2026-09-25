@@ -6,7 +6,7 @@ import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { ACESFilmicToneMapping, PCFSoftShadowMap, type DirectionalLight } from 'three';
 import {
   dominantCategory,
-  vendorFigureKey,
+  vendorFigure,
   vendorName,
   type ProductCategory,
   type WorldProduct,
@@ -242,17 +242,19 @@ function SupplierFront({
         );
       })}
 
-      {/* Staffed. Placed from the length of the row rather than from a
-          coordinate, so it stays at the end of the frontage whatever the
-          supplier put out. */}
-      <Vendor
-        placement={counter}
-        name={vendor.name}
-        supplierName={name}
-        speaking={vendorSpeaking}
-        figure={figure}
-        onOpen={() => onVendorOpen(vendor)}
-      />
+      {/* Staffed, when there is somebody to staff it with. Placed from the
+          length of the row rather than from a coordinate, so she stays at the
+          end of the frontage whatever the supplier put out. */}
+      {figure ? (
+        <Vendor
+          placement={counter}
+          name={vendor.name}
+          supplierName={name}
+          speaking={vendorSpeaking}
+          figure={figure}
+          onOpen={() => onVendorOpen(vendor)}
+        />
+      ) : null}
     </group>
   );
 }
@@ -292,10 +294,9 @@ function Scene({
   /**
    * Which character model stands on a given frontage.
    *
-   * Whatever `make props` produced, in a stable order, chosen by the
-   * pavilion's own id — so a street of six shops is not six copies of one
-   * person, and adding a supplier does not reshuffle the others. No figures
-   * in the build means the counter-and-sign fallback.
+   * Whatever `make props` produced, in a stable order, dealt round the slots so
+   * that every model the build has is actually on the street. No figures in the
+   * build means unstaffed frontages — there is no stand-in any more.
    */
   const figures = useMemo(
     () =>
@@ -306,8 +307,8 @@ function Scene({
   );
 
   const figureFor = useCallback(
-    (pavilionId: string) => {
-      const key = vendorFigureKey(pavilionId, figures);
+    (slot: number) => {
+      const key = vendorFigure(slot, figures);
       return key === null ? undefined : props[key];
     },
     [figures, props],
@@ -371,7 +372,7 @@ function Scene({
               formatPrice={formatPrice}
               onVendorOpen={onVendorOpen}
               vendorSpeaking={speakingVendorId === pavilion.id}
-              figure={figureFor(pavilion.id)}
+              figure={figureFor(pavilion.slot)}
             />
           );
         })}

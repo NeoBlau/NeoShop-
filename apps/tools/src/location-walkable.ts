@@ -13,7 +13,7 @@
  * perfectly well — are excluded for the obvious reason that there is no way to
  * get onto them.
  */
-import type { Document, Node } from '@gltf-transform/core';
+import type { Document, Node, Primitive } from '@gltf-transform/core';
 
 /** Half a metre. Fine enough for a doorway, coarse enough to ship as a bitmap. */
 export const CELL_SIZE = 0.5;
@@ -76,36 +76,119 @@ export interface Sample {
   z: number;
 }
 
+/** Writes the world-space position of one vertex of one primitive into `out`. */
+export type PlaceVertex = (index: number, out: number[]) => void;
+
+/**
+ * How to put a primitive's vertices into world space.
+ *
+ * For most meshes that is the node's own matrix and nothing else. For a skinned
+ * mesh it is emphatically not: glTF says a skinned mesh ignores its node's
+ * transform entirely and is posed by its joints, so a character's POSITION data
+ * sits in bind space and the node above it usually carries whatever scale the
+ * exporter left behind. Measuring one through its node matrix is how a 1.7 m
+ * shop assistant measures 17 millimetres — and how the build that scaled her to
+ * "1.7 m tall" produced a figure a hundred times too big, standing across the
+ * street with the camera somewhere inside her ankle.
+ *
+ * The rest pose is what is measured here: each joint's world matrix times its
+ * inverse bind matrix, blended by the vertex's own weights. That is the pose
+ * the scene shows before an animation plays, which for these people is the
+ * pose it shows full stop.
+ */
+export function vertexPlacer(node: Node, primitive: Primitive): PlaceVertex {
+  const position = primitive.getAttribute('POSITION');
+  const skin = node.getSkin();
+  const joints = skin?.listJoints() ?? [];
+  const inverseBinds = skin?.getInverseBindMatrices() ?? null;
+  const weights = primitive.getAttribute('WEIGHTS_0');
+  const indices = primitive.getAttribute('JOINTS_0');
+
+  if (!position) return (_index, out) => void out.fill(0);
+
+  const place = (matrix: number[], point: number[], out: number[]): void => {
+    const [x = 0, y = 0, z = 0] = point;
+    out[0] = (matrix[0] ?? 0) * x + (matrix[4] ?? 0) * y + (matrix[8] ?? 0) * z + (matrix[12] ?? 0);
+    out[1] = (matrix[1] ?? 0) * x + (matrix[5] ?? 0) * y + (matrix[9] ?? 0) * z + (matrix[13] ?? 0);
+    out[2] =
+      (matrix[2] ?? 0) * x + (matrix[6] ?? 0) * y + (matrix[10] ?? 0) * z + (matrix[14] ?? 0);
+  };
+
+  if (!skin || !weights || !indices || joints.length === 0) {
+    const matrix = worldMatrix(node);
+    const point: number[] = [0, 0, 0];
+    return (index, out) => {
+      position.getElement(index, point);
+      place(matrix, point, out);
+    };
+  }
+
+  // One matrix per joint, built once: a character has a hundred joints and a
+  // hundred thousand vertices, and rebuilding these per vertex is the whole
+  // cost of the measurement.
+  const posed = joints.map((joint, at) =>
+    multiply(worldMatrix(joint), inverseBinds ? [...inverseBinds.getElement(at, [])] : IDENTITY),
+  );
+
+  const point: number[] = [0, 0, 0];
+  const jointIndex: number[] = [0, 0, 0, 0];
+  const jointWeight: number[] = [0, 0, 0, 0];
+  const partial: number[] = [0, 0, 0];
+
+  return (index, out) => {
+    position.getElement(index, point);
+    indices.getElement(index, jointIndex);
+    weights.getElement(index, jointWeight);
+
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+    let total = 0;
+
+    for (let slot = 0; slot < 4; slot += 1) {
+      const weight = jointWeight[slot] ?? 0;
+      if (weight === 0) continue;
+      const matrix = posed[jointIndex[slot] ?? 0];
+      if (!matrix) continue;
+
+      place(matrix, point, partial);
+      out[0] += (partial[0] ?? 0) * weight;
+      out[1] += (partial[1] ?? 0) * weight;
+      out[2] += (partial[2] ?? 0) * weight;
+      total += weight;
+    }
+
+    // A vertex bound to nothing belongs to the mesh rather than to a joint;
+    // three renders it at its bind position, so it is measured there too.
+    if (total === 0) place(IDENTITY, point, out);
+  };
+}
+
 /** Walks every vertex in the scene once, in world space. */
 export function forEachVertex(
   document: Document,
   visit: (sample: Sample, node: Node) => void,
 ): void {
-  const position: number[] = [0, 0, 0];
+  const world: number[] = [0, 0, 0];
+  const sample: Sample = { x: 0, y: 0, z: 0 };
 
   for (const node of document.getRoot().listNodes()) {
     const mesh = node.getMesh();
     if (!mesh) continue;
 
-    const m = worldMatrix(node);
-
     for (const primitive of mesh.listPrimitives()) {
       const attribute = primitive.getAttribute('POSITION');
       if (!attribute) continue;
 
+      const place = vertexPlacer(node, primitive);
       const count = attribute.getCount();
-      for (let index = 0; index < count; index += 1) {
-        attribute.getElement(index, position);
-        const [x = 0, y = 0, z = 0] = position;
 
-        visit(
-          {
-            x: (m[0] ?? 0) * x + (m[4] ?? 0) * y + (m[8] ?? 0) * z + (m[12] ?? 0),
-            y: (m[1] ?? 0) * x + (m[5] ?? 0) * y + (m[9] ?? 0) * z + (m[13] ?? 0),
-            z: (m[2] ?? 0) * x + (m[6] ?? 0) * y + (m[10] ?? 0) * z + (m[14] ?? 0),
-          },
-          node,
-        );
+      for (let index = 0; index < count; index += 1) {
+        place(index, world);
+        sample.x = world[0] ?? 0;
+        sample.y = world[1] ?? 0;
+        sample.z = world[2] ?? 0;
+        visit(sample, node);
       }
     }
   }
@@ -125,7 +208,7 @@ export function forEachTriangle(
   document: Document,
   visit: (triangle: Triangle, node: Node) => void,
 ): void {
-  const position: number[] = [0, 0, 0];
+  const world: number[] = [0, 0, 0];
   const corners: Sample[] = [
     { x: 0, y: 0, z: 0 },
     { x: 0, y: 0, z: 0 },
@@ -136,25 +219,23 @@ export function forEachTriangle(
     const mesh = node.getMesh();
     if (!mesh) continue;
 
-    const m = worldMatrix(node);
-
     for (const primitive of mesh.listPrimitives()) {
       const attribute = primitive.getAttribute('POSITION');
       if (!attribute) continue;
 
+      const place = vertexPlacer(node, primitive);
       const indices = primitive.getIndices();
       const count = indices ? indices.getCount() : attribute.getCount();
 
       for (let index = 0; index + 2 < count; index += 3) {
         for (let corner = 0; corner < 3; corner += 1) {
           const vertex = indices ? indices.getScalar(index + corner) : index + corner;
-          attribute.getElement(vertex, position);
-          const [x = 0, y = 0, z = 0] = position;
+          place(vertex, world);
 
           const target = corners[corner] as Sample;
-          target.x = (m[0] ?? 0) * x + (m[4] ?? 0) * y + (m[8] ?? 0) * z + (m[12] ?? 0);
-          target.y = (m[1] ?? 0) * x + (m[5] ?? 0) * y + (m[9] ?? 0) * z + (m[13] ?? 0);
-          target.z = (m[2] ?? 0) * x + (m[6] ?? 0) * y + (m[10] ?? 0) * z + (m[14] ?? 0);
+          target.x = world[0] ?? 0;
+          target.y = world[1] ?? 0;
+          target.z = world[2] ?? 0;
         }
 
         visit(corners as unknown as Triangle, node);

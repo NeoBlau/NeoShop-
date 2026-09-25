@@ -141,6 +141,16 @@ export function earliestCompletion(mission: Mission): number {
   return Math.round(missionSeconds(mission) * MINIMUM_PACE * 1000);
 }
 
+/**
+ * The platform's own missions.
+ *
+ * A `play` step's `seconds` is what that step contributes to the pace floor, so
+ * it is the clip's own running time and not a guess at one: declare four
+ * seconds for a two-second clip and the buyer who watches it properly is still
+ * short, and gets told the server did not count it. Three of these had drifted
+ * that way. `apps/api/test/mission-assets.test.ts` now holds them to the
+ * models.
+ */
 export const MISSIONS: readonly Mission[] = [
   {
     id: 'vacuum-loft',
@@ -248,7 +258,7 @@ export const MISSIONS: readonly Mission[] = [
           ru: 'Спинка идёт до 140 градусов без отрыва от пола.',
           en: 'The back goes to 140 degrees without leaving the floor.',
         },
-        goal: { kind: 'play', clip: 'recline', seconds: 3 },
+        goal: { kind: 'play', clip: 'recline', seconds: 2.4 },
       },
       {
         id: 'footrest',
@@ -257,13 +267,13 @@ export const MISSIONS: readonly Mission[] = [
           ru: 'Подножка работает отдельно от спинки.',
           en: 'The footrest works independently of the back.',
         },
-        goal: { kind: 'play', clip: 'footrest_up', seconds: 2.5 },
+        goal: { kind: 'play', clip: 'footrest_up', seconds: 1.6 },
       },
       {
         id: 'upright',
         prompt: { ru: 'Верните в исходное', en: 'Sit it upright again' },
         done: { ru: 'Возврат одним движением.', en: 'Back in one movement.' },
-        goal: { kind: 'play', clip: 'sit_upright', seconds: 2.5 },
+        goal: { kind: 'play', clip: 'sit_upright', seconds: 1.4 },
       },
     ],
   },
@@ -293,7 +303,7 @@ export const MISSIONS: readonly Mission[] = [
         id: 'unfold',
         prompt: { ru: 'Разложите её', en: 'Unfold it' },
         done: { ru: 'Из плоского положения — одним движением.', en: 'From flat, in one movement.' },
-        goal: { kind: 'play', clip: 'fold_open', seconds: 2.5 },
+        goal: { kind: 'play', clip: 'fold_open', seconds: 2.2 },
       },
       {
         id: 'tilt',
@@ -341,7 +351,7 @@ export const MISSIONS: readonly Mission[] = [
           ru: 'Винты складные, раскрываются от тяги.',
           en: 'Folding props, opened by thrust.',
         },
-        goal: { kind: 'play', clip: 'rotors_spin', seconds: 3 },
+        goal: { kind: 'play', clip: 'rotors_spin', seconds: 2 },
       },
       {
         id: 'takeoff',
@@ -353,7 +363,7 @@ export const MISSIONS: readonly Mission[] = [
         id: 'scan',
         prompt: { ru: 'Осмотрите зал', en: 'Scan the room' },
         done: { ru: 'Подвес развязан от корпуса.', en: 'The gimbal is decoupled from the body.' },
-        goal: { kind: 'play', clip: 'camera_scan', seconds: 4 },
+        goal: { kind: 'play', clip: 'camera_scan', seconds: 3 },
       },
     ],
   },
@@ -433,12 +443,16 @@ export const MISSIONS: readonly Mission[] = [
       },
       {
         id: 'frontages',
-        prompt: { ru: 'Подойдите к трём витринам', en: 'Walk up to three frontages' },
+        // Two, because the seed builds two pavilions and a step that asks for
+        // more than the world has is a step nobody can finish — this one asked
+        // for three. `apps/api/test/mission-assets.test.ts` holds the counts to
+        // the seed, so raising them means adding the suppliers first.
+        prompt: { ru: 'Подойдите к обеим витринам', en: 'Walk up to both frontages' },
         done: {
           ru: 'У каждого поставщика своя полка: техника, свет, мебель. Вывеска над витриной — его имя.',
           en: 'Each supplier has their own shelf: electronics, lighting, furniture. The board over the frontage is their name.',
         },
-        goal: { kind: 'frontages', count: 3, metres: 7 },
+        goal: { kind: 'frontages', count: 2, metres: 7 },
       },
       {
         id: 'vendors',
@@ -520,12 +534,12 @@ export const MISSIONS: readonly Mission[] = [
       },
       {
         id: 'frontages',
-        prompt: { ru: 'Обойдите четыре площадки', en: 'Visit four of the plots' },
+        prompt: { ru: 'Обойдите обе площадки', en: 'Visit both plots' },
         done: {
           ru: 'Каждая площадка — ровная земля, вписанная в склон: ниже был бы обрыв, выше — насыпь.',
           en: 'Each plot is level ground blended into the slope: lower and it would be a pit, higher and it would be a bench.',
         },
-        goal: { kind: 'frontages', count: 4, metres: 8 },
+        goal: { kind: 'frontages', count: 2, metres: 8 },
       },
       {
         id: 'demos',

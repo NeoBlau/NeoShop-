@@ -41,6 +41,16 @@ apps/web/public/world/
 apps/api/prisma/seed-assets/textures/
 apps/api/prisma/seed-assets/*.glb
 
+# Scratch page the preview renderer writes next to its output. The photographs
+# themselves are committed — a checkout without a browser still shows cards.
+apps/api/prisma/seed-assets/previews/page.html
+
+# Which products this checkout has the supplier's real model for, written by
+# `make ingest` and read by `make doctor`. Local by definition: the models it
+# names are ignored above, so committing the list would have every checkout
+# claiming models it does not have.
+apps/api/prisma/seed-assets/ingested.json
+
 # Downloaded source assets for the location build, and the KTX tools it fetches.
 apps/tools/.cache/
 apps/tools/.ktx/

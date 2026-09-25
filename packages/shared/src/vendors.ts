@@ -179,17 +179,17 @@ export function vendorName(key: string): VendorText {
 /**
  * Which character model stands at a given pavilion.
  *
- * Given the figures a build actually has, in a stable order. A street of six
- * shops with one model in the props folder is six of the same person, which
- * is honest; with two it alternates by id rather than by slot, so adding a
- * supplier does not reshuffle everybody else.
+ * Dealt round the slots rather than hashed from the id, and that is the point:
+ * a hash over two models and six frontages can legitimately put the same
+ * person on all six, and did. The slot is the pavilion's own number along the
+ * wall, so the deal is stable for a supplier and every model the build has
+ * actually appears on the street.
  */
-export function vendorFigureKey(key: string, figures: readonly string[]): string | null {
+export function vendorFigure(slot: number, figures: readonly string[]): string | null {
   if (figures.length === 0) return null;
-  // Its own offset, so the name and the face are not locked to each other:
-  // hashing the same id for both would pair Vera with the same model forever.
-  const spread = hashKey(`${key}:figure`);
-  return figures[spread % figures.length] ?? null;
+  // Slots are handed out from 1; a negative or zero slot is still a slot.
+  const at = ((Math.trunc(slot) % figures.length) + figures.length) % figures.length;
+  return figures[at] ?? null;
 }
 
 /**

@@ -25,8 +25,16 @@ const ROOT = path.resolve(HERE, '../../..');
 interface Check {
   /** What a person would call it. */
   name: string;
-  /** One file whose presence means the whole thing is built. */
-  marker: string;
+  /**
+   * The file — or every one of the files — whose presence means it is built.
+   *
+   * A list rather than one path where a check covers more than one artefact
+   * and any of them missing is a different scene. The vendors are the case
+   * that forced it: the marker was a `vendor.glb` the build has never written,
+   * so the one check that would have said "your shop assistants are not there"
+   * reported a miss that everybody read past.
+   */
+  marker: string | readonly string[];
   /** What is lost without it. Written as a consequence, not as a warning. */
   without: string;
   fix: string;
@@ -91,11 +99,16 @@ const CHECKS: readonly Check[] = [
     needs: ['robot-vacuum-source.glb'],
   },
   {
-    name: 'Vendor figure',
-    marker: 'apps/web/public/world/props/vendor.glb',
-    without: 'a post with a name on it stands where a person should',
+    name: 'Shop assistants',
+    marker: [
+      'apps/web/public/world/props/vendor-1.glb',
+      'apps/web/public/world/props/vendor-2.glb',
+    ],
+    without:
+      'the frontages are unstaffed — nobody to talk to, and the street quest that ' +
+      'asks you to talk to two of them cannot be finished',
     fix: 'make props',
-    needs: ['npc-a.glb'],
+    needs: ['npc-a.glb', 'npc-b.glb'],
   },
   {
     name: 'Fast-food kiosk',
@@ -181,8 +194,8 @@ function main(): void {
   const handwork = new Set<string>();
 
   for (const check of CHECKS) {
-    const marker = path.join(ROOT, check.marker);
-    const there = existsSync(marker);
+    const markers = typeof check.marker === 'string' ? [check.marker] : check.marker;
+    const there = markers.every((marker) => existsSync(path.join(ROOT, marker)));
     const detail = there ? countIn(check) : '';
 
     console.log(`  ${there ? '✓' : '·'}  ${check.name.padEnd(24)} ${detail}`);

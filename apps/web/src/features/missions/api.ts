@@ -14,6 +14,8 @@ export interface MissionRunView {
   step: number;
   startedAt: string;
   completedAt: string | null;
+  /** The code a finished run already earned; null while it is being played. */
+  promo: PromoCodeView | null;
 }
 
 export interface CompletionView {

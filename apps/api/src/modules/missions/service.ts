@@ -97,6 +97,16 @@ export interface MissionRunView {
   step: number;
   startedAt: string;
   completedAt: string | null;
+  /**
+   * The code this run already earned, on a run that is already finished.
+   *
+   * Null while it is still being played. It is here because a buyer who closes
+   * the tab and comes back is shown the run resumed from the server, and a
+   * finished one resumed to its outro with no code on it: earned, stored,
+   * listed under their promo codes, and invisible at the one place they went
+   * looking for it.
+   */
+  promo: PromoCodeView | null;
 }
 
 export async function startRun(
@@ -104,7 +114,7 @@ export async function startRun(
   userId: string,
   missionId: string,
 ): Promise<MissionRunView> {
-  await found(prisma, missionId);
+  const definition = await found(prisma, missionId);
 
   // Restarting is allowed and does not reset a finished run: a buyer who wants
   // to watch the vacuum again should not have their code taken away, and must
@@ -113,11 +123,13 @@ export async function startRun(
     where: { userId_missionId: { userId, missionId } },
     create: { userId, missionId },
     update: {},
+    include: { promo: true },
   });
 
   return {
     missionId: run.missionId,
     step: run.step,
+    promo: run.promo ? view(run.promo, definition) : null,
     startedAt: run.startedAt.toISOString(),
     completedAt: run.completedAt?.toISOString() ?? null,
   };
@@ -175,6 +187,8 @@ export async function reportStep(
     step: updated.step,
     startedAt: updated.startedAt.toISOString(),
     completedAt: updated.completedAt?.toISOString() ?? null,
+    // A step report never finishes a run; the code comes from `complete`.
+    promo: null,
   };
 }
 
@@ -309,6 +323,8 @@ export async function listMine(prisma: PrismaClient, userId: string): Promise<Mi
       step: run.step,
       startedAt: run.startedAt.toISOString(),
       completedAt: run.completedAt?.toISOString() ?? null,
+      // The codes come back in their own list here, keyed by product.
+      promo: null,
     })),
     promos: promos.map((promo) => ({
       code: promo.code,

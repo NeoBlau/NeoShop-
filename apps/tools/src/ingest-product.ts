@@ -34,6 +34,7 @@ import {
   type Node as GltfNode,
 } from '@gltf-transform/core';
 import { dedup, weld } from '@gltf-transform/functions';
+import { readObj } from './obj.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOURCES = path.resolve(HERE, '../../../assets/incoming');
@@ -54,6 +55,15 @@ interface PartTrack {
   move?: { at: number; offset: Vec3 }[];
   /** Keyframed rotation about Y, in turns, relative to the node's own rotation. */
   turn?: { at: number; turns: number }[];
+  /**
+   * Keyframed rotation about X, in turns, relative to the node's own rotation.
+   *
+   * `turn` is for things that steer and `tilt` is for things that nod, and a
+   * dish does both: it rises off its mount about X and sweeps for the satellite
+   * about Y. Keeping them separate rather than generalising to an axis is
+   * deliberate — a recipe reads as what the part does.
+   */
+  tilt?: { at: number; turns: number }[];
 }
 
 interface ClipRecipe {
@@ -65,10 +75,24 @@ interface ClipRecipe {
 }
 
 interface Recipe {
+  /**
+   * File in `assets/incoming`. A `.glb` is read as it is; a `.obj` goes
+   * through `readObj`, which keeps the file's groups as separate nodes — an
+   * OBJ arrives with no hierarchy, and without the groups there is no dish to
+   * tilt and no clip to write.
+   */
   source: string;
   output: string;
   /** Metres across the widest horizontal axis, after scaling. */
   width: number;
+  /**
+   * Metres tall instead, when height is the measurement that matters.
+   *
+   * A vacuum is defined by how wide it is. A dish on a mount is defined by how
+   * tall it stands: its widest horizontal axis is the sprawl of the tripod,
+   * which is not a number in the spec sheet. Takes precedence over `width`.
+   */
+  height?: number;
   clips: ClipRecipe[];
 }
 
@@ -156,7 +180,96 @@ const VACUUM: Recipe = {
   ],
 };
 
-const RECIPES = [VACUUM];
+/**
+ * The satellite dish.
+ *
+ * The supplier sent an OBJ with two groups in it — `antenna_lo` and `stand_lo`
+ * — and two groups is exactly enough: the panel moves and the tripod does not.
+ * The three clips are the three things the product listing promises, and the
+ * mission in the loft asks for them by these names.
+ *
+ * Nothing here spins. A dish rises off its mount about X and sweeps for the
+ * satellite about Y, and `readObj` has already put the panel's node at the
+ * bottom of its own footprint, which is where the mount is — so the tilt is a
+ * hinge rather than a part flying through the tripod.
+ *
+ * The angles were found by rendering them, not reasoned about. The artist's own
+ * pose — zero rotation — is the panel upright and clear of everything, so that
+ * is where `deploy` ends rather than where it starts; laid back past about
+ * fifty degrees the bottom corner starts cutting through a tripod leg, so it
+ * starts at forty-three, which is the widest angle that stays clean.
+ *
+ * It replaces a procedural stand-in of 736 triangles that carried nine 4K maps
+ * and twenty-four megabytes, and was the heaviest thing in the catalogue by a
+ * factor of five. That is what was freezing the tab on the way into the loft.
+ */
+const STARLINK: Recipe = {
+  source: 'starlink/starlink.obj',
+  output: 'antenna-orbita.glb',
+  width: 1.25,
+  // A 120 cm offset dish stands about this tall on its own tripod; its widest
+  // horizontal axis is the sprawl of the legs, which is not the spec.
+  height: 1.62,
+  clips: [
+    {
+      name: 'deploy',
+      seconds: 3.5,
+      parts: [
+        {
+          node: 'antenna_lo',
+          // Laid back on its mount, then up. A beat before it moves, so the
+          // buyer sees the starting pose, and the last tenth of a second is
+          // flat: the clip is clamped, and this is the pose the other two
+          // clips assume they are starting from.
+          tilt: [
+            { at: 0, turns: 0.12 },
+            { at: 0.5, turns: 0.12 },
+            { at: 3.4, turns: 0 },
+            { at: 3.5, turns: 0 },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'track_signal',
+      seconds: 6,
+      parts: [
+        {
+          node: 'antenna_lo',
+          // Upright, where `deploy` left it, and sweeping for the bird: a tenth
+          // of a turn either way, ending where it started so the loop does not
+          // jump. The tilt is written even though it is zero — a rotation
+          // channel replaces the node's rotation rather than adding to it, so
+          // leaving it out would be a promise that the panel is upright rather
+          // than a statement of it.
+          tilt: [{ at: 0, turns: 0 }],
+          turn: [
+            { at: 0, turns: 0 },
+            { at: 1.5, turns: 0.1 },
+            { at: 3, turns: -0.08 },
+            { at: 4.5, turns: 0.03 },
+            { at: 6, turns: 0 },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'fold',
+      seconds: 3,
+      parts: [
+        {
+          node: 'antenna_lo',
+          tilt: [
+            { at: 0, turns: 0 },
+            { at: 3, turns: 0.12 },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const RECIPES = [VACUUM, STARLINK];
 
 function meshBounds(node: GltfNode): { lo: Vec3; hi: Vec3 } | null {
   const mesh = node.getMesh();
@@ -384,21 +497,47 @@ function moveSampler(
     .setInterpolation('LINEAR');
 }
 
-function turnSampler(
+/** Turns at a moment, interpolated between keyframes and held at the ends. */
+function turnsAt(keys: { at: number; turns: number }[], time: number): number {
+  const { index, weight } = sampleAt(keys, time);
+  const from = keys[index]?.turns ?? 0;
+  const to = keys[index + 1]?.turns ?? from;
+  return from + (to - from) * weight;
+}
+
+/**
+ * One rotation channel from a nod, a sweep, or both at once.
+ *
+ * Both at once is the case that forces this to be one function. glTF gives a
+ * node exactly one rotation channel per animation, so a dish that rises about X
+ * and then sweeps about Y cannot have a sampler each: the second would replace
+ * the first and the panel would drop flat the moment it started looking for the
+ * satellite. Composed here instead — tilt, then turn, applied to whatever
+ * rotation the node already carries.
+ */
+function swingSampler(
   document: Document,
   node: GltfNode,
   time: { accessor: Accessor; steps: number[] },
-  keys: { at: number; turns: number }[],
+  swing: { tilt?: { at: number; turns: number }[]; turn?: { at: number; turns: number }[] },
 ): AnimationSampler {
   const base = node.getRotation();
   const values: number[] = [];
 
   for (const step of time.steps) {
-    const { index, weight } = sampleAt(keys, step);
-    const from = keys[index]?.turns ?? 0;
-    const to = keys[index + 1]?.turns ?? from;
-    const half = ((from + (to - from) * weight) * Math.PI * 2) / 2;
-    values.push(...composeQuaternion(base, [0, Math.sin(half), 0, Math.cos(half)]));
+    let rotation: number[] = [...base];
+
+    if (swing.tilt) {
+      const half = (turnsAt(swing.tilt, step) * Math.PI * 2) / 2;
+      rotation = composeQuaternion(rotation, [Math.sin(half), 0, 0, Math.cos(half)]);
+    }
+
+    if (swing.turn) {
+      const half = (turnsAt(swing.turn, step) * Math.PI * 2) / 2;
+      rotation = composeQuaternion(rotation, [0, Math.sin(half), 0, Math.cos(half)]);
+    }
+
+    values.push(...rotation);
   }
 
   return document
@@ -451,13 +590,16 @@ function authorClips(document: Document, root: GltfNode, recipes: ClipRecipe[]):
       channels += 1;
     }
 
-    if (recipe.root?.turn) {
+    if (recipe.root?.turn || recipe.root?.tilt) {
       bind(
         document,
         animation,
         root,
         'rotation',
-        turnSampler(document, root, time, recipe.root.turn),
+        swingSampler(document, root, time, {
+          ...(recipe.root.tilt ? { tilt: recipe.root.tilt } : {}),
+          ...(recipe.root.turn ? { turn: recipe.root.turn } : {}),
+        }),
       );
       channels += 1;
     }
@@ -490,6 +632,22 @@ function authorClips(document: Document, root: GltfNode, recipes: ClipRecipe[]):
         );
         channels += 1;
       }
+
+      // A spin has already taken this node's one rotation channel; a part that
+      // both spins and swings in the same clip needs two clips.
+      if (!part.spin && (part.tilt || part.turn)) {
+        bind(
+          document,
+          animation,
+          node,
+          'rotation',
+          swingSampler(document, node, time, {
+            ...(part.tilt ? { tilt: part.tilt } : {}),
+            ...(part.turn ? { turn: part.turn } : {}),
+          }),
+        );
+        channels += 1;
+      }
     }
 
     written.push(`${recipe.name} (${recipe.seconds}s, ${channels} channels)`);
@@ -508,7 +666,9 @@ async function ingest(recipe: Recipe): Promise<boolean> {
   }
 
   console.log(`\n${recipe.source} → ${recipe.output}`);
-  const document = await io.read(source);
+  const document = source.toLowerCase().endsWith('.obj')
+    ? await readObj(source)
+    : await io.read(source);
 
   // Deliberately not flatten(), prune() or join(): every one of them collapses
   // the node hierarchy, and the hierarchy is what the clips are written
@@ -518,7 +678,9 @@ async function ingest(recipe: Recipe): Promise<boolean> {
 
   const before = sceneBounds(document);
   const width = Math.max(before.hi[0] - before.lo[0], before.hi[2] - before.lo[2]);
-  const scale = recipe.width / width;
+  const tall = before.hi[1] - before.lo[1];
+  const scale =
+    recipe.height !== undefined && tall > 0 ? recipe.height / tall : recipe.width / width;
 
   // One node above everything, so the product has a handle: a clip that drives
   // it needs a single thing to drive, and the scaling and seating go here too.
@@ -543,8 +705,11 @@ async function ingest(recipe: Recipe): Promise<boolean> {
 
   const after = sceneBounds(document);
   console.log(
-    `  scaled ${width.toFixed(2)} m → ${recipe.width} m across (×${scale.toFixed(4)}), ` +
-      `base at y=${after.lo[1].toFixed(3)}`,
+    recipe.height !== undefined
+      ? `  scaled ${tall.toFixed(2)} → ${recipe.height} m tall (×${scale.toFixed(4)}), ` +
+          `base at y=${after.lo[1].toFixed(3)}`
+      : `  scaled ${width.toFixed(2)} m → ${recipe.width} m across (×${scale.toFixed(4)}), ` +
+          `base at y=${after.lo[1].toFixed(3)}`,
   );
   console.log(
     `  size ${[0, 1, 2].map((a) => ((after.hi[a] ?? 0) - (after.lo[a] ?? 0)).toFixed(3)).join(' x ')} m`,

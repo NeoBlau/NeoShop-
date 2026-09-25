@@ -6,7 +6,7 @@
  * where is its floor, and where is the middle of its footprint. None of those
  * can be read off the header — the transforms have to be walked.
  */
-import { forEachTriangle } from './location-walkable.js';
+import { forEachTriangle, vertexPlacer } from './location-walkable.js';
 import type { Document, Node as GltfNode } from '@gltf-transform/core';
 
 export type Vec3 = [number, number, number];
@@ -28,10 +28,26 @@ export function triangleCount(document: Document): number {
   return Math.round(total);
 }
 
-/** Scene bounds in world space, corner by corner through every node. */
+/**
+ * Scene bounds in world space.
+ *
+ * Two paths, because a primitive's stored min/max is a shortcut that only holds
+ * for a mesh its node actually transforms. An unskinned mesh is measured by the
+ * eight corners of that box, which is exact and costs nothing. A skinned one is
+ * posed by its joints rather than by its node, so there is no box to transform
+ * and every vertex is placed — the difference between reporting a shop assistant
+ * as 1.7 metres and reporting her as 17 millimetres.
+ */
 export function sceneBounds(document: Document): Bounds {
   const lo: Vec3 = [Infinity, Infinity, Infinity];
   const hi: Vec3 = [-Infinity, -Infinity, -Infinity];
+
+  const widen = (point: readonly number[]): void => {
+    for (let axis = 0; axis < 3; axis += 1) {
+      lo[axis] = Math.min(lo[axis] ?? Infinity, point[axis] ?? 0);
+      hi[axis] = Math.max(hi[axis] ?? -Infinity, point[axis] ?? 0);
+    }
+  };
 
   const walk = (node: GltfNode, parent: number[]): void => {
     const matrix = multiply(parent, local(node));
@@ -41,6 +57,18 @@ export function sceneBounds(document: Document): Bounds {
       for (const primitive of mesh.listPrimitives()) {
         const position = primitive.getAttribute('POSITION');
         if (!position) continue;
+
+        if (node.getSkin()) {
+          const place = vertexPlacer(node, primitive);
+          const world: number[] = [0, 0, 0];
+          const count = position.getCount();
+          for (let index = 0; index < count; index += 1) {
+            place(index, world);
+            widen(world);
+          }
+          continue;
+        }
+
         const min = position.getMin([]) as number[];
         const max = position.getMax([]) as number[];
 
@@ -50,11 +78,7 @@ export function sceneBounds(document: Document): Bounds {
             (corner & 2 ? max : min)[1] ?? 0,
             (corner & 4 ? max : min)[2] ?? 0,
           ];
-          const world = apply(matrix, point);
-          for (let axis = 0; axis < 3; axis += 1) {
-            lo[axis] = Math.min(lo[axis] ?? Infinity, world[axis] ?? 0);
-            hi[axis] = Math.max(hi[axis] ?? -Infinity, world[axis] ?? 0);
-          }
+          widen(apply(matrix, point));
         }
       }
     }

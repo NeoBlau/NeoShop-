@@ -54,13 +54,15 @@ export function useMissionRunner(mission: Mission): Runner {
       .start(mission.id)
       .then((run) => {
         // A run resumed from an earlier visit picks up where it stopped rather
-        // than making the buyer walk the whole thing again.
+        // than making the buyer walk the whole thing again — and a finished one
+        // comes back with the code it earned, which it used not to: the outro
+        // appeared with an empty space under it where the discount should be.
         setState({
           phase: run.completedAt ? 'done' : 'running',
           index: Math.min(run.step, mission.steps.length),
           step: mission.steps[Math.min(run.step, mission.steps.length - 1)] ?? null,
           justDone: null,
-          promo: null,
+          promo: run.promo,
           error: null,
         });
       })

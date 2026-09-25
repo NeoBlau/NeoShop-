@@ -9,6 +9,7 @@
  * work offline.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import sharp from 'sharp';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -662,11 +663,56 @@ const TEXTURE_DIR = path.resolve(
   '../../api/prisma/seed-assets/textures',
 );
 
+/**
+ * How big a preset map gets to be inside a demo model.
+ *
+ * The material library is authored at 4096 because it is also the library a
+ * location is textured from, where one tile covers a street. A product is not
+ * a street. The antenna is 736 triangles and shipped with nine 4K maps and
+ * twenty-four megabytes behind them — five times the weight of every other
+ * product put together, for a plinth two thirds of a metre wide — and a tab
+ * that has to decode nine 4096-square JPEGs before it can draw anything is a
+ * tab that has frozen, which is exactly what it did on the way into the loft.
+ *
+ * 1024 on a tiled material at arm's length is not a visible difference. It is
+ * a twentyfold one in bytes.
+ */
+const PRESET_TEXTURE_SIZE = 1024;
+
+/** The three maps of one preset, resized once and shared by every model. */
+interface PresetImages {
+  baseColor: Uint8Array;
+  normal: Uint8Array;
+  orm: Uint8Array;
+}
+
 interface PresetTextures {
   baseColor: Texture;
   normal: Texture;
   /** Occlusion in R, roughness in G, metalness in B — one fetch, three inputs. */
   orm: Texture;
+}
+
+/** Reads a preset's maps off disk at the size a product needs them. */
+async function readPreset(preset: MaterialPreset): Promise<PresetImages | null> {
+  const dir = path.join(TEXTURE_DIR, preset);
+  if (!existsSync(path.join(dir, 'basecolor.jpg'))) return null;
+
+  const shrink = async (map: string): Promise<Uint8Array> =>
+    new Uint8Array(
+      await sharp(readFileSync(path.join(dir, `${map}.jpg`)))
+        .resize(PRESET_TEXTURE_SIZE, PRESET_TEXTURE_SIZE, { fit: 'inside' })
+        // The library is written at quality 96 with no chroma subsampling
+        // because it is a source. This is the copy that ships.
+        .jpeg({ quality: 88 })
+        .toBuffer(),
+    );
+
+  return {
+    baseColor: await shrink('basecolor'),
+    normal: await shrink('normal'),
+    orm: await shrink('orm'),
+  };
 }
 
 /**
@@ -678,28 +724,25 @@ interface PresetTextures {
 function loadPreset(
   document: Document,
   preset: MaterialPreset,
+  images: Map<MaterialPreset, PresetImages>,
   cache: Map<MaterialPreset, PresetTextures>,
 ): PresetTextures | null {
   const cached = cache.get(preset);
   if (cached) return cached;
 
-  const dir = path.join(TEXTURE_DIR, preset);
-  const baseColorPath = path.join(dir, 'basecolor.jpg');
-  if (!existsSync(baseColorPath)) return null;
+  const source = images.get(preset);
+  if (!source) return null;
 
   const textures: PresetTextures = {
     baseColor: document
       .createTexture(`${preset}_basecolor`)
-      .setImage(new Uint8Array(readFileSync(baseColorPath)))
+      .setImage(source.baseColor)
       .setMimeType('image/jpeg'),
     normal: document
       .createTexture(`${preset}_normal`)
-      .setImage(new Uint8Array(readFileSync(path.join(dir, 'normal.jpg'))))
+      .setImage(source.normal)
       .setMimeType('image/jpeg'),
-    orm: document
-      .createTexture(`${preset}_orm`)
-      .setImage(new Uint8Array(readFileSync(path.join(dir, 'orm.jpg'))))
-      .setMimeType('image/jpeg'),
+    orm: document.createTexture(`${preset}_orm`).setImage(source.orm).setMimeType('image/jpeg'),
   };
 
   cache.set(preset, textures);
@@ -730,7 +773,7 @@ function buildMaterial(document: Document, part: Part, textures: PresetTextures 
   return material;
 }
 
-function buildDocument(spec: ModelSpec): Document {
+function buildDocument(spec: ModelSpec, images: Map<MaterialPreset, PresetImages>): Document {
   const document = new Document();
   document.getRoot().getAsset().generator = '3DSFERA demo asset generator';
 
@@ -767,7 +810,7 @@ function buildDocument(spec: ModelSpec): Document {
     const material = buildMaterial(
       document,
       part,
-      loadPreset(document, part.material, presetCache),
+      loadPreset(document, part.material, images, presetCache),
     );
 
     const primitive = document
@@ -842,8 +885,17 @@ async function main(): Promise<void> {
   const io = new NodeIO();
   const specs = [antenna(), vacuum(), chair(), drone(), lamp()];
 
+  // Read and resize each preset once, not once per model: five models over
+  // five presets is twenty-five decodes of a 4K JPEG for five distinct images.
+  const presets = new Set(specs.flatMap((spec) => spec.parts.map((part) => part.material)));
+  const images = new Map<MaterialPreset, PresetImages>();
+  for (const preset of presets) {
+    const loaded = await readPreset(preset);
+    if (loaded) images.set(preset, loaded);
+  }
+
   for (const spec of specs) {
-    const document = buildDocument(spec);
+    const document = buildDocument(spec, images);
     const glb = await io.writeBinary(document);
     const target = path.join(outputDir, spec.file);
     writeFileSync(target, glb);
