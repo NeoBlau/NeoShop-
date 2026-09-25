@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import {
   AppError,
+  authoredMissionSchema,
+  authoredToMission,
   mission,
   pace,
   stepIndex,
@@ -29,17 +31,50 @@ import type { PrismaClient } from '../../generated/prisma/client.js';
 /** Two weeks: long enough to think it over, short enough to be a nudge. */
 const VALID_DAYS = 14;
 
-function found(id: string): Mission {
-  const definition = mission(id);
-  if (!definition) {
+/**
+ * The mission behind an id, wherever it was written.
+ *
+ * Two sources and one shape. The platform's own missions are constants in the
+ * shared package; a supplier's is a row whose script is re-parsed by the same
+ * schema that accepted it and converted into the identical `Mission`. Every
+ * guard below then applies to both without knowing the difference, which is
+ * the whole reason for the conversion — an authored mission must not be able
+ * to introduce a new way of earning a discount.
+ *
+ * A supplier's mission counts only once an administrator has published it.
+ * Before that it exists, but nobody can start a run on it.
+ */
+async function found(prisma: PrismaClient, id: string): Promise<Mission> {
+  const ours = mission(id);
+  if (ours) return ours;
+
+  const authored = await prisma.supplierMission.findUnique({
+    where: { id },
+    select: { id: true, status: true, script: true, product: { select: { slug: true } } },
+  });
+
+  if (authored && authored.status === 'PUBLISHED') {
+    const script = authoredMissionSchema.safeParse(authored.script);
+    if (script.success) {
+      return authoredToMission(authored.id, authored.product.slug, script.data);
+    }
+
+    // A stored script that no longer parses is a migration that moved the
+    // shape without moving the data. Loud, and not the buyer's fault.
     throw new AppError({
-      status: 404,
-      code: 'ERR_NOT_FOUND',
-      message: `No mission ${id}`,
+      status: 500,
+      code: 'ERR_INTERNAL',
+      message: `The stored script for mission ${id} does not match the current schema`,
       params: { missionId: id },
     });
   }
-  return definition;
+
+  throw new AppError({
+    status: 404,
+    code: 'ERR_NOT_FOUND',
+    message: `No mission ${id}`,
+    params: { missionId: id },
+  });
 }
 
 /**
@@ -69,7 +104,7 @@ export async function startRun(
   userId: string,
   missionId: string,
 ): Promise<MissionRunView> {
-  found(missionId);
+  await found(prisma, missionId);
 
   // Restarting is allowed and does not reset a finished run: a buyer who wants
   // to watch the vacuum again should not have their code taken away, and must
@@ -94,7 +129,7 @@ export async function reportStep(
   missionId: string,
   stepId: string,
 ): Promise<MissionRunView> {
-  const definition = found(missionId);
+  const definition = await found(prisma, missionId);
   const index = stepIndex(definition, stepId);
 
   if (index < 0) {
@@ -153,7 +188,7 @@ export async function completeRun(
   userId: string,
   missionId: string,
 ): Promise<CompletionView> {
-  const definition = found(missionId);
+  const definition = await found(prisma, missionId);
 
   const run = await prisma.missionRun.findUnique({
     where: { userId_missionId: { userId, missionId } },

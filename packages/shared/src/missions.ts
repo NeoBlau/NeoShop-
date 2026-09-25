@@ -84,6 +84,19 @@ export interface Mission {
 }
 
 /**
+ * The demo rooms this project builds, by id.
+ *
+ * Here rather than read off disk because two sides need it and neither owns
+ * it: the server validates a supplier's choice of room against this list, and
+ * the cabinet offers it as a menu. What a given checkout has actually built is
+ * a separate question, answered by `zones.json` — `make zones` is optional,
+ * and a supplier should be told their room is missing rather than shown a
+ * mission that opens onto nothing.
+ */
+export const DEMO_ZONES = ['loft', 'gallery', 'billiards', 'bedroom'] as const;
+export type DemoZone = (typeof DEMO_ZONES)[number];
+
+/**
  * The fraction of a step's own time a buyer must at least spend on it.
  *
  * Not 1: a clip can be watched at a glance and a buyer who already knows the
@@ -545,6 +558,27 @@ export function mission(id: string): Mission | null {
 
 export function missionForProduct(slug: string): Mission | null {
   return BY_SLUG.get(slug) ?? null;
+}
+
+/**
+ * A mission by id, looking at the ones a supplier wrote as well as ours.
+ *
+ * The platform's own are constants in this file; a supplier's arrive with the
+ * world response, already converted into this same shape by the server. Ours
+ * win a collision, which cannot happen — theirs are cuids — but is written
+ * down rather than assumed.
+ */
+export function missionIn(id: string, authored: readonly Mission[]): Mission | null {
+  return mission(id) ?? authored.find((entry) => entry.id === id) ?? null;
+}
+
+/** The room mission offered on a product's card, from either source. */
+export function missionForProductIn(slug: string, authored: readonly Mission[]): Mission | null {
+  return (
+    missionForProduct(slug) ??
+    authored.find((entry) => entry.where === 'zone' && entry.productSlug === slug) ??
+    null
+  );
 }
 
 export function missionsInZone(zone: string): Mission[] {

@@ -14,6 +14,7 @@ import type {
   UserRole,
 } from './domain.js';
 import type { AnimationClipInfo, ModelIssue } from './glb.js';
+import type { Mission } from './missions.js';
 
 /** Supplier context attached to the session when the user owns a company. */
 export interface SessionSupplier {
@@ -209,6 +210,15 @@ export interface WorldResponse {
   pavilions: WorldPavilion[];
   /** Spacing between pavilion centres, so the client can lay out corridors. */
   pavilionSpacing: number;
+  /**
+   * Missions suppliers wrote and an administrator published.
+   *
+   * Sent with the world rather than fetched per product: the browser is being
+   * handed every pavilion at once, and a lookup per plinth would be a request
+   * per plinth. The platform's own missions are not here — they are constants
+   * in this package, and shipping them twice would be two places to disagree.
+   */
+  missions: Mission[];
 }
 
 export interface ShippingQuote {

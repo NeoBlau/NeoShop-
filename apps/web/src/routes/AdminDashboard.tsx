@@ -91,6 +91,11 @@ export function AdminDashboard() {
           {...(overview ? { badge: String(overview.counts.suppliersPending) } : {})}
         />
         <SectionCard
+          title={t('adminMissions.title')}
+          hint={t('adminMissions.cardHint')}
+          to="/admin/missions"
+        />
+        <SectionCard
           title={t('admin.pavilions')}
           hint={t('admin.pavilionsHint')}
           to="/admin/pavilions"

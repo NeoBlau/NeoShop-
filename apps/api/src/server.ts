@@ -10,6 +10,7 @@ import { supplierRoutes } from './modules/supplier/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { productRoutes, supplierStatsRoutes } from './modules/products/routes.js';
 import { missionRoutes } from './modules/missions/routes.js';
+import { missionAuthoringRoutes } from './modules/missions/routes.authoring.js';
 import { worldRoutes } from './modules/world/routes.js';
 import { orderRoutes } from './modules/orders/routes.js';
 import { paymentRoutes } from './modules/payments/routes.js';
@@ -56,6 +57,9 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(missionRoutes, { prefix: '/api/missions' });
   await app.register(supplierRoutes, { prefix: '/api/supplier' });
   await app.register(productRoutes, { prefix: '/api/supplier/products' });
+  // Authoring sits under the product it belongs to: the permission being
+  // checked is ownership of that product, not membership of a mission.
+  await app.register(missionAuthoringRoutes, { prefix: '/api/supplier/products' });
   await app.register(supplierStatsRoutes, { prefix: '/api/supplier/stats' });
   await app.register(supplierOrderRoutes, { prefix: '/api/supplier/orders' });
   await app.register(orderRoutes, { prefix: '/api/orders' });

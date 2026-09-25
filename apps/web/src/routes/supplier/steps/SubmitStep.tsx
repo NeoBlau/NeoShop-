@@ -83,6 +83,24 @@ export function SubmitStep({
         </>
       )}
 
+      {/* The optional extra: a mission of their own. Offered here rather than
+          made a wizard step, because a product sells perfectly well without
+          one and a required step would say otherwise. */}
+      <div className="border-edge flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+        <div>
+          <p className="text-ink text-sm">{t('wizard.missionOffer')}</p>
+          <p className="text-ink-faint mt-1 max-w-md text-xs leading-relaxed">
+            {t('wizard.missionOfferHint')}
+          </p>
+        </div>
+        <Link
+          to={`/supplier/products/${product.id}/mission`}
+          className="border-edge-strong text-ink-muted hover:text-ink shrink-0 rounded-lg border px-3 py-1.5 text-sm transition-colors"
+        >
+          {t('wizard.missionOfferAction')}
+        </Link>
+      </div>
+
       <Link to="/supplier/products" className="text-accent text-sm hover:underline">
         {t('wizard.backToList')}
       </Link>

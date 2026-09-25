@@ -234,6 +234,7 @@ model Product {
   orderItems   OrderItem[]
   modelJobs    ModelJob[]
   promoCodes   PromoCode[]
+  mission      SupplierMission?
 
   @@index([supplierId, status])
   @@index([status, category])
@@ -371,6 +372,47 @@ model MissionRun {
   @@unique([userId, missionId])
   @@index([userId])
   @@map("mission_runs")
+}
+
+/// A mission a supplier wrote for their own product.
+///
+/// The platform's own missions live in code, next to the products it seeds,
+/// and are reviewed like code. A supplier cannot have that, so theirs is a
+/// document: validated by `authoredMissionSchema` on the way in, stored here,
+/// and converted back into the same `Mission` shape before anything plays it
+/// or checks it. The server's guards — steps in order, a pace floor, one code
+/// per run — are then literally the same code for both.
+///
+/// Moderated, because the discount comes out of the supplier's margin but the
+/// disappointment lands on the platform. One per product: a product card
+/// offers "see it in its own room", and there is one of those.
+model SupplierMission {
+  id        String @id @default(cuid())
+  productId String @unique
+
+  /// The demo zone it happens in, by id, as the zone build writes it.
+  zone String
+
+  /// Titles, intro, outro and the steps, in the shape
+  /// `authoredMissionSchema` validates. A document rather than columns
+  /// because a supplier authors it as one, and every read of it re-parses
+  /// with the same schema that accepted it.
+  script Json
+
+  percentOff Int @default(5)
+
+  status          ModerationStatus @default(DRAFT)
+  rejectionReason String?
+  submittedAt     DateTime?
+  publishedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("supplier_missions")
 }
 
 /// A discount earned by finishing a mission.

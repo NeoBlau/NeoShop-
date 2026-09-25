@@ -7,6 +7,7 @@ export * from './schemas/auth.js';
 export * from './schemas/product.js';
 export * from './schemas/order.js';
 export * from './schemas/admin.js';
+export * from './schemas/mission.js';
 export * from './glb.js';
 export * from './concierge.js';
 export * from './food.js';

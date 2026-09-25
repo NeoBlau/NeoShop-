@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { mission as findMission, type MissionStep } from '@3dsfera/shared';
+import { missionIn, type MissionStep } from '@3dsfera/shared';
 import { Button, Spinner } from '../ui/Button.js';
 import { Alert } from '../ui/Alert.js';
 import { useWorld } from '../features/world/useWorld.js';
@@ -38,9 +38,15 @@ function stepNeedsButton(step: MissionStep): boolean {
 export function MissionPage() {
   const { t, i18n } = useTranslation();
   const params = useParams<{ id: string }>();
-  const definition = params.id ? findMission(params.id) : null;
 
   const { world, loading: worldLoading } = useWorld();
+
+  // A mission may be one of ours or one a supplier wrote and an administrator
+  // published; the latter arrive with the world, so the lookup waits for it.
+  const definition = useMemo(
+    () => (params.id ? missionIn(params.id, world?.missions ?? []) : null),
+    [params.id, world],
+  );
   const { zone, loading: zoneLoading, failed: zoneFailed } = useZone(definition?.zone ?? null);
 
   const [tier, setTier] = useState<QualityTier>('high');

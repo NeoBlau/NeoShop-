@@ -11,6 +11,7 @@ import { ImportPage } from './routes/supplier/ImportPage.js';
 import { StatsPage } from './routes/supplier/StatsPage.js';
 import { AdminDashboard } from './routes/AdminDashboard.js';
 import { ModerationPage } from './routes/admin/ModerationPage.js';
+import { MissionsPage } from './routes/admin/MissionsPage.js';
 import { SuppliersPage } from './routes/admin/SuppliersPage.js';
 import { PavilionsPage } from './routes/admin/PavilionsPage.js';
 import { AuditPage } from './routes/admin/AuditPage.js';
@@ -25,6 +26,7 @@ import { WorldPage } from './routes/WorldPage.js';
 import { CatalogPage } from './routes/CatalogPage.js';
 import { FoodPage } from './routes/FoodPage.js';
 import { GuidePage } from './routes/GuidePage.js';
+import { MissionBuilderPage } from './routes/supplier/MissionBuilderPage.js';
 import { MissionPage } from './routes/MissionPage.js';
 import { useSession } from './stores/session.js';
 
@@ -127,6 +129,17 @@ export function App() {
             </RequireRole>
           }
         />
+        {/* A supplier's own mission for their own product: the same thing the
+            platform's missions are, authored rather than coded, and moderated
+            before a buyer can earn a code from it. */}
+        <Route
+          path="supplier/products/:id/mission"
+          element={
+            <RequireRole roles={['SUPPLIER', 'ADMIN']}>
+              <MissionBuilderPage />
+            </RequireRole>
+          }
+        />
         <Route
           path="supplier/orders"
           element={
@@ -162,6 +175,7 @@ export function App() {
         {(
           [
             ['admin/moderation', <ModerationPage key="moderation" />],
+            ['admin/missions', <MissionsPage key="missions" />],
             ['admin/suppliers', <SuppliersPage key="suppliers" />],
             ['admin/pavilions', <PavilionsPage key="pavilions" />],
             ['admin/audit', <AuditPage key="audit" />],

@@ -9,6 +9,14 @@ import type {
   SupplierStatus,
 } from '@3dsfera/shared';
 import { api } from '../../api/client.js';
+import type { AuthoredMissionView } from '../missions/authoring.js';
+
+/** A submitted mission, with enough about the product to judge it. */
+export interface PendingMissionView extends AuthoredMissionView {
+  productTitle: string;
+  productSlug: string;
+  supplierName: string;
+}
 
 /**
  * The administration endpoints.
@@ -36,6 +44,13 @@ export const adminApi = {
     api.post<{ status: 'REJECTED' }>(`/api/admin/suppliers/${id}/reject`, { reason }),
   blockSupplier: (id: string, reason: string) =>
     api.post<{ status: 'BLOCKED' }>(`/api/admin/suppliers/${id}/block`, { reason }),
+
+  /** Missions suppliers wrote and submitted. */
+  pendingMissions: () => api.get<{ missions: PendingMissionView[] }>('/api/admin/missions'),
+  approveMission: (id: string) =>
+    api.post<{ status: 'PUBLISHED' }>(`/api/admin/missions/${id}/approve`),
+  rejectMission: (id: string, reason: string) =>
+    api.post<{ status: 'REJECTED' }>(`/api/admin/missions/${id}/reject`, { reason }),
 
   pavilions: () => api.get<{ pavilions: AdminPavilion[] }>('/api/admin/pavilions'),
   updatePavilion: (id: string, input: PavilionUpdateInput) =>

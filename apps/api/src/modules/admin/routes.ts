@@ -17,6 +17,11 @@ import { hashIp } from '../../lib/tokens.js';
 import { env } from '../../env.js';
 import { sendModerationNotice } from '../../lib/mailer.js';
 import {
+  listPending as listPendingMissions,
+  publishMission,
+  rejectMission,
+} from '../missions/authoring.js';
+import {
   approveProduct,
   listModeration,
   listPavilions,
@@ -141,6 +146,70 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         to: product.supplier.user.email,
         locale: product.supplier.user.locale,
         title: product.title,
+        approved: false,
+        reason: input.reason,
+      });
+    }
+
+    return { status: 'REJECTED' as const };
+  });
+
+  /**
+   * Missions suppliers wrote for their own products.
+   *
+   * Moderated for the same reason a product card is: the discount comes out of
+   * the supplier's margin, but a mission that asks a buyer to press a button
+   * that does nothing, or promises something the product does not do, lands on
+   * the platform. The script itself was already validated on the way in; what
+   * is being reviewed here is whether it is honest.
+   */
+  app.get('/missions', async () => ({ missions: await listPendingMissions(prisma) }));
+
+  app.post('/missions/:id/approve', async (request) => {
+    const { id } = request.params as { id: string };
+    const notice = await publishMission(prisma, id);
+
+    await recordAudit({
+      ...actor(request),
+      action: 'mission.approve',
+      entityType: 'SupplierMission',
+      entityId: id,
+    });
+
+    if (notice) {
+      await sendModerationNotice({
+        to: notice.email,
+        locale: notice.locale,
+        title: notice.title,
+        approved: true,
+        reason: null,
+      });
+    }
+
+    return { status: 'PUBLISHED' as const };
+  });
+
+  app.post('/missions/:id/reject', async (request) => {
+    const { id } = request.params as { id: string };
+    const input = parseInput(rejectionSchema, request.body);
+
+    const notice = await rejectMission(prisma, id, input.reason);
+
+    await recordAudit({
+      ...actor(request),
+      action: 'mission.reject',
+      entityType: 'SupplierMission',
+      entityId: id,
+      // The reason is the supplier's to read, not the log's to keep. The log
+      // records that one was given and how long it was.
+      metadata: { reasonLength: input.reason.length },
+    });
+
+    if (notice) {
+      await sendModerationNotice({
+        to: notice.email,
+        locale: notice.locale,
+        title: notice.title,
         approved: false,
         reason: input.reason,
       });

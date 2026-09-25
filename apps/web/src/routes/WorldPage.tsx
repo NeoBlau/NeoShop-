@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { missionForProduct, type WorldProduct } from '@3dsfera/shared';
+import { missionForProductIn, type WorldProduct } from '@3dsfera/shared';
 import type { OpenVendor } from '../scene/world/World.js';
 import { useWorld, useViewReporter } from '../features/world/useWorld.js';
 import { useCart } from '../stores/cart.js';
@@ -302,13 +302,13 @@ export function WorldPage() {
   // checkout without `make zones` should show the street, not a dead link.
   const missionFor = useCallback(
     (slug: string): string | null => {
-      const found = missionForProduct(slug);
+      const found = missionForProductIn(slug, world?.missions ?? []);
       // `missionForProduct` only ever returns a room mission, so the zone is
       // there; the check is for the build that never ran `make zones`.
       if (!found?.zone) return null;
       return zones.includes(found.zone) ? found.id : null;
     },
-    [zones],
+    [zones, world],
   );
 
   // Whatever quest this location offers, and how far through it the buyer is.

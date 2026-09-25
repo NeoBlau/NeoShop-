@@ -7,6 +7,7 @@ import type {
 } from '@3dsfera/shared';
 import type { Db } from '../../lib/prisma.js';
 import { publicUrl } from '../../lib/storage.js';
+import { publishedMissions } from '../missions/authoring.js';
 
 /**
  * The public read model of the world.
@@ -93,8 +94,11 @@ export async function loadWorld(db: Db): Promise<WorldResponse> {
     },
   });
 
+  const missions = await publishedMissions(db);
+
   return {
     pavilionSpacing: PAVILION_SPACING,
+    missions,
     pavilions: pavilions.map((pavilion): WorldPavilion => {
       const position = pavilion.worldPosition as {
         x?: number;
