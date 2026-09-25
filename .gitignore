@@ -57,3 +57,6 @@ apps/desktop/src-tauri/gen/
 assets/incoming/
 .incoming/
 .preview/
+
+# Menu photography, fetched by apps/tools/src/fetch-food-photos.ts
+apps/web/public/food/

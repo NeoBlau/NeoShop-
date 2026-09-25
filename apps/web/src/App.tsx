@@ -23,6 +23,7 @@ import { OrderStatusPage } from './routes/OrderStatusPage.js';
 import { SupplierOrdersPage } from './routes/supplier/SupplierOrdersPage.js';
 import { WorldPage } from './routes/WorldPage.js';
 import { CatalogPage } from './routes/CatalogPage.js';
+import { FoodPage } from './routes/FoodPage.js';
 import { useSession } from './stores/session.js';
 
 export function App() {
@@ -47,6 +48,9 @@ export function App() {
           }
         />
         <Route path="catalog" element={<CatalogPage />} />
+        {/* The counter at the end of the street, as its own tab: ordering lunch
+            is a different flow from ordering a product that ships. */}
+        <Route path="food" element={<FoodPage />} />
         <Route path="cart" element={<CartPage />} />
         <Route
           path="checkout"

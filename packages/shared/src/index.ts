@@ -9,4 +9,5 @@ export * from './schemas/order.js';
 export * from './schemas/admin.js';
 export * from './glb.js';
 export * from './concierge.js';
+export * from './food.js';
 export { dictionaries, negotiateLocale, type Dictionary } from './i18n/index.js';
