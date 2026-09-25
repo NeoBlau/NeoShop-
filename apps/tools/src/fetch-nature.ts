@@ -7,16 +7,24 @@
  * behind Sketchfab, Fab or a marketplace login, and engine-store content is
  * licensed for that engine rather than for a web page. What *is* downloadable,
  * from the same place this project already takes its HDRIs and materials, is
- * the raw material: Poly Haven's photogrammetry collections. `verdant_trail`
- * is a coastal trail — cliffs, rock faces, boulders, island trees, shrubs — all
- * CC0 and scanned at up to 8K.
+ * the raw material: Poly Haven's photogrammetry, from the `verdant_trail`,
+ * `pine_forest` and `smugglers_cove` collections, all CC0 and scanned at up
+ * to 8K.
  *
  * So the location is assembled from real scans rather than modelled. Every
  * rock and every tree in it is a photograph of a rock and a tree; the terrain
  * they stand on is ours. That is how these assets are meant to be used.
  *
- * Nothing here is committed: a hundred and sixty megabytes of scans do not
- * belong in git, and this file plus build-nature.ts reproduce them exactly.
+ * What is deliberately *not* here: `pine_tree_01` and `fir_tree_01`, the two
+ * full-size conifer scans. Their buffers are 949 and 487 megabytes — twenty
+ * million triangles of tree — and getting one of those down to the sixty
+ * thousand a browser can hold means throwing away 99.7 per cent of it, which
+ * turns needles into confetti. The canopy comes from `jacaranda_tree` instead:
+ * twenty-four metres across, 3.9 million triangles, and it survives being
+ * simplified because its leaves are bigger than its triangles.
+ *
+ * Nothing here is committed: a gigabyte of scans does not belong in git, and
+ * this file plus build-nature.ts reproduce them exactly.
  */
 import { createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -58,48 +66,81 @@ type NatureAsset = ModelAsset | TextureAsset | HdriAsset;
  */
 export const NATURE_ASSETS: NatureAsset[] = [
   // ── The land ──────────────────────────────────────────────────────────────
-  { kind: 'model', id: 'mountainside', resolution: '4k', note: 'The ridge across the bay.' },
-  { kind: 'model', id: 'coastal_cliff_02', resolution: '2k', note: 'Cliff wall behind the trail.' },
-  { kind: 'model', id: 'coastal_cliff_04', resolution: '2k', note: 'Cliff wall, second variant.' },
-  { kind: 'model', id: 'rock_face_01', resolution: '2k', note: 'Outcrop beside the path.' },
-  { kind: 'model', id: 'boulder_01', resolution: '2k', note: 'Large scattered boulder.' },
+  { kind: 'model', id: 'mountainside', resolution: '4k', note: 'The peaks above the treeline.' },
+  { kind: 'model', id: 'coastal_cliff_02', resolution: '2k', note: 'Rock wall on the rim.' },
+  { kind: 'model', id: 'coastal_cliff_04', resolution: '2k', note: 'Rock wall, second variant.' },
+  { kind: 'model', id: 'rock_face_01', resolution: '2k', note: 'Outcrop in the treeline.' },
+  { kind: 'model', id: 'rock_face_02', resolution: '2k', note: 'Outcrop, second variant.' },
+  { kind: 'model', id: 'boulder_01', resolution: '2k', note: 'Large boulder in the clearing.' },
+  { kind: 'model', id: 'rock_moss_set_01', resolution: '2k', note: 'Mossy rocks, forest floor.' },
+  { kind: 'model', id: 'rock_moss_set_02', resolution: '2k', note: 'Mossy rocks, second set.' },
   { kind: 'model', id: 'rock_07', resolution: '2k', note: 'Medium rock.' },
   { kind: 'model', id: 'rock_09', resolution: '2k', note: 'Medium rock, second variant.' },
   { kind: 'model', id: 'stone_01', resolution: '2k', note: 'Small stone for the path edges.' },
-  { kind: 'model', id: 'sand_rocks_small_01', resolution: '2k', note: 'Pebble cluster.' },
 
-  // ── What grows on it ──────────────────────────────────────────────────────
-  { kind: 'model', id: 'island_tree_01', resolution: '2k', note: 'The canopy tree.' },
-  { kind: 'model', id: 'jacaranda_tree', resolution: '2k', note: 'Second canopy species.' },
-  { kind: 'model', id: 'tree_small_02', resolution: '2k', note: 'Understorey tree.' },
-  { kind: 'model', id: 'dead_tree_trunk_02', resolution: '2k', note: 'Fallen trunk, for variety.' },
+  // ── The canopy ────────────────────────────────────────────────────────────
+  {
+    kind: 'model',
+    id: 'jacaranda_tree',
+    resolution: '2k',
+    note: 'The canopy: twenty-four metres of real tree. The one the grove is made of.',
+  },
+  { kind: 'model', id: 'island_tree_01', resolution: '2k', note: 'Understorey tree, five metres.' },
+  { kind: 'model', id: 'tree_small_02', resolution: '2k', note: 'Understorey tree, four metres.' },
+  {
+    kind: 'model',
+    id: 'fir_sapling_medium',
+    resolution: '2k',
+    note: 'A conifer among the broadleaves, so the grove is not one species.',
+  },
+  { kind: 'model', id: 'fir_sapling', resolution: '2k', note: 'Small conifer.' },
+
+  // ── The forest floor ──────────────────────────────────────────────────────
+  { kind: 'model', id: 'dead_tree_trunk', resolution: '2k', note: 'Fallen trunk.' },
+  { kind: 'model', id: 'dead_tree_trunk_02', resolution: '2k', note: 'Fallen trunk, variant.' },
+  { kind: 'model', id: 'tree_stump_01', resolution: '2k', note: 'Cut stump.' },
+  { kind: 'model', id: 'tree_stump_02', resolution: '2k', note: 'Cut stump, variant.' },
+  { kind: 'model', id: 'pine_roots', resolution: '2k', note: 'Exposed roots across the path.' },
+  { kind: 'model', id: 'root_cluster_01', resolution: '2k', note: 'Roots at the path edge.' },
+  { kind: 'model', id: 'dry_branches_medium_01', resolution: '2k', note: 'Deadfall.' },
+  { kind: 'model', id: 'fern_02', resolution: '2k', note: 'Fern. The understorey of a glade.' },
   { kind: 'model', id: 'shrub_01', resolution: '1k', note: 'Ground shrub.' },
   { kind: 'model', id: 'shrub_02', resolution: '1k', note: 'Ground shrub.' },
   { kind: 'model', id: 'shrub_03', resolution: '1k', note: 'Ground shrub.' },
-  { kind: 'model', id: 'grass_medium_02', resolution: '1k', note: 'Grass tuft.' },
-  { kind: 'model', id: 'root_cluster_01', resolution: '2k', note: 'Roots at the path edge.' },
+  { kind: 'model', id: 'moss_01', resolution: '2k', note: 'Moss patch, low enough to walk over.' },
+  { kind: 'model', id: 'grass_medium_01', resolution: '1k', note: 'Grass tuft.' },
+  { kind: 'model', id: 'grass_medium_02', resolution: '1k', note: 'Grass tuft, second variant.' },
 
   // ── The ground itself ─────────────────────────────────────────────────────
   {
     kind: 'texture',
-    id: 'dirt_floor',
+    id: 'forest_ground_04',
     resolution: '2k',
-    note: 'The trail surface. From the same collection as the rocks, so it matches them.',
+    note: 'The clearing floor. From the pine_forest collection, so it matches the scans.',
   },
   {
     kind: 'texture',
-    id: 'aerial_grass_rock',
+    id: 'rocky_trail',
     resolution: '2k',
-    note: 'Away from the trail: grass over rock.',
+    note: 'The path and the pavilion pads: trodden ground rather than grass.',
+  },
+  {
+    kind: 'texture',
+    id: 'aerial_rocks_02',
+    resolution: '2k',
+    note: 'Anything too steep to hold soil. Without it the slopes read as smeared sand.',
   },
 
   // ── The sky ───────────────────────────────────────────────────────────────
   {
     kind: 'hdri',
-    id: 'drakensberg_solitary_mountain_puresky',
+    id: 'rustig_koppie_puresky',
     resolution: '4k',
     target: 'sky.hdr',
-    note: 'Mountain sky, both the backdrop and the light. 4K because it is visible.',
+    note:
+      'The backdrop and the light. A partly clouded afternoon with the sun still ' +
+      'in it: a forest is made of the shadows under its canopy, and an overcast ' +
+      'or misty sky — tried, and rejected — has none to give. 4K because it is visible.',
   },
 ];
 

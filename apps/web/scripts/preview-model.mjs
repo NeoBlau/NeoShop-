@@ -28,6 +28,11 @@ const TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
   '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.bin': 'application/octet-stream',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
   '.json': 'application/json',
 };
 
@@ -65,6 +70,8 @@ const PAGE = (modelUrl) => `<!doctype html>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -85,7 +92,13 @@ scene.add(sun, new THREE.HemisphereLight('#cfe0f5', '#5b5346', 0.5));
 
 const camera = new THREE.PerspectiveCamera(45, ${SIZE.width} / ${SIZE.height}, 0.01, 2000);
 
+// The same decoders the application serves, from the same place: the built
+// locations are Draco-compressed and their textures may be KTX2.
 const loader = new GLTFLoader();
+loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/apps/web/public/draco/'));
+loader.setKTX2Loader(
+  new KTX2Loader().setTranscoderPath('/apps/web/public/basis/').detectSupport(renderer),
+);
 const gltf = await loader.loadAsync('${modelUrl}');
 scene.add(gltf.scene);
 
@@ -155,15 +168,28 @@ async function main() {
 
   mkdirSync(OUT, { recursive: true });
 
+  const root = path.resolve(WEB, '../..');
   const extras = new Map();
+
   for (const [index, file] of files.entries()) {
-    extras.set(`/model-${index}.glb`, path.resolve(file));
+    const resolved = path.resolve(file);
+    // A .glb is self-contained and can be served from anywhere. A .gltf is
+    // not: its buffer and its textures are relative paths the loader resolves
+    // against the document's own URL, so it has to keep its real place under
+    // the workspace root.
+    const url =
+      path.extname(resolved).toLowerCase() === '.glb'
+        ? `/model-${index}.glb`
+        : `/${path.relative(root, resolved)}`;
+
+    if (url === `/model-${index}.glb`) extras.set(url, resolved);
+
     const page = path.join(OUT, `page-${index}.html`);
-    writeFileSync(page, PAGE(`/model-${index}.glb`));
+    writeFileSync(page, PAGE(url));
     extras.set(`/page-${index}.html`, page);
   }
 
-  const { server, port } = await serve(path.resolve(WEB, '../..'), extras);
+  const { server, port } = await serve(root, extras);
   const browser = await chromium.launch({
     executablePath: process.env.E2E_CHROMIUM_PATH,
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
@@ -173,7 +199,7 @@ async function main() {
     for (const [index, file] of files.entries()) {
       const name = path
         .basename(file)
-        .replace(/\.glb$/i, '')
+        .replace(/\.(glb|gltf)$/i, '')
         .slice(0, 48);
       const page = await browser.newPage({ viewport: SIZE });
       const errors = [];

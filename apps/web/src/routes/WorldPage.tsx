@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { missionForProduct, type WorldProduct } from '@3dsfera/shared';
+import type { OpenVendor } from '../scene/world/World.js';
 import { useWorld, useViewReporter } from '../features/world/useWorld.js';
 import { useCart } from '../stores/cart.js';
 import {
@@ -22,6 +23,7 @@ import {
   rememberedLocation,
 } from '../features/world/LocationPicker.js';
 import { ConciergePanel } from '../features/concierge/ConciergePanel.js';
+import { VendorPanel } from '../features/npc/VendorPanel.js';
 import { useInput } from '../scene/world/input.js';
 import { useLocationData, useLocationIndex } from '../features/world/useLocationData.js';
 import { Alert } from '../ui/Alert.js';
@@ -221,6 +223,10 @@ export function WorldPage() {
   const [touch, setTouch] = useState(false);
 
   const [concierge, setConcierge] = useState(false);
+  // Whoever the buyer is talking to, and whether their counter should be
+  // pulsing because the browser is reading an answer out.
+  const [vendor, setVendor] = useState<OpenVendor | null>(null);
+  const [vendorSpeaking, setVendorSpeaking] = useState(false);
   const { zones } = useZoneIndex();
   const { props: streetProps } = useProps();
   const navigate = useNavigate();
@@ -247,6 +253,7 @@ export function WorldPage() {
     setChosen(id);
     setSelected(null);
     setConcierge(false);
+    setVendor(null);
   }, []);
 
   // A mission is only offered when its room is actually in this build: a
@@ -292,8 +299,10 @@ export function WorldPage() {
   // Releasing the pointer lock is what closes the panel on a desktop; keep the
   // two in step so the cursor is always usable when a panel is open.
   useEffect(() => {
-    if ((selected || concierge) && document.pointerLockElement) document.exitPointerLock();
-  }, [selected, concierge]);
+    if ((selected || concierge || vendor) && document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+  }, [selected, concierge, vendor]);
 
   useEffect(() => () => useInput.getState().reset(), []);
 
@@ -301,11 +310,24 @@ export function WorldPage() {
     setSelected(product);
     setActiveClip(null);
     setConcierge(false);
+    setVendor(null);
   }, []);
 
   const handleConcierge = useCallback(() => {
     setSelected(null);
+    setVendor(null);
     setConcierge(true);
+  }, []);
+
+  const handleVendor = useCallback((who: OpenVendor) => {
+    setSelected(null);
+    setConcierge(false);
+    setVendor(who);
+  }, []);
+
+  const closeVendor = useCallback(() => {
+    setVendor(null);
+    setVendorSpeaking(false);
   }, []);
 
   const productCount = world?.pavilions.reduce(
@@ -377,17 +399,19 @@ export function WorldPage() {
           loop={loop}
           onSelect={handleSelect}
           formatPrice={formatPrice}
-          controlsEnabled={selected === null && !concierge}
+          controlsEnabled={selected === null && !concierge && vendor === null}
           onConciergeOpen={handleConcierge}
           props={streetProps}
           onFoodOpen={() => navigate('/food')}
+          onVendorOpen={handleVendor}
+          speakingVendorId={vendorSpeaking ? (vendor?.pavilionId ?? null) : null}
         />
       </Suspense>
 
       <SceneLoading />
 
       {/* Crosshair: without one it is hard to tell what a click will hit. */}
-      {!selected && !concierge ? (
+      {!selected && !concierge && !vendor ? (
         <div className="pointer-events-none absolute top-1/2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
       ) : null}
 
@@ -467,7 +491,7 @@ export function WorldPage() {
         </div>
       </div>
 
-      {!selected && !concierge ? (
+      {!selected && !concierge && !vendor ? (
         <div className="text-ink-faint pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
           <p className="bg-void/70 border-edge rounded-lg border px-3 py-1.5 text-center text-[11px] backdrop-blur">
             {touch ? t('world.controlsHintTouch') : t('world.controlsHint')}
@@ -475,9 +499,20 @@ export function WorldPage() {
         </div>
       ) : null}
 
-      {touch && !selected && !concierge ? <TouchControls /> : null}
+      {touch && !selected && !concierge && !vendor ? <TouchControls /> : null}
 
       {concierge ? <ConciergePanel onClose={() => setConcierge(false)} /> : null}
+
+      {vendor ? (
+        <VendorPanel
+          key={vendor.pavilionId}
+          name={vendor.name}
+          supplierName={vendor.supplierName}
+          category={vendor.category}
+          onSpeakingChange={setVendorSpeaking}
+          onClose={closeVendor}
+        />
+      ) : null}
 
       {selected ? (
         <ProductPanel

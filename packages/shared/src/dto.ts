@@ -184,6 +184,8 @@ export interface WorldProduct {
   priceCents: number;
   currency: Currency;
   stock: number;
+  /** Which shelf it belongs on. The vendor on the frontage talks about this. */
+  category: ProductCategory;
   previewUrl: string | null;
   /** Ordered from full detail down; empty when the model is still processing. */
   levels: WorldModelLevel[];

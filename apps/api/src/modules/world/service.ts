@@ -65,6 +65,7 @@ export async function loadWorld(db: Db): Promise<WorldResponse> {
           priceCents: true,
           currency: true,
           stock: true,
+          category: true,
           assets: {
             select: {
               kind: true,
@@ -114,6 +115,7 @@ export async function loadWorld(db: Db): Promise<WorldResponse> {
             priceCents: product.priceCents,
             currency: product.currency,
             stock: product.stock,
+            category: product.category,
             previewUrl: preview ? publicUrl(preview.storageKey) : null,
             levels: toLevels(product.assets),
             interactions: product.interactions.map((interaction): ProductInteractionDto => ({

@@ -4,9 +4,16 @@ import { AdaptiveDpr, Environment, PerformanceMonitor, Stats, Text } from '@reac
 import { Bloom, EffectComposer, SMAA, SSAO, ToneMapping } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { ACESFilmicToneMapping, PCFSoftShadowMap, type DirectionalLight } from 'three';
-import type { WorldProduct, WorldResponse } from '@3dsfera/shared';
+import {
+  dominantCategory,
+  vendorName,
+  type ProductCategory,
+  type WorldProduct,
+  type WorldResponse,
+} from '@3dsfera/shared';
 import { lowerTier, settingsFor, type QualitySettings, type QualityTier } from '../quality.js';
 import { Concierge, conciergePlacement } from './Concierge.js';
+import { Vendor, vendorPlacement } from './Vendor.js';
 import { FoodStand, standPlacement } from './FoodStand.js';
 import { Location } from './Location.js';
 import { ProductStand } from './ProductStand.js';
@@ -31,6 +38,9 @@ import type { PropEntry } from '../../features/world/useProps.js';
  * policy.
  */
 
+/** What a location gets when its build had no opinion: the street's own light. */
+const STREET_LIGHT = { exposure: 1.05, environment: 1, sun: 2.6, hemisphere: 0.35 } as const;
+
 /**
  * A sun that follows the buyer.
  *
@@ -39,7 +49,7 @@ import type { PropEntry } from '../../features/world/useProps.js';
  * every shadow turns to mush; kept to a forty-metre box around the camera it
  * is four centimetres a texel, which is enough to see the legs of a chair.
  */
-function Sun({ quality }: { quality: QualitySettings }) {
+function Sun({ quality, intensity }: { quality: QualitySettings; intensity: number }) {
   const light = useRef<DirectionalLight>(null);
   const shadows = quality.shadows;
 
@@ -55,7 +65,7 @@ function Sun({ quality }: { quality: QualitySettings }) {
   return (
     <directionalLight
       ref={light}
-      intensity={2.6}
+      intensity={intensity}
       color="#fff2df"
       castShadow={shadows !== false}
       shadow-mapSize-width={shadows ? shadows.mapSize : 1024}
@@ -121,10 +131,23 @@ export interface WorldProps {
   props: Record<string, PropEntry>;
   /** The buyer walked up to the food counter. */
   onFoodOpen: () => void;
+  /** The buyer walked up to a supplier's counter and spoke to whoever is on it. */
+  onVendorOpen: (vendor: OpenVendor) => void;
+  /** Which counter is reading an answer aloud, so the right strip pulses. */
+  speakingVendorId: string | null;
+}
+
+/** Everything the dialogue panel needs about the person being spoken to. */
+export interface OpenVendor {
+  pavilionId: string;
+  supplierName: string;
+  name: string;
+  category: ProductCategory;
 }
 
 /** One supplier's frontage: their name over their products. */
 function SupplierFront({
+  pavilionId,
   name,
   products,
   anchor,
@@ -134,7 +157,10 @@ function SupplierFront({
   loop,
   onSelect,
   formatPrice,
+  onVendorOpen,
+  vendorSpeaking,
 }: {
+  pavilionId: string;
   name: string;
   products: WorldProduct[];
   anchor: LocationData['manifest']['anchors'][number];
@@ -144,8 +170,24 @@ function SupplierFront({
   loop: boolean;
   onSelect: (product: WorldProduct | null) => void;
   formatPrice: (cents: number, currency: string) => string;
+  onVendorOpen: (vendor: OpenVendor) => void;
+  vendorSpeaking: boolean;
 }) {
   const placements = useMemo(() => standPlacements(products.length), [products.length]);
+  const counter = useMemo(() => vendorPlacement(products.length), [products.length]);
+
+  // Who is on this frontage, and what they know about. The name is derived
+  // from the pavilion's own id so it survives a reload without being stored,
+  // and the shelf they talk about is whatever the supplier actually sells.
+  const vendor = useMemo<OpenVendor>(
+    () => ({
+      pavilionId,
+      supplierName: name,
+      name: vendorName(pavilionId).ru,
+      category: dominantCategory(products.map((product) => product.category)),
+    }),
+    [pavilionId, name, products],
+  );
 
   return (
     <group position={anchor.stand} rotation={[0, anchor.facing, 0]}>
@@ -186,6 +228,17 @@ function SupplierFront({
           </group>
         );
       })}
+
+      {/* Staffed. Placed from the length of the row rather than from a
+          coordinate, so it stays at the end of the frontage whatever the
+          supplier put out. */}
+      <Vendor
+        placement={counter}
+        name={vendor.name}
+        supplierName={name}
+        speaking={vendorSpeaking}
+        onOpen={() => onVendorOpen(vendor)}
+      />
     </group>
   );
 }
@@ -205,6 +258,8 @@ function Scene({
   onConciergeOpen,
   props,
   onFoodOpen,
+  onVendorOpen,
+  speakingVendorId,
   quality,
 }: WorldProps & { quality: QualitySettings }) {
   const { grid, manifest } = location;
@@ -217,11 +272,18 @@ function Scene({
   const stand = useMemo(() => standPlacement(grid, manifest.spawn), [grid, manifest.spawn]);
   const foodStand = props['food-stand'];
 
+  // Lighting belongs to the location, not to this file. The street is a
+  // Parisian noon; the grove is a hazy morning under a pure sky, and the
+  // street's numbers applied to it blow the canopy out to white. A location
+  // whose build had no opinion gets the street's values, which is what every
+  // location was lit with before the manifest carried this.
+  const light = manifest.light ?? STREET_LIGHT;
+
   useEffect(() => {
     // The street was authored for a renderer with a physical sky. Ours is
     // close enough that the exposure, not the lighting, is what needs saying.
-    renderer.toneMappingExposure = 1.05;
-  }, [renderer]);
+    renderer.toneMappingExposure = light.exposure;
+  }, [renderer, light.exposure]);
 
   return (
     <>
@@ -230,7 +292,7 @@ function Scene({
             scene, and a flat colour above the rooflines gives it away. */}
         <Environment
           files={location.skyUrl}
-          environmentIntensity={1}
+          environmentIntensity={light.environment}
           background
           backgroundBlurriness={0}
         />
@@ -244,6 +306,7 @@ function Scene({
           return (
             <SupplierFront
               key={pavilion.id}
+              pavilionId={pavilion.id}
               name={pavilion.supplierName}
               products={pavilion.products}
               anchor={anchor}
@@ -253,6 +316,8 @@ function Scene({
               loop={loop}
               onSelect={onSelect}
               formatPrice={formatPrice}
+              onVendorOpen={onVendorOpen}
+              vendorSpeaking={speakingVendorId === pavilion.id}
             />
           );
         })}
@@ -266,10 +331,10 @@ function Scene({
         <FoodStand entry={foodStand} placement={stand} onOpen={onFoodOpen} />
       ) : null}
 
-      <Sun quality={quality} />
+      <Sun quality={quality} intensity={light.sun} />
       {/* A little sky bounce into the shaded side of the street. The HDRI does
           most of it; this keeps the north-facing walls from going flat. */}
-      <hemisphereLight args={['#cfe0f5', '#6d6455', 0.35]} />
+      <hemisphereLight args={['#cfe0f5', '#6d6455', light.hemisphere]} />
 
       <PlayerControls
         grid={grid}

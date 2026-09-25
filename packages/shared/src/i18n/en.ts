@@ -569,6 +569,22 @@ export const en: Dictionary = {
     stageNote_arrived: 'Enjoy it.',
     photoCredits: 'Photography: {{credits}}',
   },
+  npc: {
+    vendorRole: 'Sales assistant · {{supplier}}',
+    vendorGreeting:
+      "Hello, I'm {{name}}. Ask with the buttons, or say it out loud — I'll keep it short.",
+    ask: 'What to ask',
+    notCaught: "I didn't catch that. Say it again, or press one of the questions.",
+    listening: 'Listening…',
+    voiceOn: 'Turn the voice on',
+    voiceOff: 'Turn the voice off',
+    micStart: 'Ask out loud',
+    micStop: 'Stop recording',
+    micNotice:
+      "Speech recognition is the browser's: in Chrome the audio goes to Google's servers. Every one of these questions is also a button above.",
+    micUnavailable: 'This browser cannot recognise speech. Use the buttons.',
+    micFailed: 'The microphone did not work. Check the permission, or press a question.',
+  },
   concierge: {
     name: 'Concierge',
     role: 'Here to help',

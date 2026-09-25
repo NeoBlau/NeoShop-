@@ -36,6 +36,24 @@ export interface LocationManifest {
    * an absolute one when the HDRI is shared.
    */
   sky?: string;
+  /**
+   * How to light it, when the build had an opinion.
+   *
+   * A location built for one sky cannot be lit like a location built for
+   * another: the street's numbers, applied to a forest under a hazy pure sky,
+   * turn the canopy into white paper. Absent means the street's own values,
+   * which is what every location was lit with before this existed.
+   */
+  light?: {
+    /** Tone-mapping exposure. */
+    exposure: number;
+    /** How much of the HDRI reaches the surfaces. A pure sky needs far less than a street. */
+    environment: number;
+    /** The directional sun on top of it. */
+    sun: number;
+    /** Sky bounce into the shaded side. */
+    hemisphere: number;
+  };
   source: LocationSource;
   levels: { level: number; file: string; triangles: number; bytes: number }[];
   navigation: {
