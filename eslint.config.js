@@ -18,6 +18,9 @@ export default tseslint.config(
       '**/.cache/**',
       '**/.ktx/**',
       '**/*.config.js',
+      // The space simulator's downloaded textures and vendored three.js.
+      'apps/buran-odyssey/vendor/**',
+      'apps/buran-odyssey/assets/**',
     ],
   },
   js.configs.recommended,
@@ -52,6 +55,37 @@ export default tseslint.config(
         URL: 'readonly',
         window: 'readonly',
       },
+    },
+  },
+  {
+    // Buran-M runs as plain browser ES modules (no bundler), plus module
+    // workers and a few Node tools.
+    files: ['apps/buran-odyssey/**/*.js'],
+    languageOptions: {
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        performance: 'readonly',
+        localStorage: 'readonly',
+        fetch: 'readonly',
+        Image: 'readonly',
+        Worker: 'readonly',
+        URL: 'readonly',
+        XMLHttpRequest: 'readonly',
+        createImageBitmap: 'readonly',
+        HTMLInputElement: 'readonly',
+        setTimeout: 'readonly',
+        console: 'readonly',
+        self: 'readonly',
+        PerformanceObserver: 'readonly',
+      },
+    },
+  },
+  {
+    files: ['apps/buran-odyssey/tools/**/*.mjs'],
+    languageOptions: {
+      globals: { fetch: 'readonly', Buffer: 'readonly', performance: 'readonly' },
     },
   },
   {

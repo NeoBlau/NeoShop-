@@ -9,3 +9,7 @@ apps/api/prisma/migrations
 assets/
 .incoming/
 .preview/
+
+# Buran-M: downloaded textures and vendored three.js.
+apps/buran-odyssey/vendor/
+apps/buran-odyssey/assets/

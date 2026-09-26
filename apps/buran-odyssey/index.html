@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Буран-М: Одиссея</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M16 2 L20 22 L28 28 L16 25 L4 28 L12 22 Z%22 fill=%22%2349f2ff%22/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      // three.js is taken from vendor/ when `node tools/fetch-assets.mjs` has
+      // been run (offline / installed play), otherwise from jsDelivr.
+      (function () {
+        var v = '0.169.0';
+        var local = false;
+        try {
+          var x = new XMLHttpRequest();
+          x.open('HEAD', 'vendor/three/build/three.module.js', false);
+          x.send();
+          local = x.status === 200;
+        } catch (e) {
+          local = false;
+        }
+        var base = local ? './vendor/three/' : 'https://cdn.jsdelivr.net/npm/three@' + v + '/';
+        var map = {
+          imports: {
+            three: base + 'build/three.module.js',
+            'three/addons/': base + 'examples/jsm/',
+          },
+        };
+        var s = document.createElement('script');
+        s.type = 'importmap';
+        s.textContent = JSON.stringify(map);
+        document.currentScript.after(s);
+      })();
+    </script>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="hud" class="hidden"></div>
+
+    <div id="menu">
+      <div class="menu-inner">
+        <header>
+          <h1>БУРАН-М <span>ОДИССЕЯ</span></h1>
+          <p>
+            Научный симулятор исследования космоса. Реальные эфемериды JPL, оси вращения IAU,
+            атмосферы по данным NASA, рельеф по данным альтиметров MOLA/LOLA/MLA/Magellan.
+          </p>
+        </header>
+        <div class="menu-cols">
+          <section>
+            <h2>Миссии</h2>
+            <div id="missions"></div>
+          </section>
+          <section class="side">
+            <h2>Настройки</h2>
+            <label
+              >Качество графики
+              <select id="quality"></select
+            ></label>
+            <button id="resume" class="hidden primary">Продолжить полёт</button>
+            <button id="reset-science">Сбросить научную программу</button>
+            <h2>Цель игры</h2>
+            <p class="small">
+              Исследуйте Солнечную систему: орбитальная съёмка, пробы атмосферы, точные посадки у
+              исторических мест. Набрав 150 очков науки, откалибруйте варп-двигатель и прыгайте к
+              звёздам окрестностей — процедурные системы с экзопланетами, а в обитаемых зонах —
+              жизнь.
+            </p>
+            <p class="small">F1 — управление.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading" class="hidden">
+      <div class="text"></div>
+      <div class="bar"><div class="fill"></div></div>
+    </div>
+
+    <div id="help" class="hidden">
+      <div class="dialog">
+        <h2>Управление</h2>
+        <div id="help-keys"></div>
+        <button id="help-close">Закрыть</button>
+      </div>
+    </div>
+
+    <div id="starmap" class="hidden">
+      <div class="dialog wide">
+        <h2>Звёздная карта окрестностей</h2>
+        <p id="starmap-status" class="small"></p>
+        <div id="starmap-list"></div>
+        <button id="starmap-close">Закрыть</button>
+      </div>
+    </div>
+
+    <div id="gameover" class="hidden">
+      <div class="dialog">
+        <h2>Миссия потеряна</h2>
+        <p class="reason"></p>
+        <button id="go-restart" class="primary">Повторить</button>
+        <button id="go-menu">В меню</button>
+      </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>

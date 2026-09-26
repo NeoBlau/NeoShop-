@@ -1,0 +1,15 @@
+{
+  "name": "@3dsfera/buran-odyssey",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Буран-М: Одиссея — научный космический симулятор (Three.js)",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "fetch-assets": "node tools/fetch-assets.mjs",
+    "test": "node tools/physics-check.mjs"
+  },
+  "dependencies": {
+    "three": "0.169.0"
+  }
+}
