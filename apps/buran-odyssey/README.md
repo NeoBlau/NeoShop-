@@ -21,6 +21,24 @@
 работает без интернета), поднимает локальный сервер на свободном порту и
 открывает игру в браузере. Окно терминала не закрывайте, пока играете.
 
+**Установка одной командой** (ставит Node.js при необходимости, кладёт игру в
+`~/Games/BuranM`, создаёт ярлык):
+
+```bash
+# macOS
+curl -fsSL https://raw.githubusercontent.com/NeoBlau/NeoShop-/claude/affectionate-gauss-hor809/apps/buran-odyssey/install/install-macos.sh | bash
+# Linux
+curl -fsSL https://raw.githubusercontent.com/NeoBlau/NeoShop-/claude/affectionate-gauss-hor809/apps/buran-odyssey/install/install-linux.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/NeoBlau/NeoShop-/claude/affectionate-gauss-hor809/apps/buran-odyssey/install/install-windows.ps1 | iex
+```
+
+Если репозиторий приватный, скачайте ZIP в браузере и передайте его скрипту:
+`bash install/install-macos.sh ~/Downloads/файл.zip`.
+
 **Вручную:**
 
 ```bash
