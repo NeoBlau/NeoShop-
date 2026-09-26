@@ -2,3 +2,6 @@
 # offline-ready copy of the game (textures + three.js), so downloading it
 # from GitHub is enough to play. `node tools/fetch-assets.mjs` re-creates them.
 node_modules/
+
+# The monorepo ignores every build/ directory; three.js ships its modules in one.
+!vendor/three/build/
