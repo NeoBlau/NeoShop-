@@ -2,10 +2,13 @@
 // Usage: node tools/serve.mjs [port]
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, join, normalize, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const root = resolve(new URL('..', import.meta.url).pathname);
-const port = Number(process.argv[2]) || 8080;
+// fileURLToPath, not URL.pathname: the latter breaks on Windows drive letters
+// and on folders with spaces or Cyrillic names ("Загрузки").
+export const root = fileURLToPath(new URL('..', import.meta.url)).replace(/[\\/]$/, '');
+
 const types = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -18,10 +21,10 @@ const types = {
   '.svg': 'image/svg+xml',
 };
 
-createServer(async (req, res) => {
+async function handle(req, res) {
   try {
     let path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (path.endsWith('/')) path += 'index.html';
+    if (path.endsWith('/') || path.endsWith(sep)) path += 'index.html';
     const file = join(root, path);
     if (!file.startsWith(root)) throw new Error('outside root');
     await stat(file);
@@ -34,4 +37,21 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end('not found');
   }
-}).listen(port, () => console.log(`Буран-М: http://localhost:${port}`));
+}
+
+// Listens on `port`, or the next free one if it is taken. Resolves to the port.
+export function startServer(port = 8080, attempts = 20) {
+  return new Promise((resolve, reject) => {
+    const server = createServer(handle);
+    server.once('error', (e) => {
+      if (e.code === 'EADDRINUSE' && attempts > 1) resolve(startServer(port + 1, attempts - 1));
+      else reject(e);
+    });
+    server.listen(port, '127.0.0.1', () => resolve(port));
+  });
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const port = await startServer(Number(process.argv[2]) || 8080);
+  console.log(`Буран-М: http://localhost:${port}`);
+}

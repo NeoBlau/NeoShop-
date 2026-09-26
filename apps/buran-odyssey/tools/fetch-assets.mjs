@@ -4,10 +4,11 @@
 // Usage: node tools/fetch-assets.mjs
 import { mkdir, writeFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ASSETS, localName, remoteUrls, THREE_VERSION } from '../src/data/assets.js';
 
-const root = resolve(new URL('..', import.meta.url).pathname);
+const root = fileURLToPath(new URL('..', import.meta.url));
 
 async function download(urls) {
   let last;
