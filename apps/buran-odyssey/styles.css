@@ -569,3 +569,86 @@ small {
     height: 130px;
   }
 }
+
+/* Settings controls and gamepad configuration */
+label.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--dim);
+  margin: 6px 0;
+}
+label.slider input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+label.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--dim);
+  margin: 6px 0;
+}
+h3 {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  margin: 14px 0 6px;
+}
+#help-pad div {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 4px 0;
+  font-size: 14px;
+}
+#pad-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+  margin: 8px 0 12px;
+}
+.pad-group {
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+}
+.pad-row {
+  display: grid;
+  grid-template-columns: 1fr 190px 110px;
+  gap: 10px;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(120, 200, 255, 0.08);
+}
+.pad-row button {
+  margin: 0;
+  padding: 4px 8px;
+}
+kbd.capturing {
+  color: var(--warn);
+  border-color: var(--warn);
+  animation: blink 0.8s steps(2) infinite;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  #pad-settings {
+    grid-template-columns: 1fr;
+  }
+  .pad-row {
+    grid-template-columns: 1fr 120px 90px;
+  }
+}
+
+.small.warn {
+  color: var(--warn);
+}

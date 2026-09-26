@@ -36,6 +36,8 @@ import { Hud } from './ui/hud.js';
 import { NavBall } from './ui/navball.js';
 import { MapView } from './ui/mapView.js';
 import { Input, KEYMAP } from './game/input.js';
+import { GamepadInput, PAD_ACTIONS } from './game/gamepad.js';
+import { AudioEngine } from './audio/audioEngine.js';
 import { CameraRig } from './game/cameraRig.js';
 import { Science, WARP_REQUIREMENT, siteBearing, siteDistance } from './game/science.js';
 import { MISSIONS, circularOrbit } from './game/missions.js';
@@ -213,6 +215,26 @@ class Game {
     this.rig = new CameraRig(this.camera, canvas);
     this.science = new Science((t, k) => this.hud.toast(t, k));
     this.ship = new Ship();
+
+    // Sound starts on the first user gesture (browser autoplay policy).
+    this.audio = new AudioEngine();
+    const unlock = () => this.audio.unlock();
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    document.addEventListener('click', (e) => {
+      if (e.target instanceof HTMLElement && e.target.closest('button')) this.audio.play('click');
+    });
+    const toast = this.hud.toast.bind(this.hud);
+    this.hud.toast = (text, kind = '') => {
+      toast(text, kind);
+      if (kind === 'science') this.audio.play('chime');
+      else if (kind === 'warn') this.audio.play('warn');
+    };
+    this.pad = new GamepadInput();
+    this.pad.onChange = (msg) => {
+      this.hud.toast(msg);
+      this.updatePadStatus();
+    };
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -418,6 +440,7 @@ class Game {
     }
     if (entry.sol && this.system.meta.sol) return;
     if (!entry.sol && this.system.meta.seed === entry.seed) return;
+    this.audio.play('warpSpool');
     this.closeStarMap();
     this.warpFx = {
       t: 0,
@@ -466,50 +489,110 @@ class Game {
   }
 
   // ------------------------------------------------------------------ controls
-  handleInput(dt) {
+  // Keyboard and gamepad feed the same actions.
+  handleInput(dt, pad, overlay) {
     const I = this.input;
-    if (I.hit('Escape')) {
-      if (!document.getElementById('starmap').classList.contains('hidden')) this.closeStarMap();
+    const P = this.pad;
+    const hit = (code, action) => I.hit(code) || (!overlay && P.hit(action));
+    if (I.hit('Escape') || P.hit('pause')) {
+      if (!document.getElementById('padcfg').classList.contains('hidden')) this.closePadConfig();
+      else if (!document.getElementById('starmap').classList.contains('hidden'))
+        this.closeStarMap();
       else this.togglePause();
     }
-    if (I.hit('F1')) document.getElementById('help').classList.toggle('hidden');
-    if (I.hit('F2')) {
+    if (I.hit('F1') || P.hit('help')) document.getElementById('help').classList.toggle('hidden');
+    if (I.hit('F2') || P.hit('hud')) {
       this.hudVisible = !this.hudVisible;
       document.getElementById('hud').classList.toggle('hidden', !this.hudVisible);
     }
     if (this.paused) return;
-    if (I.down('ShiftLeft') || I.down('ShiftRight'))
-      this.throttle = Math.min(1, this.throttle + dt * 0.6);
-    if (I.down('ControlLeft') || I.down('ControlRight'))
-      this.throttle = Math.max(0, this.throttle - dt * 0.6);
-    if (I.hit('KeyZ')) this.throttle = 1;
-    if (I.hit('KeyX')) this.throttle = 0;
-    if (I.hit('KeyT')) {
+    const toggle = (on) => this.audio.play('toggle', { on });
+    let dThr = 0;
+    if (I.down('ShiftLeft') || I.down('ShiftRight')) dThr += 1;
+    if (I.down('ControlLeft') || I.down('ControlRight')) dThr -= 1;
+    if (pad && !overlay) dThr += pad.throttle;
+    this.throttle = Math.max(0, Math.min(1, this.throttle + dThr * dt * 0.6));
+    if (hit('KeyZ', 'fullThrottle')) this.throttle = 1;
+    if (hit('KeyX', 'cutThrottle')) this.throttle = 0;
+    if (hit('KeyT', 'sas')) {
       this.sas = !this.sas;
       this.ship.sasTarget = this.ship.q.clone();
       this.hud.toast(`SAS ${this.sas ? 'включена' : 'выключена'}`);
+      toggle(this.sas);
     }
-    for (let i = 0; i < 8; i++) {
-      if (I.hit('Digit' + (i + 1))) {
-        this.sasMode = SAS_KEYS[i];
-        this.sas = true;
-        this.ship.sasTarget = this.ship.q.clone();
+    const setMode = (i) => {
+      this.sasMode = SAS_KEYS[(i + SAS_KEYS.length) % SAS_KEYS.length];
+      this.sas = true;
+      this.ship.sasTarget = this.ship.q.clone();
+      toggle(true);
+    };
+    for (let i = 0; i < 8; i++) if (I.hit('Digit' + (i + 1))) setMode(i);
+    if (!overlay && P.hit('sasNext')) setMode(SAS_KEYS.indexOf(this.sasMode) + 1);
+    if (!overlay && P.hit('sasPrev')) setMode(SAS_KEYS.indexOf(this.sasMode) - 1);
+    if (hit('KeyR', 'rcs')) {
+      this.rcs = !this.rcs;
+      toggle(this.rcs);
+      this.hud.toast(`Двигатели ориентации ${this.rcs ? 'включены' : 'выключены'}`);
+    }
+    if (hit('KeyG', 'gear')) {
+      this.gearTarget = this.gearTarget ? 0 : 1;
+      toggle(this.gearTarget > 0);
+    }
+    this.brakes = I.down('KeyB') || (!overlay && P.down('brakes'));
+    if (hit('KeyF', 'speedBrake')) {
+      this.speedBrakeTarget = this.speedBrakeTarget ? 0 : 1;
+      toggle(this.speedBrakeTarget > 0);
+    }
+    if (hit('KeyP', 'chute')) this.toggleChute();
+    if (hit('Period', 'warpUp')) this.setWarp(this.warpIndex + 1);
+    if (hit('Comma', 'warpDown')) this.setWarp(this.warpIndex - 1);
+    if (hit('Slash', 'warpReset')) this.setWarp(0);
+    if (hit('KeyM', 'map')) this.rig.map = !this.rig.map;
+    if (hit('KeyV', 'camera')) this.rig.cycle();
+    if (!overlay && P.hit('camReset')) {
+      this.rig.yaw = Math.PI;
+      this.rig.pitch = 0.25;
+    }
+    if (hit('Tab', 'target')) this.cycleTarget();
+    if (hit('KeyY', 'site')) this.cycleSite();
+    if (hit('KeyU', 'starMap')) this.openStarMap();
+    if (hit('KeyO', 'refuel')) this.tryRefuel();
+    // Right stick looks around (map: orbits the planet).
+    if (pad && !overlay && (pad.camX || pad.camY)) {
+      if (this.rig.map) {
+        this.rig.mapYaw -= pad.camX * dt * 1.8;
+        this.rig.mapPitch = Math.max(-1.5, Math.min(1.5, this.rig.mapPitch - pad.camY * dt * 1.4));
+      } else {
+        this.rig.yaw -= pad.camX * dt * 2.2;
+        this.rig.pitch = Math.max(-1.5, Math.min(1.5, this.rig.pitch - pad.camY * dt * 1.6));
       }
     }
-    if (I.hit('KeyR')) this.rcs = !this.rcs;
-    if (I.hit('KeyG')) this.gearTarget = this.gearTarget ? 0 : 1;
-    this.brakes = I.down('KeyB');
-    if (I.hit('KeyF')) this.speedBrakeTarget = this.speedBrakeTarget ? 0 : 1;
-    if (I.hit('KeyP')) this.toggleChute();
-    if (I.hit('Period')) this.setWarp(this.warpIndex + 1);
-    if (I.hit('Comma')) this.setWarp(this.warpIndex - 1);
-    if (I.hit('Slash')) this.setWarp(0);
-    if (I.hit('KeyM')) this.rig.map = !this.rig.map;
-    if (I.hit('KeyV')) this.rig.cycle();
-    if (I.hit('Tab')) this.cycleTarget();
-    if (I.hit('KeyY')) this.cycleSite();
-    if (I.hit('KeyU')) this.openStarMap();
-    if (I.hit('KeyO')) this.tryRefuel();
+  }
+
+  // The dialog the gamepad currently navigates, if any.
+  topOverlay() {
+    for (const id of ['padcfg', 'help', 'starmap', 'gameover', 'menu']) {
+      const el = document.getElementById(id);
+      if (el && !el.classList.contains('hidden')) return el;
+    }
+    return null;
+  }
+
+  padBack(overlay) {
+    switch (overlay.id) {
+      case 'padcfg':
+        this.closePadConfig();
+        break;
+      case 'help':
+        overlay.classList.add('hidden');
+        break;
+      case 'starmap':
+        this.closeStarMap();
+        break;
+      case 'menu':
+        if (this.running) this.togglePause();
+        break;
+    }
   }
 
   setWarp(i) {
@@ -539,6 +622,8 @@ class Game {
     if (s.airDensity < 1e-4) return this.hud.toast('Парашюты бесполезны без атмосферы', 'warn');
     s.chuteDeployed = true;
     s.chuteLost = false;
+    this.audio.play('chute');
+    this.pad.rumble(0.6, 0.3, 200);
     this.hud.toast(
       s.surfaceSpeed > SPEC.chuteMaxSpeed
         ? 'Скорость слишком велика — купола порвёт!'
@@ -585,18 +670,39 @@ class Game {
     this.realTime += realDt;
     this.frameTimes.push(realDt);
     if (this.frameTimes.length > 60) this.frameTimes.shift();
+    const pad = this.pad.poll(realDt);
+    // Gamepad presses do not count as a user gesture everywhere; try anyway.
+    if (this.pad.now.some(Boolean)) this.audio.unlock();
+    document
+      .getElementById('sound-hint')
+      ?.classList.toggle('hidden', this.audio.ctx?.state === 'running');
+    const overlay = this.topOverlay();
+    if (overlay) this.pad.navigate(overlay, () => this.padBack(overlay));
     if (!this.system || !this.ship.ref) {
       this.input.endFrame();
+      if (overlay && (this.pad.hit('pause') || this.input.hit('Escape'))) this.padBack(overlay);
+      // Before the first mission the menu floats over a slowly turning sky.
+      this.camera.position.set(0, 0, 0);
+      this.camera.up.set(0, 0, 1);
+      const a = this.realTime * 0.01;
+      this.camera.lookAt(Math.cos(a), Math.sin(a), 0.15);
+      this.composer.render();
       return;
     }
-    this.handleInput(realDt);
-    const axes = this.input.update(realDt);
+    this.handleInput(realDt, pad, overlay);
+    const axes = this.input.update(realDt, overlay ? null : pad);
     const ship = this.ship;
 
     // Actuators
+    const gearWas = this.gear;
     this.gear +=
       Math.sign(this.gearTarget - this.gear) *
       Math.min(Math.abs(this.gearTarget - this.gear), realDt / 3.5);
+    this.gearMoving = this.gear !== gearWas;
+    if (gearWas !== this.gear && (this.gear === 0 || this.gear === 1)) {
+      this.audio.play('gearLock');
+      this.pad.rumble(0.3, 0.1, 90);
+    }
     this.speedBrake +=
       Math.sign(this.speedBrakeTarget - this.speedBrake) *
       Math.min(Math.abs(this.speedBrakeTarget - this.speedBrake), realDt / 2);
@@ -611,9 +717,9 @@ class Game {
       yaw: axes.yaw,
       roll: axes.roll,
       throttle: ship.destroyed ? 0 : this.throttle,
-      tx: (this.input.down('KeyH') ? 1 : 0) - (this.input.down('KeyN') ? 1 : 0),
-      ty: (this.input.down('KeyL') ? 1 : 0) - (this.input.down('KeyJ') ? 1 : 0),
-      tz: (this.input.down('KeyK') ? 1 : 0) - (this.input.down('KeyI') ? 1 : 0),
+      tx: (this.input.down('KeyH') ? 1 : 0) - (this.input.down('KeyN') ? 1 : 0) + (pad?.tx ?? 0),
+      ty: (this.input.down('KeyL') ? 1 : 0) - (this.input.down('KeyJ') ? 1 : 0) + (pad?.ty ?? 0),
+      tz: (this.input.down('KeyK') ? 1 : 0) - (this.input.down('KeyI') ? 1 : 0) + (pad?.tz ?? 0),
       rcs: this.rcs,
       sas: this.sas,
       sasMode: this.sasMode,
@@ -705,6 +811,8 @@ class Game {
       if (w.t > 2 && !w.swapped) {
         w.swapped = true;
         w.swapping = true;
+        this.audio.play('warpJump');
+        this.pad.rumble(1, 0.8, 600);
         this._swapSystem(w.entry).finally(() => {
           w.swapping = false;
           w.t = 3;
@@ -716,10 +824,63 @@ class Game {
       }
     }
 
+    this.updateAudio(realDt);
+
     // HUD
     if (this.running) this.updateHud(realDt, warpNote);
     this.composer.render();
     this.input.endFrame();
+  }
+
+  updateAudio(dt) {
+    const ship = this.ship;
+    const ref = ship.ref;
+    const alerts = new Set();
+    if (ship.hullTemp > SPEC.tpsLimit * 0.9) alerts.add('heat');
+    if (ship.gForce > SPEC.gLimit * 0.8) alerts.add('g');
+    if (ship.groundAltitude < 400 && ship.verticalSpeed < -12 && !ship.landed)
+      alerts.add('terrain');
+    if (ship.fuel <= 0 && this.throttle > 0) alerts.add('fuel');
+    if (ship.airPressure > (ref.atmosphere?.crushPressure ?? Infinity) * 0.7)
+      alerts.add('pressure');
+    const onGround = ship.contactCount > 0;
+    const thr = ship.destroyed ? 0 : ship.thrust / SPEC.thrustVac || 0;
+    this.audio.update(
+      {
+        throttle: thr,
+        rho: ship.airDensity,
+        q: ship.dynPressure,
+        mach: ship.airDensity > 1e-6 ? ship.mach : 0,
+        plasma: ship.plasma,
+        onGround,
+        groundSpeed: ship.surfaceSpeed,
+        gearMoving: this.gearMoving,
+        camera: this.rig.map ? 'map' : this.rig.mode,
+        paused: this.paused,
+        destroyed: ship.destroyed,
+        rcs: this.rcs ? Math.min(1, ship.rcsActivity.length() + ship.rcsTranslate.length()) : 0,
+        alerts,
+        radarAlt: ship.groundAltitude,
+        vs: ship.verticalSpeed,
+        gearDown: this.gearTarget > 0,
+        landed: ship.landed || onGround,
+      },
+      dt,
+    );
+    // Haptics: drive rumble, entry buffet, runway rumble, aerodynamic buffet near stall.
+    this._rumbleT = (this._rumbleT ?? 0) - dt;
+    if (this._rumbleT <= 0 && !this.paused && !ship.destroyed) {
+      this._rumbleT = 0.1;
+      const q = ship.dynPressure / 1000;
+      const buffet =
+        ship.airDensity > 1e-4 && Math.abs(ship.alpha) > 0.5 && ship.mach < 1 ? 0.35 : 0;
+      const strong = Math.min(
+        1,
+        thr * 0.25 + ship.plasma * 0.5 + (onGround ? ship.surfaceSpeed / 250 : 0) + buffet,
+      );
+      const weak = Math.min(1, thr * 0.15 + Math.sqrt(q) * 0.05 + ship.plasma * 0.3);
+      if (strong > 0.03 || weak > 0.03) this.pad.rumble(strong, weak, 130);
+    }
   }
 
   updateLighting(f, shipPos, origin) {
@@ -894,10 +1055,17 @@ class Game {
     for (const e of ship.events) {
       switch (e.type) {
         case 'soi':
+          this.audio.play('soi');
           this.hud.toast(`Сфера действия: ${e.body.name}`);
           if (this.warpIndex > 6) this.setWarp(6);
           break;
         case 'touchdown': {
+          this.audio.play('touchdown', {
+            speed: e.speed,
+            groundSpeed: ship.surfaceSpeed,
+            air: ship.airDensity > 1e-3,
+          });
+          this.pad.rumble(Math.min(1, e.speed / 3), Math.min(1, e.speed / 2), 260);
           if (e.gear === 1)
             this.hud.toast(
               `Касание: ${e.speed.toFixed(2)} м/с${e.speed > 3 ? ' — жёстко!' : ''}`,
@@ -924,9 +1092,12 @@ class Game {
           break;
         }
         case 'splash':
+          this.audio.play('touchdown', { speed: 4, groundSpeed: 0, air: true });
+          this.pad.rumble(1, 1, 500);
           this.hud.toast('Приводнение! Орбитер не рассчитан на посадку на воду.', 'warn');
           break;
         case 'chuteRupture':
+          this.audio.play('tear');
           this.hud.toast('Купола парашютов разорваны: скорость выше 140 м/с', 'warn');
           break;
         case 'destroyed':
@@ -938,6 +1109,8 @@ class Game {
   }
 
   onDestroyed(reason) {
+    this.audio.play('explosion');
+    this.pad.rumble(1, 1, 900);
     this.model.group.visible = false;
     this.explosion.count = 0;
     for (let k = 0; k < 1200; k++) {
@@ -1126,6 +1299,112 @@ class Game {
     document.getElementById('help-close').onclick = () =>
       document.getElementById('help').classList.add('hidden');
     document.getElementById('starmap-close').onclick = () => this.closeStarMap();
+
+    // Sound settings
+    const A = this.audio.settings;
+    for (const [id, key] of [
+      ['vol-master', 'master'],
+      ['vol-sfx', 'sfx'],
+      ['vol-voice', 'voice'],
+    ]) {
+      const el = document.getElementById(id);
+      el.value = String(A[key]);
+      el.oninput = () => {
+        A[key] = Number(el.value);
+        this.audio.saveSettings();
+      };
+    }
+    const co = document.getElementById('callouts');
+    co.checked = A.callouts;
+    co.onchange = () => {
+      A.callouts = co.checked;
+      this.audio.saveSettings();
+    };
+
+    // Gamepad
+    document.getElementById('pad-open').onclick = () => this.openPadConfig();
+    document.getElementById('pad-close').onclick = () => this.closePadConfig();
+    document.getElementById('pad-reset').onclick = () => {
+      this.pad.resetDefaults();
+      this.renderPadConfig();
+    };
+    this.updatePadStatus();
+    this.renderPadHelp();
+  }
+
+  updatePadStatus() {
+    const el = document.getElementById('pad-status');
+    if (!el) return;
+    const p = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null;
+    el.textContent = p
+      ? `Подключён: ${p.id.replace(/\(.*?\)/g, '').trim()}${p.mapping === 'standard' ? '' : ' (нестандартная раскладка — проверьте назначения)'}`
+      : 'Геймпад не найден. Подключите его и нажмите любую кнопку.';
+  }
+
+  renderPadHelp() {
+    const el = document.getElementById('help-pad');
+    if (!el) return;
+    el.innerHTML = PAD_ACTIONS.map(
+      (a) => `<div><kbd>${this.pad.describe(a.id)}</kbd><span>${a.label}</span></div>`,
+    ).join('');
+  }
+
+  openPadConfig() {
+    this.renderPadConfig();
+    document.getElementById('padcfg').classList.remove('hidden');
+    this.updatePadStatus();
+  }
+
+  closePadConfig() {
+    this.pad.cancelCapture();
+    this.pad.saveAll();
+    this.renderPadHelp();
+    document.getElementById('padcfg').classList.add('hidden');
+  }
+
+  renderPadConfig() {
+    const S = this.pad.settings;
+    const box = document.getElementById('pad-settings');
+    box.innerHTML = `
+      <label class="slider">Мёртвая зона <input type="range" id="pad-dz" min="0" max="0.4" step="0.02" value="${S.deadzone}"></label>
+      <label class="slider">Кривая отклика (0 — линейная) <input type="range" id="pad-curve" min="0" max="1" step="0.05" value="${S.curve}"></label>
+      <label class="check"><input type="checkbox" id="pad-inv" ${S.invertPitch ? 'checked' : ''}> Инвертировать тангаж</label>
+      <label class="check"><input type="checkbox" id="pad-invcam" ${S.invertCamY ? 'checked' : ''}> Инвертировать обзор по вертикали</label>
+      <label class="check"><input type="checkbox" id="pad-rumble" ${S.rumble ? 'checked' : ''}> Вибрация</label>`;
+    const bind = (id, key, conv) => {
+      const el = document.getElementById(id);
+      const upd = () => {
+        S[key] = conv(el);
+        this.pad.saveAll();
+      };
+      el.oninput = upd;
+      el.onchange = upd;
+    };
+    bind('pad-dz', 'deadzone', (e) => Number(e.value));
+    bind('pad-curve', 'curve', (e) => Number(e.value));
+    bind('pad-inv', 'invertPitch', (e) => e.checked);
+    bind('pad-invcam', 'invertCamY', (e) => e.checked);
+    bind('pad-rumble', 'rumble', (e) => e.checked);
+    const list = document.getElementById('pad-bindings');
+    let group = '';
+    list.innerHTML = PAD_ACTIONS.map((a) => {
+      const head = a.group !== group ? `<div class="pad-group">${(group = a.group)}</div>` : '';
+      return `${head}<div class="pad-row"><span>${a.label}</span><kbd id="pb-${a.id}">${this.pad.describe(a.id)}</kbd><button data-act="${a.id}">Назначить</button></div>`;
+    }).join('');
+    list.querySelectorAll('button[data-act]').forEach((b) => {
+      b.onclick = () => {
+        const id = b.dataset.act;
+        const kbd = document.getElementById('pb-' + id);
+        const kind = PAD_ACTIONS.find((a) => a.id === id).kind;
+        kbd.textContent = kind === 'axis' ? 'Отклоните стик до упора…' : 'Нажмите кнопку…';
+        kbd.classList.add('capturing');
+        this.pad.startCapture(id, (desc) => {
+          kbd.textContent = desc;
+          kbd.classList.remove('capturing');
+          this.audio.play('toggle', { on: true });
+        });
+      };
+    });
   }
 
   showLoading(text, p) {
@@ -1151,6 +1430,7 @@ class Game {
     if (!this.running) return;
     const show = forceMenu || menu.classList.contains('hidden');
     menu.classList.toggle('hidden', !show);
+    document.getElementById('hud').classList.toggle('hidden', show || !this.hudVisible);
     this.paused = show;
   }
 

@@ -62,6 +62,27 @@
               <select id="quality"></select
             ></label>
             <button id="resume" class="hidden primary">Продолжить полёт</button>
+            <h2>Звук</h2>
+            <p class="small warn" id="sound-hint">
+              Браузер ждёт действия пользователя: кликните мышью или нажмите любую клавишу, чтобы
+              включить звук.
+            </p>
+            <label class="slider"
+              >Общая громкость <input type="range" id="vol-master" min="0" max="1" step="0.05"
+            /></label>
+            <label class="slider"
+              >Эффекты <input type="range" id="vol-sfx" min="0" max="1" step="0.05"
+            /></label>
+            <label class="slider"
+              >Голос <input type="range" id="vol-voice" min="0" max="1" step="0.05"
+            /></label>
+            <label class="check"
+              ><input type="checkbox" id="callouts" /> Голосовые отсчёты высоты и
+              предупреждения</label
+            >
+            <h2>Геймпад</h2>
+            <p class="small" id="pad-status"></p>
+            <button id="pad-open">Настроить геймпад</button>
             <button id="reset-science">Сбросить научную программу</button>
             <h2>Цель игры</h2>
             <p class="small">
@@ -84,7 +105,10 @@
     <div id="help" class="hidden">
       <div class="dialog">
         <h2>Управление</h2>
+        <h3>Клавиатура</h3>
         <div id="help-keys"></div>
+        <h3>Геймпад</h3>
+        <div id="help-pad"></div>
         <button id="help-close">Закрыть</button>
       </div>
     </div>
@@ -95,6 +119,22 @@
         <p id="starmap-status" class="small"></p>
         <div id="starmap-list"></div>
         <button id="starmap-close">Закрыть</button>
+      </div>
+    </div>
+
+    <div id="padcfg" class="hidden">
+      <div class="dialog wide">
+        <h2>Настройка геймпада</h2>
+        <p class="small">
+          Раскладка по умолчанию — как у Xbox-контроллера в Microsoft Flight Simulator: левый стик —
+          тангаж и крен, курки — педали (рыскание), бамперы — тяга, правый стик — обзор. Удерживая
+          Y, вы получаете второй слой функций, а стики переходят в RCS-трансляцию. Нажмите
+          «Назначить» и затем нужную кнопку или отклоните стик.
+        </p>
+        <div id="pad-settings"></div>
+        <div id="pad-bindings"></div>
+        <button id="pad-reset">По умолчанию</button>
+        <button id="pad-close" class="primary">Готово</button>
       </div>
     </div>
 

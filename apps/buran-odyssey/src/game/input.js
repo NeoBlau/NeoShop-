@@ -1,4 +1,4 @@
-// Keyboard (and gamepad) controls. Continuous axes are smoothed so digital
+// Keyboard controls (the gamepad lives in gamepad.js). Continuous axes are smoothed so digital
 // keys still give proportional RCS/elevon commands.
 
 export const KEYMAP = [
@@ -56,27 +56,26 @@ export class Input {
     this.pressed.clear();
   }
 
-  // Smoothed control axes (-1..1).
-  update(dt) {
+  // Smoothed control axes (-1..1). Keys are smoothed into proportional
+  // commands; analog gamepad axes (already shaped) are added on top.
+  update(dt, pad = null) {
     const target = {
       pitch: (this.down('KeyS') ? 1 : 0) - (this.down('KeyW') ? 1 : 0),
       yaw: (this.down('KeyD') ? 1 : 0) - (this.down('KeyA') ? 1 : 0),
       roll: (this.down('KeyE') ? 1 : 0) - (this.down('KeyQ') ? 1 : 0),
     };
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const gp = pads && [...pads].find((p) => p);
-    if (gp) {
-      const dz = (v) => (Math.abs(v) < 0.12 ? 0 : v);
-      target.roll += dz(gp.axes[0] || 0);
-      target.pitch += dz(gp.axes[1] || 0);
-      target.yaw += dz(gp.axes[2] || 0);
-    }
     const k = Math.min(1, dt * 6);
     for (const a of ['pitch', 'yaw', 'roll']) {
       const t = Math.max(-1, Math.min(1, target[a]));
       this.axes[a] += (t - this.axes[a]) * (t === 0 ? Math.min(1, dt * 12) : k);
       if (Math.abs(this.axes[a]) < 0.002) this.axes[a] = 0;
     }
-    return this.axes;
+    if (!pad) return this.axes;
+    const clampAxis = (v) => Math.max(-1, Math.min(1, v));
+    return {
+      pitch: clampAxis(this.axes.pitch + pad.pitch),
+      yaw: clampAxis(this.axes.yaw + pad.yaw),
+      roll: clampAxis(this.axes.roll + pad.roll),
+    };
   }
 }

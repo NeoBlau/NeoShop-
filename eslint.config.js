@@ -76,6 +76,8 @@ export default tseslint.config(
         createImageBitmap: 'readonly',
         HTMLInputElement: 'readonly',
         setTimeout: 'readonly',
+        Event: 'readonly',
+        HTMLElement: 'readonly',
         console: 'readonly',
         self: 'readonly',
         PerformanceObserver: 'readonly',
