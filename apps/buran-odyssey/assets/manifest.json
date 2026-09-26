@@ -1,0 +1,31 @@
+{
+  "three": "0.169.0",
+  "assets": {
+    "stars8k": "stars8k.jpg",
+    "stars2k": "stars2k.jpg",
+    "sun": "sun.jpg",
+    "mercury": "mercury.jpg",
+    "mercuryTopo": "mercuryTopo.jpg",
+    "venusSurface": "venusSurface.jpg",
+    "venusTopo": "venusTopo.jpg",
+    "earthDay": "earthDay.jpg",
+    "earthNight": "earthNight.jpg",
+    "earthClouds": "earthClouds.png",
+    "earthOcean": "earthOcean.jpg",
+    "earthTopo": "earthTopo.jpg",
+    "moon": "moon.jpg",
+    "moonTopo": "moonTopo.jpg",
+    "mars": "mars.jpg",
+    "marsTopo": "marsTopo.jpg",
+    "jupiter": "jupiter.jpg",
+    "io": "io.jpg",
+    "europa": "europa.jpg",
+    "ganymede": "ganymede.jpg",
+    "saturn": "saturn.jpg",
+    "saturnRing": "saturnRing.png",
+    "uranus": "uranus.jpg",
+    "neptune": "neptune.jpg",
+    "pluto": "pluto.jpg",
+    "plutoTopo": "plutoTopo.jpg"
+  }
+}

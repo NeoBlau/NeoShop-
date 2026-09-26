@@ -1,5 +1,4 @@
-# Downloaded by tools/fetch-assets.mjs — reproducible, not committed.
-assets/*
-!assets/.gitkeep
-vendor/
+# assets/ and vendor/ are committed on purpose: the folder is a complete,
+# offline-ready copy of the game (textures + three.js), so downloading it
+# from GitHub is enough to play. `node tools/fetch-assets.mjs` re-creates them.
 node_modules/
