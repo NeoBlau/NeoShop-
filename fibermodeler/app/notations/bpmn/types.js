@@ -8,6 +8,7 @@
  */
 import * as G from './glyphs.js';
 import { circle, diamond, esc, line, n, polygon, rect, textBlock } from '../shared.js';
+import { EDGE_ANALYSIS_PROPS, NODE_ANALYSIS_PROPS } from '../../analysis/parameters.js';
 
 export const EVENT_SIZE = 36;
 export const GATEWAY_SIZE = 50;
@@ -232,11 +233,11 @@ const ASSIGNEE_PROP = {
 };
 
 function taskProps(extra = []) {
-  return [P.name, P.id, ...extra, P.description, LOOP_PROP, P.documentation];
+  return [P.name, P.id, ...extra, P.description, LOOP_PROP, ...NODE_ANALYSIS_PROPS, P.documentation];
 }
 
 function eventProps(extra = []) {
-  return [P.name, P.id, ...extra, P.description, P.documentation];
+  return [P.name, P.id, ...extra, P.description, ...NODE_ANALYSIS_PROPS, P.documentation];
 }
 
 /* ------------------------------------------------------------- catalogue */
@@ -458,6 +459,7 @@ function gatewayType(id, name, markerKey, element) {
         ],
       },
       P.description,
+      ...NODE_ANALYSIS_PROPS,
       P.documentation,
     ],
     bpmn: { element },
@@ -755,6 +757,7 @@ export const BPMN_EDGE_TYPES = {
       { key: 'id', type: 'id', label: { en: 'ID', ru: 'Идентификатор' }, group: 'general' },
       { key: 'condition', type: 'text', label: { en: 'Condition', ru: 'Условие' }, group: 'general' },
       { key: 'isDefault', type: 'checkbox', label: { en: 'Default flow', ru: 'Поток по умолчанию' }, group: 'general' },
+      ...EDGE_ANALYSIS_PROPS,
       { key: 'documentation', type: 'textarea', label: { en: 'Documentation', ru: 'Документация' }, group: 'documentation', rows: 4 },
     ],
     bpmn: { element: 'sequenceFlow' },

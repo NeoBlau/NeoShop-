@@ -91,7 +91,7 @@ export function buildBpmnDiagram(spec, options = {}) {
         source,
         target,
         label: text(item.label, locale),
-        props: item.condition ? { condition: item.condition } : {},
+        props: { ...(item.props || {}), ...(item.condition ? { condition: item.condition } : {}) },
       })
     );
   }

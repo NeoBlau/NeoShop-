@@ -8,6 +8,7 @@
 import { fmt, pointAlong, roundedPath } from '../core/geometry.js';
 import { esc, n, textBlock } from '../notations/shared.js';
 import { getNotation } from '../notations/index.js';
+import { formatDuration, formatMoney, nodeCost, nodeDuration, nodeResource, nodeWait } from '../analysis/parameters.js';
 
 const ARROW_LENGTH = 11;
 const ARROW_WIDTH = 4.2;
@@ -26,6 +27,31 @@ export function nodeElementHtml(node, descriptor, ctx) {
   return (
     `<g class="node" data-id="${esc(node.id)}" data-type="${esc(node.type)}" transform="translate(${n(node.x)},${n(node.y)})">` +
     nodeMarkup(node, descriptor, ctx) +
+    (ctx?.showParams ? paramBadge(node, ctx) : '') +
+    '</g>'
+  );
+}
+
+/** Small time / cost / resource tag drawn under an element. */
+export function paramBadge(node, ctx = {}) {
+  const duration = nodeDuration(node) + nodeWait(node);
+  const cost = nodeCost(node);
+  const resource = nodeResource(node);
+  if (!duration && !cost && !resource) return '';
+  const locale = ctx.locale || 'ru';
+  const parts = [];
+  if (duration) parts.push(`⏱ ${formatDuration(duration, locale)}`);
+  if (cost) parts.push(formatMoney(cost, ctx.currency || 'R$', locale));
+  const line = parts.join('  ·  ');
+  const width = Math.max(52, line.length * 5.6 + 12);
+  const y = node.h + 3;
+  return (
+    `<g class="param-badge" pointer-events="none">` +
+    `<rect x="${n(node.w / 2 - width / 2)}" y="${n(y)}" width="${n(width)}" height="15" rx="7.5" fill="var(--badge-fill)" stroke="var(--badge-stroke)" stroke-width="0.8"/>` +
+    `<text x="${n(node.w / 2)}" y="${n(y + 10.6)}" text-anchor="middle" font-size="9.5" fill="var(--badge-text)">${esc(line)}</text>` +
+    (resource
+      ? `<text x="${n(node.w / 2)}" y="${n(y + 26)}" text-anchor="middle" font-size="9" fill="var(--badge-muted)">${esc(resource)}</text>`
+      : '') +
     '</g>'
   );
 }
@@ -99,6 +125,16 @@ export function edgeMarkup(edge, geom, descriptor, options = {}) {
     const p = geom.points[geom.points.length - 1];
     markup += `<text class="edge-icom" x="${fmt(p.x - 6)}" y="${fmt(p.y - 6)}" font-size="10" fill="var(--accent)">${esc(edge.props.icom)}</text>`;
   }
+  const share = options.showParams && edge.props?.probability !== undefined && edge.props?.probability !== ''
+    ? `${Math.round(Number(edge.props.probability))}%`
+    : '';
+  if (share) {
+    const p = geom.labelPoint || geom.points[0];
+    markup +=
+      `<g class="share-badge" pointer-events="none" transform="translate(${fmt(p.x)},${fmt(p.y + 11)})">` +
+      '<rect x="-15" y="-8" width="30" height="15" rx="7.5" fill="var(--badge-fill)" stroke="var(--badge-stroke)" stroke-width="0.8"/>' +
+      `<text x="0" y="3" text-anchor="middle" font-size="9.5" fill="var(--badge-text)">${esc(share)}</text></g>`;
+  }
   const label = edge.label || (edge.props?.condition ? `[${edge.props.condition}]` : '');
   if (label) {
     const lp = geom.labelPoint || geom.points[0];
@@ -135,7 +171,12 @@ export function diagramMarkup(diagram, geometries, options = {}) {
   const front = [];
   for (const node of sortedNodes(diagram)) {
     const descriptor = notation.nodeTypes[node.type];
-    const ctx = { decomposed: options.decomposedIds?.has(node.id), locale: options.locale };
+    const ctx = {
+      decomposed: options.decomposedIds?.has(node.id),
+      locale: options.locale,
+      showParams: options.showParams,
+      currency: options.currency,
+    };
     const html = nodeElementHtml(node, descriptor, ctx);
     if ((descriptor?.zIndex || 0) < 0) back.push(html);
     else front.push(html);

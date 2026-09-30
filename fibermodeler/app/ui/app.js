@@ -21,6 +21,7 @@ import { autoLayout as computeLayout, alignNodes, distributeNodes, equalizeSize,
 import { buildDiagrams } from '../ai/schema.js';
 import { generateModel } from '../ai/index.js';
 import { createDemoProject } from '../demo.js';
+import { buildWegDiagrams, createWegProject, wegProjectDocumentation, wegProjectName } from '../library/weg/index.js';
 import { Autosave, recoveryInfo } from '../storage/autosave.js';
 import { deleteProjectRecord, listProjectRecords, loadProjectRecord, saveProjectRecord, storageAvailable } from '../storage/db.js';
 import { forgetProject, rememberProject } from '../storage/recent.js';
@@ -33,6 +34,7 @@ import { Explorer } from './panels/explorer.js';
 import { Palette } from './panels/palette.js';
 import { Problems, formatMessage } from './panels/problems.js';
 import { Properties } from './panels/properties.js';
+import { AnalysisPanel } from './panels/analysis.js';
 import { commandList, matchShortcut, prettyShortcut, IS_MAC } from './commands.js';
 import { openCommandPalette } from './commandpalette.js';
 import { menuDefinitions, toolbarDefinition } from './menus.js';
@@ -88,7 +90,8 @@ export class App {
       minimap: q('#minimap'),
       zoomValue: q('#zoom-value'),
       props: q('#props'),
-      propsTitle: q('#props-title'),
+      analysis: q('#analysis'),
+      rightTabs: q('#right-tabs'),
       bottom: q('#bottom'),
       status: {
         message: q('#status-message'),
@@ -130,7 +133,9 @@ export class App {
     this.explorer = new Explorer(this.el.explorer, context);
     this.palette = new Palette(this.el.palette, context);
     this.properties = new Properties(this.el.props, context);
+    this.analysisPanel = new AnalysisPanel(this.el.analysis, context);
     this.problemsPanel = new Problems(this.el.bottom, context);
+    this.rightTab = 'props';
     this.explorer.render();
     this.palette.render();
     this.properties.render();
@@ -155,6 +160,8 @@ export class App {
     this.doc.on('change', (event) => {
       this.refreshChrome();
       if (event?.type?.startsWith('diagram')) this.explorer.render();
+      // the calculation follows the model live
+      if (this.rightTab === 'analysis') this.analysisPanel.render();
     });
     this.doc.on('reset', () => {
       this.explorer.render();
@@ -203,6 +210,11 @@ export class App {
     this.root.querySelector('#btn-close-bottom')?.addEventListener('click', () => this.toggleSetting('ui.bottomPanel', false));
     this.root.querySelector('#btn-revalidate')?.addEventListener('click', () => this.validate());
     this.el.status.problems?.addEventListener('click', () => this.toggleSetting('ui.bottomPanel', true));
+
+    this.el.rightTabs?.addEventListener('click', (event) => {
+      const tab = event.target.closest('[data-tab]');
+      if (tab) this.setRightTab(tab.dataset.tab);
+    });
 
     this.el.tabstrip.addEventListener('click', (event) => {
       const close = event.target.closest('.close');
@@ -329,6 +341,18 @@ export class App {
     this.el.tabstrip.hidden = this.openTabs.length === 0;
   }
 
+  setRightTab(tab) {
+    this.rightTab = tab === 'analysis' ? 'analysis' : 'props';
+    for (const button of this.el.rightTabs?.querySelectorAll('[data-tab]') || []) {
+      button.classList.toggle('is-active', button.dataset.tab === this.rightTab);
+    }
+    this.el.props.hidden = this.rightTab !== 'props';
+    this.el.analysis.hidden = this.rightTab !== 'analysis';
+    if (this.rightTab === 'analysis') this.analysisPanel.render();
+    else this.properties.render();
+    this.settings.set('ui.rightPanel', true);
+  }
+
   applySettings() {
     this.applyTheme();
     const settings = this.settings;
@@ -369,13 +393,36 @@ export class App {
   setLanguage(locale) {
     this.settings.set('language', locale);
     i18n.setLocale(locale);
+    this._relocalizeWegLibrary();
     localizeDom(this.root);
     this.palette.localize();
     this.explorer.render();
     this.properties.render();
+    this.analysisPanel.render();
     this.problemsPanel.render();
     this.refreshChrome();
     this.refreshToolbar();
+  }
+
+  /**
+   * The shipped WEG diagrams are generated content, so switching the interface
+   * language regenerates them - but only while they are untouched, so an edited
+   * copy is never overwritten.
+   */
+  _relocalizeWegLibrary() {
+    const library = this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg');
+    if (!library.length || this.history.canUndo) return;
+    const active = this.activeDiagram?.meta?.processId || null;
+    const fresh = buildWegDiagrams(i18n.locale);
+    for (const stale of library) this.doc.removeDiagram(stale.id);
+    for (const diagram of fresh) this.doc.addDiagram(diagram);
+    this.doc.project.name = wegProjectName(i18n.locale);
+    this.doc.project.documentation = wegProjectDocumentation(i18n.locale);
+    this.openTabs = [];
+    this.activeDiagramId = null;
+    const next = fresh.find((d) => d.meta.processId === active) || fresh[0];
+    this.openDiagram(next.id);
+    this.history.clear();
   }
 
   toggleSetting(path, value) {
@@ -399,6 +446,7 @@ export class App {
     this.canvas.setDiagram(id);
     this.palette.setNotation(diagram.notation);
     this.properties.render();
+    if (this.rightTab === 'analysis') this.analysisPanel.render();
     this.refreshChrome();
     this.hideWelcome();
   }
@@ -745,6 +793,7 @@ export class App {
 
   refreshProperties() {
     this.properties.render();
+    if (this.rightTab === 'analysis') this.analysisPanel.render();
   }
 
   /* ---------------------------------------------------------- edit verbs */
@@ -1019,6 +1068,30 @@ export class App {
     this.openDiagram(this.doc.project.diagrams[0].id);
     this.settings.set('onboarding.demoOffered', true);
     toastSuccess(t('toast.opened'));
+  }
+
+  /**
+   * Shipped WEG process library. Opened as its own project when the current one
+   * is untouched, otherwise the eight diagrams are added to the open project so
+   * nothing the user made is thrown away.
+   */
+  openWegLibrary() {
+    const project = this.doc.project;
+    const untouched = !project.diagrams.length || project.diagrams.every((d) => d.meta?.library === 'weg');
+    if (untouched && !this.history.canUndo) {
+      this._loadProject(createWegProject(i18n.locale), { fresh: true });
+    } else {
+      this.history.run('library', '*', (doc) => {
+        for (const stale of doc.project.diagrams.filter((d) => d.meta?.library === 'weg')) doc.removeDiagram(stale.id);
+        for (const diagram of buildWegDiagrams(i18n.locale)) doc.addDiagram(diagram);
+      });
+      this.openTabs = this.openTabs.filter((id) => this.doc.diagram(id));
+      this.explorer.render();
+    }
+    const first = this.doc.project.diagrams.find((d) => d.meta?.library === 'weg');
+    if (first) this.openDiagram(first.id);
+    this.refreshChrome();
+    toastSuccess(t('weg.loaded', { count: this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg').length }));
   }
 
   _loadProject(project, { fresh = false } = {}) {
@@ -1599,7 +1672,11 @@ export class App {
         return;
       }
     }
-    this.showWelcome();
+    // every user sees the shipped WEG process library on entering the program
+    this._loadProject(createWegProject(i18n.locale), { fresh: true });
+    this.openDiagram(this.doc.project.diagrams[0].id);
+    this.history.clear();
+    this.refreshChrome();
   }
 }
 

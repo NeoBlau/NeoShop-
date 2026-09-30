@@ -1470,3 +1470,105 @@ table.grid td.act {
     grid-template-columns: 0 1fr 0;
   }
 }
+
+
+/* ------------------------------------------------------- analysis panel */
+
+.panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+}
+.panel-tab {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 550;
+  color: var(--text-secondary);
+  cursor: default;
+}
+.panel-tab:hover {
+  background: var(--hover);
+}
+.panel-tab.is-active {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+.kpi {
+  padding: 10px 11px;
+  border: 1px solid var(--separator);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.kpi-label {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kpi-value {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.note.clickable {
+  cursor: default;
+}
+.note.clickable:hover {
+  background: var(--accent-soft);
+}
+table.grid td.num-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: 5px 6px;
+}
+table.grid td .sub {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+table.grid.steps-table tr {
+  cursor: default;
+}
+table.grid.steps-table tbody tr:hover {
+  background: var(--hover);
+}
+.tag {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+}
+.tag-report {
+  background: rgba(47, 158, 94, 0.14);
+  color: var(--success);
+}
+.tag-derived {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tag-assumption {
+  background: rgba(224, 139, 0, 0.16);
+  color: var(--warning);
+}

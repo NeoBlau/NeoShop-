@@ -26,7 +26,7 @@ FiberModeler — фронтенд-приложение без бэкенда и 
 ```
 
 Правило зависимостей: `notations` ничего не знает о DOM, `core` ничего не знает о нотациях,
-`ui` знает обо всех, но никто не знает об `ui`. Поэтому 69 модулей импортируются без единого цикла,
+`ui` знает обо всех, но никто не знает об `ui`. Поэтому все модули импортируются без единого цикла,
 а всё, кроме слоя `ui`, тестируется в Node.
 
 ## 2. Структура каталогов
@@ -47,11 +47,13 @@ app/
   layout/               layered (Сугияма), idef0layout, align
   io/                   zip, xml, bpmn, projectfile, svgexport, raster, pdf, files
   ai/                   schema, local, providers, index
+  analysis/             parameters (схема и форматирование), simulate (расчёт процесса)
+  library/weg/          библиотека процессов WEG: facts, kit, p1…p8, index
   storage/              db (IndexedDB), recent, autosave
   ui/                   app, commands, menus, panels/, dialogs/, icons, menu, dialog, toast
   i18n/                 ru, en
   assets/fonts/         подмножество DejaVu Sans для PDF
-tests/                  62 теста, свой раннер
+tests/                  83 теста, свой раннер
 tools/                  сборка одного файла, subsetting шрифта
 ```
 

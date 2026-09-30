@@ -15,6 +15,7 @@ export function renderWelcome(host, app) {
           <button class="btn primary" data-action="new">${icon('new', 15)}${t('welcome.new')}</button>
           <button class="btn" data-action="open">${icon('open', 15)}${t('welcome.open')}</button>
           <button class="btn" data-action="demo">${icon('sparkles', 15)}${t('welcome.demo')}</button>
+          <button class="btn" data-action="weg">${icon('folder', 15)}${t('weg.library')}</button>
         </div>
         <div class="welcome-steps">
           <div class="welcome-step"><span class="n">1</span><span>${t('welcome.step1')}</span></div>
@@ -44,6 +45,7 @@ export function renderWelcome(host, app) {
   host.querySelector('[data-action="new"]').addEventListener('click', () => app.newProject());
   host.querySelector('[data-action="open"]').addEventListener('click', () => app.openProjectFile());
   host.querySelector('[data-action="demo"]').addEventListener('click', () => app.openDemoProject());
+  host.querySelector('[data-action="weg"]').addEventListener('click', () => app.openWegLibrary());
   for (const item of host.querySelectorAll('.recent-item')) {
     item.addEventListener('click', () => app.openRecent(item.dataset.id));
   }

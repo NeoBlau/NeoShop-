@@ -56,6 +56,7 @@ export function commandList(app) {
     { id: 'file.save', group: 'file', icon: 'save', shortcut: 'Mod+s', label: t('file.save'), run: () => app.saveProject() },
     { id: 'file.saveAs', group: 'file', icon: 'save', shortcut: 'Mod+Shift+s', label: t('file.saveAs'), run: () => app.saveProject({ as: true }) },
     { id: 'file.demo', group: 'file', icon: 'sparkles', label: t('file.demo'), run: () => app.openDemoProject() },
+    { id: 'file.weg', group: 'file', icon: 'folder', label: t('weg.open'), run: () => app.openWegLibrary() },
     { id: 'file.projectInfo', group: 'file', icon: 'file', label: t('file.projectInfo'), run: () => app.openProjectProperties() },
     { id: 'file.print', group: 'file', icon: 'print', shortcut: 'Mod+p', label: t('file.print'), enabled: hasDiagram, run: () => app.openPrint() },
 
@@ -92,6 +93,8 @@ export function commandList(app) {
     { id: 'view.rulers', group: 'view', icon: 'map', label: t('view.rulers'), checked: app.settings.get('canvas.rulers'), run: () => app.toggleSetting('canvas.rulers') },
     { id: 'view.minimap', group: 'view', icon: 'map', label: t('view.minimap'), checked: app.settings.get('canvas.minimap'), run: () => app.toggleSetting('canvas.minimap') },
     { id: 'view.guides', group: 'view', icon: 'route', label: t('view.guides'), checked: app.settings.get('canvas.guides'), run: () => app.toggleSetting('canvas.guides') },
+    { id: 'view.params', group: 'view', icon: 'validate', label: t('analysis.showParams'), checked: app.settings.get('canvas.showParams'), run: () => { app.toggleSetting('canvas.showParams'); app.refreshCanvas(true); } },
+    { id: 'view.analysis', group: 'view', icon: 'table', shortcut: 'Mod+Shift+a', label: t('analysis.title'), run: () => app.setRightTab('analysis') },
     { id: 'view.leftPanel', group: 'view', icon: 'panelLeft', shortcut: 'Mod+1', label: t('view.leftPanel'), checked: app.settings.get('ui.leftPanel'), run: () => app.toggleSetting('ui.leftPanel') },
     { id: 'view.rightPanel', group: 'view', icon: 'panelRight', shortcut: 'Mod+2', label: t('view.rightPanel'), checked: app.settings.get('ui.rightPanel'), run: () => app.toggleSetting('ui.rightPanel') },
     { id: 'view.problems', group: 'view', icon: 'panelBottom', shortcut: 'Mod+3', label: t('view.problems'), checked: app.settings.get('ui.bottomPanel'), run: () => app.toggleSetting('ui.bottomPanel') },

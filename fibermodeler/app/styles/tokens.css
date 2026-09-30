@@ -94,6 +94,10 @@
   --fn-stroke: #4a5056;
   --arrow-stroke: #3c4043;
   --anchor-fill: #f7f8fa;
+  --badge-fill: #f2f5fa;
+  --badge-stroke: #c7d1de;
+  --badge-text: #3c4551;
+  --badge-muted: #79828f;
 }
 
 :root[data-theme='dark'] {
@@ -161,6 +165,10 @@
   --fn-stroke: #9aa1ab;
   --arrow-stroke: #c6cad2;
   --anchor-fill: #23252a;
+  --badge-fill: #242730;
+  --badge-stroke: #444a56;
+  --badge-text: #c3c9d4;
+  --badge-muted: #8b93a1;
 }
 
 * {

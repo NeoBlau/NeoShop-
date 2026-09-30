@@ -43,7 +43,36 @@ export class Explorer {
         rows.push(`<div class="tree-empty" style="padding-left:34px">${t('explorer.empty')}</div>`);
         continue;
       }
-      for (const diagram of roots) this.renderDiagram(diagram, 2, rows);
+      // diagrams that declare `meta.folder` are grouped under that folder
+      const folders = new Map();
+      const loose = [];
+      for (const diagram of roots) {
+        const folder = diagram.meta?.folder;
+        if (!folder) {
+          loose.push(diagram);
+          continue;
+        }
+        if (!folders.has(folder)) folders.set(folder, []);
+        folders.get(folder).push(diagram);
+      }
+      for (const [folder, list] of folders) {
+        const folderId = `__folder_${notation}_${folder}`;
+        const folderCollapsed = this.collapsed.has(folderId);
+        rows.push(
+          row({
+            id: folderId,
+            level: 2,
+            label: folder,
+            iconName: 'folder',
+            badge: String(list.length),
+            hasChildren: true,
+            collapsed: folderCollapsed,
+          })
+        );
+        if (folderCollapsed) continue;
+        for (const diagram of list) this.renderDiagram(diagram, 3, rows);
+      }
+      for (const diagram of loose) this.renderDiagram(diagram, 2, rows);
     }
 
     rows.push(
@@ -90,7 +119,7 @@ export class Explorer {
       this.app.openProjectProperties();
       return;
     }
-    if (id.startsWith('__group_')) {
+    if (id.startsWith('__group_') || id.startsWith('__folder_')) {
       if (this.collapsed.has(id)) this.collapsed.delete(id);
       else this.collapsed.add(id);
       this.render();

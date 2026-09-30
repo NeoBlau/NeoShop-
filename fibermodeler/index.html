@@ -66,8 +66,12 @@
         </section>
 
         <aside class="sidebar right">
-          <div class="panel-head"><span id="props-title" data-i18n="props.title">Свойства</span></div>
+          <div class="panel-tabs" id="right-tabs">
+            <button class="panel-tab is-active" type="button" data-tab="props" data-i18n="tab.props">Свойства</button>
+            <button class="panel-tab" type="button" data-tab="analysis" data-i18n="tab.analysis">Анализ</button>
+          </div>
           <div class="props" id="props"></div>
+          <div class="props" id="analysis" hidden></div>
         </aside>
       </main>
 

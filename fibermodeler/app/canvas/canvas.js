@@ -5,7 +5,8 @@
 import { Emitter } from '../core/events.js';
 import { clamp, inflate, rectOf, unionRect } from '../core/geometry.js';
 import { getNotation } from '../notations/index.js';
-import { diagramMarkup, edgeElementHtml, edgeMarkup, nodeElementHtml, nodeMarkup, sortedNodes } from './renderer.js';
+import { analysisSettings } from '../analysis/parameters.js';
+import { diagramMarkup, edgeElementHtml, edgeMarkup, nodeElementHtml, nodeMarkup, paramBadge, sortedNodes } from './renderer.js';
 import { layoutEdges } from './routing.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -264,6 +265,7 @@ export class DiagramCanvas extends Emitter {
     const markup = diagramMarkup(diagram, this.geometries, {
       decomposedIds,
       smooth: this.settings.get('canvas.smoothEdges', true),
+      ...this.paramContext(),
     });
     this.layerBack.innerHTML = markup.back;
     this.layerEdges.innerHTML = markup.edges;
@@ -273,6 +275,16 @@ export class DiagramCanvas extends Emitter {
     this.updateEmptyState();
     this.renderOverlay();
     this.emit('render');
+  }
+
+  /** Shared rendering context for the parameter badges. */
+  paramContext() {
+    const diagram = this.diagram;
+    return {
+      showParams: this.settings.get('canvas.showParams', true),
+      locale: this.settings.get('language', 'ru'),
+      currency: diagram ? analysisSettings(diagram).currency : 'R$',
+    };
   }
 
   updateEmptyState() {
@@ -302,7 +314,8 @@ export class DiagramCanvas extends Emitter {
     el.setAttribute('transform', `translate(${node.x},${node.y})`);
     el.dataset.type = node.type;
     const decomposed = !!this.doc.decompositionOf(node.id);
-    el.innerHTML = nodeMarkup(node, descriptor, { decomposed });
+    const ctx = { decomposed, ...this.paramContext() };
+    el.innerHTML = nodeMarkup(node, descriptor, ctx) + (ctx.showParams ? paramBadge(node, ctx) : '');
   }
 
   refreshEdge(id) {
@@ -323,6 +336,7 @@ export class DiagramCanvas extends Emitter {
     el.dataset.type = edge.type;
     el.innerHTML = edgeMarkup(edge, this.geometries.get(edge.id), notation.edgeTypes[edge.type], {
       smooth: this.settings.get('canvas.smoothEdges', true),
+      ...this.paramContext(),
     });
   }
 
@@ -556,7 +570,13 @@ export function diagramToSvg(diagram, doc, options = {}) {
     h: bounds.h + margin * 2 + 18,
   };
   const decomposedIds = new Set(doc ? doc.project.diagrams.filter((d) => d.parentNodeId).map((d) => d.parentNodeId) : []);
-  const markup = diagramMarkup(diagram, geometries, { decomposedIds, smooth: options.smooth !== false });
+  const markup = diagramMarkup(diagram, geometries, {
+    decomposedIds,
+    smooth: options.smooth !== false,
+    showParams: options.showParams !== false,
+    locale: options.locale || 'ru',
+    currency: options.currency || (diagram.meta?.analysis?.currency ?? 'R$'),
+  });
   const background =
     options.background === 'transparent'
       ? ''
@@ -605,6 +625,10 @@ export const EXPORT_VARS = {
   '--accent': '#0071e3',
   '--canvas-bg': '#ffffff',
   '--danger': '#d64545',
+  '--badge-fill': '#f4f6fa',
+  '--badge-stroke': '#c9d2de',
+  '--badge-text': '#3c4551',
+  '--badge-muted': '#79828f',
 };
 
 export function exportCss(vars = EXPORT_VARS) {

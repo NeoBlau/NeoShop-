@@ -104,6 +104,10 @@
   --fn-stroke: #4a5056;
   --arrow-stroke: #3c4043;
   --anchor-fill: #f7f8fa;
+  --badge-fill: #f2f5fa;
+  --badge-stroke: #c7d1de;
+  --badge-text: #3c4551;
+  --badge-muted: #79828f;
 }
 
 :root[data-theme='dark'] {
@@ -171,6 +175,10 @@
   --fn-stroke: #9aa1ab;
   --arrow-stroke: #c6cad2;
   --anchor-fill: #23252a;
+  --badge-fill: #242730;
+  --badge-stroke: #444a56;
+  --badge-text: #c3c9d4;
+  --badge-muted: #8b93a1;
 }
 
 * {
@@ -1708,6 +1716,108 @@ table.grid td.act {
   }
 }
 
+
+/* ------------------------------------------------------- analysis panel */
+
+.panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+}
+.panel-tab {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 550;
+  color: var(--text-secondary);
+  cursor: default;
+}
+.panel-tab:hover {
+  background: var(--hover);
+}
+.panel-tab.is-active {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+.kpi {
+  padding: 10px 11px;
+  border: 1px solid var(--separator);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.kpi-label {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kpi-value {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.note.clickable {
+  cursor: default;
+}
+.note.clickable:hover {
+  background: var(--accent-soft);
+}
+table.grid td.num-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: 5px 6px;
+}
+table.grid td .sub {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+table.grid.steps-table tr {
+  cursor: default;
+}
+table.grid.steps-table tbody tr:hover {
+  background: var(--hover);
+}
+.tag {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+}
+.tag-report {
+  background: rgba(47, 158, 94, 0.14);
+  color: var(--success);
+}
+.tag-derived {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tag-assumption {
+  background: rgba(224, 139, 0, 0.16);
+  color: var(--warning);
+}
+
 /* Canvas surface, overlays and printing. */
 
 .canvas-root {
@@ -2000,8 +2110,12 @@ body.is-printing #app {
         </section>
 
         <aside class="sidebar right">
-          <div class="panel-head"><span id="props-title" data-i18n="props.title">Свойства</span></div>
+          <div class="panel-tabs" id="right-tabs">
+            <button class="panel-tab is-active" type="button" data-tab="props" data-i18n="tab.props">Свойства</button>
+            <button class="panel-tab" type="button" data-tab="analysis" data-i18n="tab.analysis">Анализ</button>
+          </div>
           <div class="props" id="props"></div>
+          <div class="props" id="analysis" hidden></div>
         </aside>
       </main>
 
@@ -2707,6 +2821,9 @@ class History extends Emitter {
     }
     const afterIds = this._resolveIds(diagramIds === '*' ? '*' : ids);
     const after = this._snapshot(afterIds);
+    // diagrams the mutation created did not exist before - record them as
+    // absent so that undo removes them again
+    for (const id of Object.keys(after)) if (!(id in before)) before[id] = null;
     if (sameSnapshot(before, after)) return result;
     this._push(new SnapshotCommand(label, before, after));
     return result;
@@ -2950,6 +3067,7 @@ const DEFAULT_SETTINGS = {
     smoothEdges: true,
     connectionStyle: 'orthogonal', // orthogonal | straight
     quickHandles: true,
+    showParams: true,
   },
   autosave: { enabled: true, intervalSec: 30 },
   ai: {
@@ -3612,6 +3730,54 @@ const en = {
   'welcome.step2': 'Drop it on the canvas, then drag the blue handle to connect',
   'welcome.step3': 'Edit properties on the right, save with ⌘S / Ctrl+S',
 
+  'tab.props': 'Properties',
+  'tab.analysis': 'Analysis',
+  'analysis.title': 'Process calculation',
+  'analysis.empty': 'No calculable parameters yet',
+  'analysis.emptyHint': 'Set processing time, cost or resource on the tasks — the calculation appears here at once.',
+  'analysis.needBpmn': 'The calculation works on BPMN diagrams.',
+  'analysis.lead': 'Lead time (expected)',
+  'analysis.leadCritical': 'Critical path',
+  'analysis.work': 'Work time per case',
+  'analysis.wait': 'Waiting time',
+  'analysis.rework': 'incl. rework delay',
+  'analysis.cost': 'Cost per case',
+  'analysis.costDirect': 'Direct cost',
+  'analysis.costLabour': 'Labour cost',
+  'analysis.waitShare': 'Share of waiting',
+  'analysis.laborPerLead': 'Labour per unit of lead time',
+  'analysis.bottleneck': 'Bottleneck',
+  'analysis.steps': 'Tasks',
+  'analysis.volume': 'Cases per year',
+  'analysis.annual': 'Per year',
+  'analysis.annualCost': 'Cost per year',
+  'analysis.annualHours': 'Work hours per year',
+  'analysis.fte': 'Headcount (FTE)',
+  'analysis.resources': 'Resources',
+  'analysis.role': 'Role',
+  'analysis.rate': 'Rate per hour',
+  'analysis.hoursYear': 'Hours / year',
+  'analysis.perCase': 'per case',
+  'analysis.stepTable': 'Process steps',
+  'analysis.runs': 'Runs',
+  'analysis.time': 'Time',
+  'analysis.issues': 'Data quality',
+  'analysis.settings': 'Calculation settings',
+  'analysis.hoursPerFte': 'Work hours per FTE per year',
+  'analysis.currency': 'Currency',
+  'analysis.addRole': 'Add role',
+  'analysis.exportCsv': 'Export calculation (CSV)',
+  'analysis.showParams': 'Show parameters on the diagram',
+  'analysis.source': 'Data source',
+  'analysis.sourceReport': 'public report',
+  'analysis.sourceDerived': 'derived',
+  'analysis.sourceAssumption': 'assumption',
+  'analysis.sourceLegend': 'Every number is tagged: from a public report, derived from public figures, or an industry assumption you can calibrate.',
+  'props.analysis': 'Calculation',
+  'weg.library': 'WEG process library',
+  'weg.open': 'Open the WEG library',
+  'weg.folder': 'WEG',
+  'weg.loaded': 'WEG process library loaded: {count} models',
   'guide.title': 'Quick start',
   'canvas.empty': 'Drag an element from the palette, or press ⌘K / Ctrl+K',
   'canvas.emptyNoDiagram': 'Create a diagram in the left panel to start modelling',
@@ -3964,6 +4130,54 @@ const ru = {
   'welcome.step2': 'Поставьте его на холст и потяните синюю точку, чтобы соединить',
   'welcome.step3': 'Свойства — справа, сохранение — ⌘S / Ctrl+S',
 
+  'tab.props': 'Свойства',
+  'tab.analysis': 'Анализ',
+  'analysis.title': 'Расчёт процесса',
+  'analysis.empty': 'Рассчитывать пока нечего',
+  'analysis.emptyHint': 'Задайте время, стоимость или ресурс у задач — расчёт появится здесь сразу.',
+  'analysis.needBpmn': 'Расчёт работает на диаграммах BPMN.',
+  'analysis.lead': 'Срок выполнения (ожидаемый)',
+  'analysis.leadCritical': 'Критический путь',
+  'analysis.work': 'Трудозатраты на случай',
+  'analysis.wait': 'Ожидание',
+  'analysis.rework': 'в т.ч. задержка переделок',
+  'analysis.cost': 'Стоимость случая',
+  'analysis.costDirect': 'Прямые затраты',
+  'analysis.costLabour': 'Оплата труда',
+  'analysis.waitShare': 'Доля ожидания',
+  'analysis.laborPerLead': 'Труд на единицу срока',
+  'analysis.bottleneck': 'Узкое место',
+  'analysis.steps': 'Задач',
+  'analysis.volume': 'Случаев в год',
+  'analysis.annual': 'В год',
+  'analysis.annualCost': 'Затраты в год',
+  'analysis.annualHours': 'Рабочих часов в год',
+  'analysis.fte': 'Штат (FTE)',
+  'analysis.resources': 'Ресурсы',
+  'analysis.role': 'Роль',
+  'analysis.rate': 'Ставка в час',
+  'analysis.hoursYear': 'Часов / год',
+  'analysis.perCase': 'на случай',
+  'analysis.stepTable': 'Шаги процесса',
+  'analysis.runs': 'Запусков',
+  'analysis.time': 'Время',
+  'analysis.issues': 'Качество данных',
+  'analysis.settings': 'Параметры расчёта',
+  'analysis.hoursPerFte': 'Рабочих часов на 1 FTE в год',
+  'analysis.currency': 'Валюта',
+  'analysis.addRole': 'Добавить роль',
+  'analysis.exportCsv': 'Выгрузить расчёт (CSV)',
+  'analysis.showParams': 'Показывать параметры на схеме',
+  'analysis.source': 'Источник данных',
+  'analysis.sourceReport': 'публичная отчётность',
+  'analysis.sourceDerived': 'расчёт из публичных данных',
+  'analysis.sourceAssumption': 'отраслевое допущение',
+  'analysis.sourceLegend': 'У каждого числа помечен источник: публичная отчётность, расчёт из публичных данных или отраслевое допущение, которое можно откалибровать.',
+  'props.analysis': 'Расчёт',
+  'weg.library': 'Библиотека процессов WEG',
+  'weg.open': 'Открыть библиотеку WEG',
+  'weg.folder': 'WEG',
+  'weg.loaded': 'Загружена библиотека WEG: моделей — {count}',
   'guide.title': 'Быстрый старт',
   'canvas.empty': 'Перетащите элемент из палитры или нажмите ⌘K / Ctrl+K',
   'canvas.emptyNoDiagram': 'Создайте диаграмму в левой панели, чтобы начать',
@@ -4452,6 +4666,181 @@ function adhocMarker(cx, cy, s) {
 Object.assign(__exports, { envelope, clock, bolt, triangle, escalation, conditional, linkArrow, terminate, multiple, iconUser, iconManual, iconGear, iconScript, iconRule, iconSend, iconReceive, plusBox, loopMarker, parallelMarker, sequentialMarker, adhocMarker });
 
 });
+__fm_define('app/analysis/parameters.js', function (__exports) {
+/**
+ * Process parameters: the numbers that make a diagram calculable.
+ *
+ * Every parameter carries where it came from - a published report, a value
+ * derived from published figures, or an industry assumption - so a reader can
+ * always tell measured data from an estimate.
+ */
+
+const SOURCE_KINDS = {
+  report: { en: 'From public report', ru: 'Из публичной отчётности' },
+  derived: { en: 'Derived from public figures', ru: 'Расчёт из публичных данных' },
+  assumption: { en: 'Industry assumption', ru: 'Отраслевое допущение' },
+};
+
+const DEFAULT_ANALYSIS = {
+  currency: 'R$',
+  volumePerYear: 0,
+  hoursPerFte: 1800,
+  workingDays: 250,
+  roles: [], // [{ id, name, rate }] - rate is per hour in `currency`
+};
+
+/* ------------------------------------------------------------------ units */
+
+const TIME_UNITS = {
+  min: { minutes: 1, name: { en: 'min', ru: 'мин' } },
+  h: { minutes: 60, name: { en: 'h', ru: 'ч' } },
+  d: { minutes: 60 * 8, name: { en: 'working days', ru: 'раб. дней' } },
+  wk: { minutes: 60 * 8 * 5, name: { en: 'weeks', ru: 'недель' } },
+};
+
+/** Durations are always stored in minutes; the unit only affects display. */
+function toMinutes(value, unit = 'min') {
+  const spec = TIME_UNITS[unit] || TIME_UNITS.min;
+  return Number(value || 0) * spec.minutes;
+}
+
+function formatDuration(minutes, locale = 'ru') {
+  const value = Number(minutes) || 0;
+  if (!value) return '—';
+  const abs = Math.abs(value);
+  if (abs < 60) return `${round(value, 1)} ${locale === 'ru' ? 'мин' : 'min'}`;
+  if (abs < 60 * 8) return `${round(value / 60, 1)} ${locale === 'ru' ? 'ч' : 'h'}`;
+  if (abs < 60 * 8 * 20) return `${round(value / (60 * 8), 1)} ${locale === 'ru' ? 'дн' : 'd'}`;
+  return `${round(value / (60 * 8 * 20), 1)} ${locale === 'ru' ? 'мес' : 'mo'}`;
+}
+
+function formatMoney(value, currency = 'R$', locale = 'ru') {
+  const number = Number(value) || 0;
+  const abs = Math.abs(number);
+  if (abs >= 1e9) return `${currency} ${round(number / 1e9, 2)} ${locale === 'ru' ? 'млрд' : 'bn'}`;
+  if (abs >= 1e6) return `${currency} ${round(number / 1e6, 2)} ${locale === 'ru' ? 'млн' : 'm'}`;
+  if (abs >= 1e3) return `${currency} ${round(number / 1e3, 1)} ${locale === 'ru' ? 'тыс' : 'k'}`;
+  return `${currency} ${round(number, 2)}`;
+}
+
+function round(value, digits = 2) {
+  const factor = 10 ** digits;
+  return Math.round((Number(value) || 0) * factor) / factor;
+}
+
+/* ------------------------------------------------------------ accessors */
+
+function nodeDuration(node) {
+  return Math.max(0, Number(node?.props?.duration) || 0);
+}
+
+function nodeWait(node) {
+  return Math.max(0, Number(node?.props?.waitTime) || 0);
+}
+
+function nodeCost(node) {
+  return Math.max(0, Number(node?.props?.cost) || 0);
+}
+
+function nodeResource(node) {
+  return (node?.props?.resource || '').trim();
+}
+
+function nodeResourceQty(node) {
+  const value = Number(node?.props?.resourceQty);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+/** Share of tokens that take this flow, 0..1. `null` when not set. */
+function edgeProbability(edge) {
+  const raw = edge?.props?.probability;
+  if (raw === undefined || raw === null || raw === '') return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return null;
+  return Math.min(1, Math.max(0, value / 100));
+}
+
+function analysisSettings(diagram) {
+  return { ...DEFAULT_ANALYSIS, ...(diagram?.meta?.analysis || {}) };
+}
+
+function roleRate(settings, role) {
+  const entry = (settings.roles || []).find((item) => item.id === role || item.name === role);
+  return entry ? Number(entry.rate) || 0 : 0;
+}
+
+/* -------------------------------------------- property schema for the UI */
+
+const ANALYSIS_GROUP = 'analysis';
+
+const NODE_ANALYSIS_PROPS = [
+  {
+    key: 'duration',
+    type: 'number',
+    label: { en: 'Processing time, min', ru: 'Время выполнения, мин' },
+    group: ANALYSIS_GROUP,
+  },
+  {
+    key: 'waitTime',
+    type: 'number',
+    label: { en: 'Waiting time, min', ru: 'Ожидание, мин' },
+    group: ANALYSIS_GROUP,
+  },
+  {
+    key: 'resource',
+    type: 'text',
+    label: { en: 'Resource / role', ru: 'Ресурс / роль' },
+    group: ANALYSIS_GROUP,
+  },
+  {
+    key: 'resourceQty',
+    type: 'number',
+    label: { en: 'Resource units', ru: 'Количество ресурсов' },
+    group: ANALYSIS_GROUP,
+  },
+  {
+    key: 'cost',
+    type: 'number',
+    label: { en: 'Direct cost per run', ru: 'Прямые затраты за прогон' },
+    group: ANALYSIS_GROUP,
+  },
+  {
+    key: 'reworkRate',
+    type: 'number',
+    label: { en: 'Rework, %', ru: 'Доля переделок, %' },
+    group: ANALYSIS_GROUP,
+  },
+  {
+    key: 'dataSource',
+    type: 'select',
+    label: { en: 'Data source', ru: 'Источник данных' },
+    group: ANALYSIS_GROUP,
+    options: [
+      { value: '', label: { en: 'Not specified', ru: 'Не указан' } },
+      { value: 'report', label: SOURCE_KINDS.report },
+      { value: 'derived', label: SOURCE_KINDS.derived },
+      { value: 'assumption', label: SOURCE_KINDS.assumption },
+    ],
+  },
+];
+
+const EDGE_ANALYSIS_PROPS = [
+  {
+    key: 'probability',
+    type: 'number',
+    label: { en: 'Share of cases, %', ru: 'Доля случаев, %' },
+    group: ANALYSIS_GROUP,
+  },
+];
+
+function hasAnalysisData(diagram) {
+  if (!diagram) return false;
+  return diagram.nodes.some((node) => nodeDuration(node) || nodeCost(node) || nodeWait(node) || nodeResource(node));
+}
+
+Object.assign(__exports, { SOURCE_KINDS, DEFAULT_ANALYSIS, TIME_UNITS, toMinutes, formatDuration, formatMoney, round, nodeDuration, nodeWait, nodeCost, nodeResource, nodeResourceQty, edgeProbability, analysisSettings, roleRate, NODE_ANALYSIS_PROPS, EDGE_ANALYSIS_PROPS, hasAnalysisData });
+
+});
 __fm_define('app/notations/bpmn/types.js', function (__exports) {
 /**
  * BPMN 2.0 element catalogue.
@@ -4463,6 +4852,7 @@ __fm_define('app/notations/bpmn/types.js', function (__exports) {
  */
 const G = __fm_require('app/notations/bpmn/glyphs.js');
 const { circle, diamond, esc, line, n, polygon, rect, textBlock } = __fm_require('app/notations/shared.js');
+const { EDGE_ANALYSIS_PROPS, NODE_ANALYSIS_PROPS } = __fm_require('app/analysis/parameters.js');
 const EVENT_SIZE = 36;
 const GATEWAY_SIZE = 50;
 
@@ -4686,11 +5076,11 @@ const ASSIGNEE_PROP = {
 };
 
 function taskProps(extra = []) {
-  return [P.name, P.id, ...extra, P.description, LOOP_PROP, P.documentation];
+  return [P.name, P.id, ...extra, P.description, LOOP_PROP, ...NODE_ANALYSIS_PROPS, P.documentation];
 }
 
 function eventProps(extra = []) {
-  return [P.name, P.id, ...extra, P.description, P.documentation];
+  return [P.name, P.id, ...extra, P.description, ...NODE_ANALYSIS_PROPS, P.documentation];
 }
 
 /* ------------------------------------------------------------- catalogue */
@@ -4912,6 +5302,7 @@ function gatewayType(id, name, markerKey, element) {
         ],
       },
       P.description,
+      ...NODE_ANALYSIS_PROPS,
       P.documentation,
     ],
     bpmn: { element },
@@ -5209,6 +5600,7 @@ const BPMN_EDGE_TYPES = {
       { key: 'id', type: 'id', label: { en: 'ID', ru: 'Идентификатор' }, group: 'general' },
       { key: 'condition', type: 'text', label: { en: 'Condition', ru: 'Условие' }, group: 'general' },
       { key: 'isDefault', type: 'checkbox', label: { en: 'Default flow', ru: 'Поток по умолчанию' }, group: 'general' },
+      ...EDGE_ANALYSIS_PROPS,
       { key: 'documentation', type: 'textarea', label: { en: 'Documentation', ru: 'Документация' }, group: 'documentation', rows: 4 },
     ],
     bpmn: { element: 'sequenceFlow' },
@@ -6170,6 +6562,7 @@ __fm_define('app/canvas/renderer.js', function (__exports) {
 const { fmt, pointAlong, roundedPath } = __fm_require('app/core/geometry.js');
 const { esc, n, textBlock } = __fm_require('app/notations/shared.js');
 const { getNotation } = __fm_require('app/notations/index.js');
+const { formatDuration, formatMoney, nodeCost, nodeDuration, nodeResource, nodeWait } = __fm_require('app/analysis/parameters.js');
 const ARROW_LENGTH = 11;
 const ARROW_WIDTH = 4.2;
 
@@ -6187,6 +6580,31 @@ function nodeElementHtml(node, descriptor, ctx) {
   return (
     `<g class="node" data-id="${esc(node.id)}" data-type="${esc(node.type)}" transform="translate(${n(node.x)},${n(node.y)})">` +
     nodeMarkup(node, descriptor, ctx) +
+    (ctx?.showParams ? paramBadge(node, ctx) : '') +
+    '</g>'
+  );
+}
+
+/** Small time / cost / resource tag drawn under an element. */
+function paramBadge(node, ctx = {}) {
+  const duration = nodeDuration(node) + nodeWait(node);
+  const cost = nodeCost(node);
+  const resource = nodeResource(node);
+  if (!duration && !cost && !resource) return '';
+  const locale = ctx.locale || 'ru';
+  const parts = [];
+  if (duration) parts.push(`⏱ ${formatDuration(duration, locale)}`);
+  if (cost) parts.push(formatMoney(cost, ctx.currency || 'R$', locale));
+  const line = parts.join('  ·  ');
+  const width = Math.max(52, line.length * 5.6 + 12);
+  const y = node.h + 3;
+  return (
+    `<g class="param-badge" pointer-events="none">` +
+    `<rect x="${n(node.w / 2 - width / 2)}" y="${n(y)}" width="${n(width)}" height="15" rx="7.5" fill="var(--badge-fill)" stroke="var(--badge-stroke)" stroke-width="0.8"/>` +
+    `<text x="${n(node.w / 2)}" y="${n(y + 10.6)}" text-anchor="middle" font-size="9.5" fill="var(--badge-text)">${esc(line)}</text>` +
+    (resource
+      ? `<text x="${n(node.w / 2)}" y="${n(y + 26)}" text-anchor="middle" font-size="9" fill="var(--badge-muted)">${esc(resource)}</text>`
+      : '') +
     '</g>'
   );
 }
@@ -6260,6 +6678,16 @@ function edgeMarkup(edge, geom, descriptor, options = {}) {
     const p = geom.points[geom.points.length - 1];
     markup += `<text class="edge-icom" x="${fmt(p.x - 6)}" y="${fmt(p.y - 6)}" font-size="10" fill="var(--accent)">${esc(edge.props.icom)}</text>`;
   }
+  const share = options.showParams && edge.props?.probability !== undefined && edge.props?.probability !== ''
+    ? `${Math.round(Number(edge.props.probability))}%`
+    : '';
+  if (share) {
+    const p = geom.labelPoint || geom.points[0];
+    markup +=
+      `<g class="share-badge" pointer-events="none" transform="translate(${fmt(p.x)},${fmt(p.y + 11)})">` +
+      '<rect x="-15" y="-8" width="30" height="15" rx="7.5" fill="var(--badge-fill)" stroke="var(--badge-stroke)" stroke-width="0.8"/>' +
+      `<text x="0" y="3" text-anchor="middle" font-size="9.5" fill="var(--badge-text)">${esc(share)}</text></g>`;
+  }
   const label = edge.label || (edge.props?.condition ? `[${edge.props.condition}]` : '');
   if (label) {
     const lp = geom.labelPoint || geom.points[0];
@@ -6296,7 +6724,12 @@ function diagramMarkup(diagram, geometries, options = {}) {
   const front = [];
   for (const node of sortedNodes(diagram)) {
     const descriptor = notation.nodeTypes[node.type];
-    const ctx = { decomposed: options.decomposedIds?.has(node.id), locale: options.locale };
+    const ctx = {
+      decomposed: options.decomposedIds?.has(node.id),
+      locale: options.locale,
+      showParams: options.showParams,
+      currency: options.currency,
+    };
     const html = nodeElementHtml(node, descriptor, ctx);
     if ((descriptor?.zIndex || 0) < 0) back.push(html);
     else front.push(html);
@@ -6320,7 +6753,7 @@ function sortedNodes(diagram) {
   });
 }
 
-Object.assign(__exports, { nodeMarkup, nodeElementHtml, edgeMarkup, edgeElementHtml, diagramMarkup, sortedNodes });
+Object.assign(__exports, { nodeMarkup, nodeElementHtml, paramBadge, edgeMarkup, edgeElementHtml, diagramMarkup, sortedNodes });
 
 });
 __fm_define('app/canvas/routing.js', function (__exports) {
@@ -6555,7 +6988,8 @@ __fm_define('app/canvas/canvas.js', function (__exports) {
 const { Emitter } = __fm_require('app/core/events.js');
 const { clamp, inflate, rectOf, unionRect } = __fm_require('app/core/geometry.js');
 const { getNotation } = __fm_require('app/notations/index.js');
-const { diagramMarkup, edgeElementHtml, edgeMarkup, nodeElementHtml, nodeMarkup, sortedNodes } = __fm_require('app/canvas/renderer.js');
+const { analysisSettings } = __fm_require('app/analysis/parameters.js');
+const { diagramMarkup, edgeElementHtml, edgeMarkup, nodeElementHtml, nodeMarkup, paramBadge, sortedNodes } = __fm_require('app/canvas/renderer.js');
 const { layoutEdges } = __fm_require('app/canvas/routing.js');
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const MIN_ZOOM = 0.1;
@@ -6813,6 +7247,7 @@ class DiagramCanvas extends Emitter {
     const markup = diagramMarkup(diagram, this.geometries, {
       decomposedIds,
       smooth: this.settings.get('canvas.smoothEdges', true),
+      ...this.paramContext(),
     });
     this.layerBack.innerHTML = markup.back;
     this.layerEdges.innerHTML = markup.edges;
@@ -6822,6 +7257,16 @@ class DiagramCanvas extends Emitter {
     this.updateEmptyState();
     this.renderOverlay();
     this.emit('render');
+  }
+
+  /** Shared rendering context for the parameter badges. */
+  paramContext() {
+    const diagram = this.diagram;
+    return {
+      showParams: this.settings.get('canvas.showParams', true),
+      locale: this.settings.get('language', 'ru'),
+      currency: diagram ? analysisSettings(diagram).currency : 'R$',
+    };
   }
 
   updateEmptyState() {
@@ -6851,7 +7296,8 @@ class DiagramCanvas extends Emitter {
     el.setAttribute('transform', `translate(${node.x},${node.y})`);
     el.dataset.type = node.type;
     const decomposed = !!this.doc.decompositionOf(node.id);
-    el.innerHTML = nodeMarkup(node, descriptor, { decomposed });
+    const ctx = { decomposed, ...this.paramContext() };
+    el.innerHTML = nodeMarkup(node, descriptor, ctx) + (ctx.showParams ? paramBadge(node, ctx) : '');
   }
 
   refreshEdge(id) {
@@ -6872,6 +7318,7 @@ class DiagramCanvas extends Emitter {
     el.dataset.type = edge.type;
     el.innerHTML = edgeMarkup(edge, this.geometries.get(edge.id), notation.edgeTypes[edge.type], {
       smooth: this.settings.get('canvas.smoothEdges', true),
+      ...this.paramContext(),
     });
   }
 
@@ -7105,7 +7552,13 @@ function diagramToSvg(diagram, doc, options = {}) {
     h: bounds.h + margin * 2 + 18,
   };
   const decomposedIds = new Set(doc ? doc.project.diagrams.filter((d) => d.parentNodeId).map((d) => d.parentNodeId) : []);
-  const markup = diagramMarkup(diagram, geometries, { decomposedIds, smooth: options.smooth !== false });
+  const markup = diagramMarkup(diagram, geometries, {
+    decomposedIds,
+    smooth: options.smooth !== false,
+    showParams: options.showParams !== false,
+    locale: options.locale || 'ru',
+    currency: options.currency || (diagram.meta?.analysis?.currency ?? 'R$'),
+  });
   const background =
     options.background === 'transparent'
       ? ''
@@ -7154,6 +7607,10 @@ const EXPORT_VARS = {
   '--accent': '#0071e3',
   '--canvas-bg': '#ffffff',
   '--danger': '#d64545',
+  '--badge-fill': '#f4f6fa',
+  '--badge-stroke': '#c9d2de',
+  '--badge-text': '#3c4551',
+  '--badge-muted': '#79828f',
 };
 
 function exportCss(vars = EXPORT_VARS) {
@@ -8654,7 +9111,7 @@ function buildBpmnDiagram(spec, options = {}) {
         source,
         target,
         label: text(item.label, locale),
-        props: item.condition ? { condition: item.condition } : {},
+        props: { ...(item.props || {}), ...(item.condition ? { condition: item.condition } : {}) },
       })
     );
   }
@@ -10241,6 +10698,1586 @@ function createDemoProject(locale = 'ru') {
 Object.assign(__exports, { createDemoProject });
 
 });
+__fm_define('app/library/weg/facts.js', function (__exports) {
+/**
+ * Public facts about WEG S.A. used by the process library.
+ *
+ * Everything here comes from WEG's own disclosure (2025 Integrated Annual
+ * Report, FY2025 results release, investor-relations profile) or from press
+ * coverage of those releases. Nothing in this file is internal company data:
+ * WEG does not publish step-level cycle times, so the process parameters in
+ * the models are marked as `derived` (computed from these figures) or
+ * `assumption` (industry norm, meant to be calibrated by the user).
+ */
+
+const WEG_SOURCES = [
+  {
+    id: 'annual2025',
+    title: {
+      ru: 'WEG, Интегрированный годовой отчёт за 2025 год',
+      en: 'WEG, 2025 Integrated Annual Report',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/corporate/weg-releases-its-2025-integrated-annual-report-and-highlights-progress-in-sustainability',
+  },
+  {
+    id: 'profile',
+    title: { ru: 'WEG, профиль компании (IR)', en: 'WEG, corporate profile (IR)' },
+    url: 'https://ri.weg.net/en/weg/corporate-profile/',
+  },
+  {
+    id: 'numbers',
+    title: { ru: 'WEG в цифрах', en: 'WEG in numbers' },
+    url: 'https://www.weg.net/institutional/BR/en/weg-in-numbers',
+  },
+  {
+    id: 'fy2025',
+    title: { ru: 'Результаты за 4-й квартал и 2025 год', en: 'Q4 and FY2025 results coverage' },
+    url: 'https://www.infomoney.com.br/mercados/weg-wege3-resultados-quarto-trimestre-2025/',
+  },
+  {
+    id: 'transformers',
+    title: {
+      ru: 'WEG инвестирует R$ 1,2 млрд в расширение производства трансформаторов',
+      en: 'WEG invests R$ 1.2 billion to expand transformer capacity',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/result-and-investiments/weg-announces-that-it-will-invest-r-1-2-billion-to-expand-transformer-production-capacity',
+  },
+  {
+    id: 'generators',
+    title: {
+      ru: 'WEG инвестирует US$ 165 млн в производство генераторов в Северной Америке',
+      en: 'WEG invests US$ 165 million in North American generator capacity',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/corporate/crescimento-no-exterior',
+  },
+  {
+    id: 'verticalization',
+    title: {
+      ru: 'WEG вложит около R$ 670 млн в вертикальную интеграцию в Мексике и Бразилии',
+      en: 'WEG will invest about R$ 670 million in vertical integration in Mexico and Brazil',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/corporate/weg-will-invest-approximately-r-670-million-in-vertical-integration-processes-in-mexico-and-brazil',
+  },
+  {
+    id: 'production',
+    title: {
+      ru: 'Производственные показатели 2025: более 19 млн двигателей, 67 площадок',
+      en: '2025 output: more than 19 million motors across 67 plants',
+    },
+    url: 'https://www.nsctotal.com.br/economia/weg-revela-numeros-da-producao-historica-que-consolida-lideranca-global-no-setor',
+  },
+  {
+    id: 'astec',
+    title: {
+      ru: 'Сеть авторизованного сервиса WEG (ASTEC)',
+      en: 'WEG authorised technical assistance network (ASTEC)',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/contact/technical-support',
+  },
+];
+
+/** Head-line figures of the 2025 financial year. */
+const WEG = {
+  year: 2025,
+  revenue: 40.8e9, // R$, net operating revenue, +7.4% YoY
+  netIncome: 6.38e9, // R$, +5.5% YoY
+  ebitda: 8.77e9, // R$
+  q4Revenue: 10.247e9,
+  q4Ebitda: 2.292e9,
+  q4NetIncome: 1.588e9,
+  roic: 0.325,
+  externalShare: 0.595, // 59-60% of revenue from markets outside Brazil
+  employees: 49000, // "more than 49,000"
+  plants: 67,
+  countries: 18,
+  motorsPerYear: 19e6, // "more than 19 million motors"
+  paintLitresPerYear: 15e6,
+  rndSpend: 1.4e9, // R$
+  segments: {
+    industrial: 0.516, // Industrial Electro-Electronic Equipment
+    gtd: 0.358, // Generation, Transmission & Distribution
+    other: 0.126, // Commercial motors & appliances + paints and varnishes
+  },
+  investments: {
+    generatorsUsd: 165e6,
+    generatorsBrl: 840e6,
+    generatorsPerDay2030: 50,
+    transformersBrl: 1.2e9,
+    verticalizationBrl: 670e6,
+    capacityBrl3y: 1.2e9,
+  },
+  acquisition2024: { employees: 2800, plants: 10, countries: 7 },
+  workingDays: 250,
+  serviceNetworkBrazilTransformers: 40,
+};
+
+/** Numbers computed from the figures above - shown as "derived" in the models. */
+const DERIVED = {
+  motorsPerDay: Math.round(WEG.motorsPerYear / WEG.workingDays), // 76 000
+  revenuePerEmployee: Math.round(WEG.revenue / WEG.employees), // ≈ R$ 833 000
+  revenuePerWorkingDay: Math.round(WEG.revenue / WEG.workingDays), // ≈ R$ 163 млн
+  ebitdaMargin: Math.round((WEG.ebitda / WEG.revenue) * 1000) / 10, // 21.5 %
+  rndShare: Math.round((WEG.rndSpend / WEG.revenue) * 1000) / 10, // 3.4 %
+  industrialRevenue: Math.round(WEG.revenue * WEG.segments.industrial), // ≈ R$ 21.1 bn
+  gtdRevenue: Math.round(WEG.revenue * WEG.segments.gtd), // ≈ R$ 14.6 bn
+  externalRevenue: Math.round(WEG.revenue * WEG.externalShare), // ≈ R$ 24.3 bn
+};
+
+/**
+ * Fully loaded hourly rates used by the models.
+ * These are NOT published by WEG - they are conventional Brazilian industry
+ * rates and are flagged as assumptions everywhere they are used.
+ */
+const RATES = {
+  operator: 48,
+  technician: 72,
+  engineer: 135,
+  seniorEngineer: 190,
+  planner: 95,
+  buyer: 105,
+  sales: 115,
+  analyst: 90,
+  logistics: 70,
+  finance: 100,
+  quality: 85,
+  fieldService: 160,
+  customs: 120,
+};
+
+/** English labels for the Russian role names used by the process library. */
+const ROLE_LABELS = {
+  Оператор: 'Operator',
+  'Оператор линии': 'Line operator',
+  Намотчик: 'Winder',
+  Сборщик: 'Assembler',
+  Техник: 'Technician',
+  'Техник-испытатель': 'Test technician',
+  Инженер: 'Engineer',
+  'Инженер-конструктор': 'Design engineer',
+  'Ведущий инженер': 'Senior engineer',
+  Планировщик: 'Planner',
+  Закупщик: 'Buyer',
+  'Менеджер по продажам': 'Sales manager',
+  Аналитик: 'Analyst',
+  Логист: 'Logistics',
+  Финансы: 'Finance',
+  ОТК: 'Quality',
+  'Сервисный инженер': 'Field service',
+  'Таможенный брокер': 'Customs broker',
+  Казначейство: 'Treasury',
+};
+
+/** Role name in the requested language; unknown names are returned as they are. */
+function roleLabel(name, locale = 'ru') {
+  if (!name) return name;
+  if (locale !== 'en') return name;
+  return ROLE_LABELS[name] || name;
+}
+
+function roles(...names) {
+  return names.map((name) => ({ id: name, name, rate: RATES[roleKey(name)] ?? 90 }));
+}
+
+const ROLE_KEYS = {
+  Оператор: 'operator',
+  'Оператор линии': 'operator',
+  Намотчик: 'operator',
+  Сборщик: 'operator',
+  Техник: 'technician',
+  'Техник-испытатель': 'technician',
+  Инженер: 'engineer',
+  'Инженер-конструктор': 'engineer',
+  'Ведущий инженер': 'seniorEngineer',
+  Планировщик: 'planner',
+  Закупщик: 'buyer',
+  'Менеджер по продажам': 'sales',
+  Аналитик: 'analyst',
+  Логист: 'logistics',
+  Финансы: 'finance',
+  ОТК: 'quality',
+  'Сервисный инженер': 'fieldService',
+  'Таможенный брокер': 'customs',
+  Казначейство: 'finance',
+  Operator: 'operator',
+  Technician: 'technician',
+  Engineer: 'engineer',
+  'Senior engineer': 'seniorEngineer',
+  Planner: 'planner',
+  Buyer: 'buyer',
+  'Sales manager': 'sales',
+  Analyst: 'analyst',
+  Logistics: 'logistics',
+  Finance: 'finance',
+  Quality: 'quality',
+  'Field service': 'fieldService',
+  'Customs broker': 'customs',
+  Treasury: 'finance',
+};
+
+function roleKey(name) {
+  return ROLE_KEYS[name] || 'analyst';
+}
+
+/** Renders the source list as a markdown-ish block for the documentation field. */
+function sourceBlock(ids, locale = 'ru') {
+  const header = locale === 'ru' ? 'Источники публичных данных:' : 'Public sources:';
+  const lines = WEG_SOURCES.filter((item) => ids.includes(item.id)).map(
+    (item) => `• ${item.title[locale] || item.title.en} — ${item.url}`
+  );
+  return `${header}\n${lines.join('\n')}`;
+}
+
+function dataNote(locale = 'ru') {
+  return locale === 'ru'
+    ? 'Обозначение источников у параметров: «публичная отчётность» — цифра взята из отчёта WEG; «расчёт из публичных данных» — получена из отчётных цифр по формуле, указанной в описании; «отраслевое допущение» — нормативная оценка, которую нужно откалибровать по собственным данным. WEG не публикует пооперационные нормативы времени, поэтому времена операций — допущения.'
+    : 'Parameter source tags: “public report” — the figure comes from WEG disclosure; “derived” — computed from reported figures with the formula given in the description; “assumption” — an industry norm to calibrate with your own data. WEG does not publish step-level cycle times, so operation times are assumptions.';
+}
+
+Object.assign(__exports, { WEG_SOURCES, WEG, DERIVED, RATES, ROLE_LABELS, roleLabel, roles, sourceBlock, dataNote });
+
+});
+__fm_define('app/library/weg/kit.js', function (__exports) {
+/** Small helpers that keep the process definitions readable. */
+
+/** Node: id, BPMN type, lane, russian label, english label, parameters. */
+function node(id, type, lane, ru, en, props = {}) {
+  return { id, type, lane, label: { ru, en }, props };
+}
+
+/** Sequence flow with an optional label and branch share (%). */
+function flow(source, target, options = {}) {
+  const props = {};
+  if (options.share !== undefined) props.probability = options.share;
+  if (options.condition) props.condition = options.condition;
+  return {
+    source,
+    target,
+    label: options.ru ? { ru: options.ru, en: options.en || options.ru } : undefined,
+    props,
+  };
+}
+
+/** Parameters measured in the field / taken as an industry norm. */
+function work(duration, resource, extra = {}) {
+  return { duration, resource, dataSource: 'assumption', ...extra };
+}
+
+/** Parameters computed from WEG's published figures. */
+function derived(duration, resource, extra = {}) {
+  return { duration, resource, dataSource: 'derived', ...extra };
+}
+
+/** Parameters taken straight from the public report. */
+function reported(props) {
+  return { dataSource: 'report', ...props };
+}
+
+/** Waiting time that no one works during (queues, transport, customer). */
+function wait(minutes, extra = {}) {
+  return { waitTime: minutes, dataSource: 'assumption', ...extra };
+}
+
+const DAY = 480; // one working day in minutes
+const WEEK = DAY * 5;
+
+Object.assign(__exports, { node, flow, work, derived, reported, wait, DAY, WEEK });
+
+});
+__fm_define('app/library/weg/p1-order-to-cash.js', function (__exports) {
+/**
+ * 1. Order to cash for catalogue motors (make to stock).
+ *
+ * WEG sells more than 19 million motors a year through distributors and OEMs;
+ * the bulk of that volume is catalogue product shipped from stock, which is
+ * what this model describes.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, derived, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'customer', label: { ru: 'Клиент / дистрибьютор', en: 'Customer / distributor' } },
+  { id: 'sales', label: { ru: 'Отдел продаж', en: 'Sales' } },
+  { id: 'credit', label: { ru: 'Кредитный контроль', en: 'Credit control' } },
+  { id: 'plan', label: { ru: 'Планирование и склад', en: 'Planning & warehouse' } },
+  { id: 'log', label: { ru: 'Логистика', en: 'Logistics' } },
+  { id: 'fin', label: { ru: 'Финансы', en: 'Finance' } },
+];
+
+const orderToCash = {
+  id: 'weg-o2c',
+  order: 1,
+  name: { ru: '1. Обработка заказа на серийный двигатель', en: '1. Order to cash — catalogue motors' },
+  description: {
+    ru: 'От заказа дистрибьютора до поступления оплаты: проверка спецификации, кредитный лимит, резерв на складе, отгрузка и закрытие дебиторки.',
+    en: 'From a distributor order to cash in the bank: specification check, credit limit, stock reservation, shipment and receivables.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 760000,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Аналитик', 'Планировщик', 'Оператор', 'Логист', 'Финансы'),
+  },
+  documentation: {
+    ru: `Процесс «заказ — деньги» для каталожных двигателей WEG (сегмент промышленного электрооборудования — ${(WEG.segments.industrial * 100).toFixed(1)} % выручки 2025 года).
+
+Публичные данные, на которых построена модель:
+• чистая выручка 2025 — R$ ${(WEG.revenue / 1e9).toFixed(1)} млрд (+7,4 %);
+• произведено более ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн двигателей на ${WEG.plants} площадках в ${WEG.countries} странах;
+• доля внешних рынков — ${(WEG.externalShare * 100).toFixed(0)} %.
+
+Расчёт из публичных данных:
+• ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн двигателей ÷ ${WEG.workingDays} рабочих дней = ${DERIVED.motorsPerDay.toLocaleString('ru-RU')} двигателей в день;
+• объём заказов в модели: ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн ÷ 25 шт средний заказ ≈ 760 000 заказов в год (25 шт — допущение, меняется в параметрах расчёта);
+• выручка на заказ ≈ R$ ${Math.round(DERIVED.industrialRevenue / 760000).toLocaleString('ru-RU')} (выручка промышленного сегмента ÷ число заказов).
+
+${dataNote('ru')}
+
+${sourceBlock(['annual2025', 'production', 'fy2025', 'profile'], 'ru')}`,
+    en: `Order-to-cash for WEG catalogue motors (industrial electro-electronic segment — ${(WEG.segments.industrial * 100).toFixed(1)}% of 2025 revenue).
+
+Public figures behind the model: net revenue R$ ${(WEG.revenue / 1e9).toFixed(1)}bn in 2025, more than ${(WEG.motorsPerYear / 1e6).toFixed(0)} million motors produced in ${WEG.plants} plants across ${WEG.countries} countries, ${(WEG.externalShare * 100).toFixed(0)}% of revenue from outside Brazil.
+
+Derived: ${DERIVED.motorsPerDay.toLocaleString('en-US')} motors per working day; ~760,000 orders per year assuming 25 units per order.
+
+${dataNote('en')}
+
+${sourceBlock(['annual2025', 'production', 'fy2025', 'profile'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Обработка заказа на серийный двигатель', en: 'Order to cash — catalogue motors' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'customer', 'Заказ поступил в WEG', 'Order received', reported({})),
+      node('register', 'serviceTask', 'sales', 'Зарегистрировать заказ в ERP', 'Register the order in ERP', work(4, 'Менеджер по продажам')),
+      node('check', 'userTask', 'sales', 'Проверить спецификацию и артикулы', 'Check specification and part numbers', work(12, 'Менеджер по продажам')),
+      node('gwStd', 'exclusiveGateway', 'sales', 'Каталожная позиция?', 'Catalogue item?'),
+      node('toEto', 'sendTask', 'sales', 'Передать в процесс «машина на заказ»', 'Hand over to engineer-to-order', work(15, 'Менеджер по продажам')),
+      node('endEto', 'endEvent', 'sales', 'Заказ ушёл в ETO', 'Moved to ETO'),
+      node('credit', 'businessRuleTask', 'credit', 'Проверить кредитный лимит и лимит страховщика', 'Check credit and insurance limit', work(8, 'Аналитик')),
+      node('gwCredit', 'exclusiveGateway', 'credit', 'Лимит достаточен?', 'Limit sufficient?'),
+      node('prepay', 'sendTask', 'credit', 'Запросить предоплату', 'Request prepayment', work(10, 'Аналитик', { waitTime: DAY * 2 })),
+      node('gwPaid', 'exclusiveGateway', 'credit', 'Предоплата получена?', 'Prepayment received?'),
+      node('cancel', 'endErrorEvent', 'credit', 'Заказ отменён', 'Order cancelled'),
+      node('reserve', 'serviceTask', 'plan', 'Зарезервировать остатки на складе', 'Reserve stock', work(3, 'Планировщик')),
+      node('gwStock', 'exclusiveGateway', 'plan', 'Есть на складе?', 'Available from stock?'),
+      node('mrp', 'serviceTask', 'plan', 'Поставить в производственный план', 'Add to the production plan', work(20, 'Планировщик')),
+      node('waitProd', 'intermediateTimerEvent', 'plan', 'Ожидание производственной партии', 'Waiting for the production batch', wait(DAY * 9)),
+      node('pick', 'manualTask', 'plan', 'Скомплектовать заказ', 'Pick the order', work(35, 'Оператор', { resourceQty: 2 })),
+      node('pack', 'manualTask', 'plan', 'Упаковать и маркировать', 'Pack and label', work(22, 'Оператор')),
+      node('nfe', 'serviceTask', 'fin', 'Выпустить электронную накладную NF-e', 'Issue the NF-e invoice', work(6, 'Финансы', { cost: 3 })),
+      node('ship', 'userTask', 'log', 'Отгрузить перевозчику', 'Hand over to the carrier', work(25, 'Логист', { cost: 180 })),
+      node('notify', 'sendTask', 'log', 'Уведомить клиента и передать трек-номер', 'Notify the customer with tracking', work(4, 'Логист')),
+      node('docs', 'dataObject', 'fin', 'NF-e и товарные документы', 'NF-e and shipping documents'),
+      node('invoice', 'serviceTask', 'fin', 'Выставить счёт и завести дебиторку', 'Post the receivable', work(5, 'Финансы')),
+      node('terms', 'intermediateTimerEvent', 'fin', 'Отсрочка платежа 30 дней', 'Payment terms, 30 days', wait(DAY * 30)),
+      node('gwCash', 'exclusiveGateway', 'fin', 'Оплата поступила в срок?', 'Paid on time?'),
+      node('dunning', 'userTask', 'fin', 'Работа с просрочкой', 'Collections', work(30, 'Финансы', { waitTime: DAY * 12 })),
+      node('close', 'serviceTask', 'fin', 'Закрыть заказ и разнести оплату', 'Close the order and apply the payment', work(6, 'Финансы')),
+      node('end', 'endEvent', 'fin', 'Деньги получены', 'Cash received'),
+      node('note', 'textAnnotation', 'sales', 'Объём: ≈760 тыс. заказов в год (расчёт из 19 млн двигателей)', 'Volume: ≈760k orders/year (derived from 19m motors)'),
+    ],
+    edges: [
+      flow('start', 'register'),
+      flow('register', 'check'),
+      flow('check', 'gwStd'),
+      flow('gwStd', 'credit', { share: 82, ru: 'каталог', en: 'catalogue' }),
+      flow('gwStd', 'toEto', { share: 18, ru: 'под заказ', en: 'engineered' }),
+      flow('toEto', 'endEto'),
+      flow('credit', 'gwCredit'),
+      flow('gwCredit', 'reserve', { share: 91, ru: 'да', en: 'yes' }),
+      flow('gwCredit', 'prepay', { share: 9, ru: 'нет', en: 'no' }),
+      flow('prepay', 'gwPaid'),
+      flow('gwPaid', 'reserve', { share: 85, ru: 'оплачено', en: 'paid' }),
+      flow('gwPaid', 'cancel', { share: 15, ru: 'нет оплаты', en: 'not paid' }),
+      flow('reserve', 'gwStock'),
+      flow('gwStock', 'pick', { share: 78, ru: 'в наличии', en: 'in stock' }),
+      flow('gwStock', 'mrp', { share: 22, ru: 'нет остатка', en: 'out of stock' }),
+      flow('mrp', 'waitProd'),
+      flow('waitProd', 'pick'),
+      flow('pick', 'pack'),
+      flow('pack', 'nfe'),
+      flow('nfe', 'ship'),
+      flow('ship', 'notify'),
+      flow('notify', 'invoice'),
+      flow('invoice', 'terms'),
+      flow('terms', 'gwCash'),
+      flow('gwCash', 'close', { share: 93, ru: 'да', en: 'yes' }),
+      flow('gwCash', 'dunning', { share: 7, ru: 'просрочка', en: 'overdue' }),
+      flow('dunning', 'close'),
+      flow('close', 'end'),
+      { source: 'nfe', target: 'docs', type: 'dataAssociation' },
+      { source: 'check', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { orderToCash });
+
+});
+__fm_define('app/library/weg/p2-motor-manufacturing.js', function (__exports) {
+/**
+ * 2. Manufacturing of a low-voltage induction motor.
+ *
+ * WEG reported more than 19 million motors produced in 2025 across 67 plants;
+ * Jaraguá do Sul hosts what the industry recognises as the largest electric
+ * motor plant in the world. The model follows one motor through the line.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'plan', label: { ru: 'Планирование производства', en: 'Production planning' } },
+  { id: 'stamp', label: { ru: 'Штамповка и пакетирование', en: 'Stamping & core stacking' } },
+  { id: 'rotor', label: { ru: 'Литьё ротора и механообработка', en: 'Rotor casting & machining' } },
+  { id: 'wind', label: { ru: 'Обмотка и изоляция', en: 'Winding & insulation' } },
+  { id: 'assy', label: { ru: 'Сборка', en: 'Assembly' } },
+  { id: 'test', label: { ru: 'Испытания (IEC 60034)', en: 'Testing (IEC 60034)' } },
+  { id: 'finish', label: { ru: 'Окраска и упаковка', en: 'Painting & packing' } },
+];
+
+const motorManufacturing = {
+  id: 'weg-make-motor',
+  order: 2,
+  name: { ru: '2. Производство асинхронного двигателя', en: '2. Induction motor manufacturing' },
+  description: {
+    ru: 'Маршрут одного двигателя по линии: штамповка, литьё ротора, обмотка, пропитка, сборка, испытания по IEC 60034, окраска и упаковка.',
+    en: 'One motor through the line: stamping, rotor casting, winding, impregnation, assembly, IEC 60034 testing, painting and packing.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: WEG.motorsPerYear,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Планировщик', 'Оператор', 'Намотчик', 'Сборщик', 'Техник-испытатель', 'ОТК'),
+  },
+  documentation: {
+    ru: `Производственный маршрут низковольтного асинхронного двигателя.
+
+Публичные данные:
+• произведено более ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн двигателей за 2025 год — это объём расчёта в модели;
+• ${WEG.plants} производственных площадок в ${WEG.countries} странах, крупнейший в мире парк по производству электродвигателей — Jaraguá do Sul (SC);
+• инвестиции R$ ${(WEG.investments.verticalizationBrl / 1e6).toFixed(0)} млн в вертикальную интеграцию в Бразилии и Мексике (собственный обмоточный провод, литьё).
+
+Расчёт из публичных данных:
+• ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн ÷ ${WEG.workingDays} рабочих дней = ${DERIVED.motorsPerDay.toLocaleString('ru-RU')} двигателей в день по группе;
+• при односменной работе ${DERIVED.motorsPerDay.toLocaleString('ru-RU')} шт/день ÷ 480 мин = такт ${(480 / DERIVED.motorsPerDay * 60).toFixed(2)} секунды на двигатель по всей группе — то есть линии работают параллельно на ${WEG.plants} площадках.
+
+Времена операций — отраслевые допущения для линии серийных двигателей IE3; их нужно заменить нормативами конкретного завода. Доля брака 2,5 % и переделка обмотки 3 % — тоже допущения.
+
+${dataNote('ru')}
+
+${sourceBlock(['production', 'annual2025', 'verticalization', 'numbers'], 'ru')}`,
+    en: `Production route of a low-voltage induction motor.
+
+Public figures: more than ${(WEG.motorsPerYear / 1e6).toFixed(0)} million motors in 2025 (the annual volume used here), ${WEG.plants} plants in ${WEG.countries} countries, R$ ${(WEG.investments.verticalizationBrl / 1e6).toFixed(0)}m invested in vertical integration in Brazil and Mexico.
+
+Derived: ${DERIVED.motorsPerDay.toLocaleString('en-US')} motors per working day across the group.
+
+Operation times are industry assumptions for an IE3 serial line and should be replaced with the plant's own standards.
+
+${dataNote('en')}
+
+${sourceBlock(['production', 'annual2025', 'verticalization', 'numbers'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Производство асинхронного двигателя', en: 'Induction motor manufacturing' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startTimerEvent', 'plan', 'Производственный заказ по плану MPS', 'Production order released by MPS', reported({})),
+      node('release', 'serviceTask', 'plan', 'Выпустить заказ и зарезервировать материалы', 'Release the order and reserve materials', work(6, 'Планировщик')),
+      node('split', 'parallelGateway', 'plan', 'Запустить ветки', 'Start the branches'),
+
+      node('stampStator', 'manualTask', 'stamp', 'Штамповать пластины статора и ротора', 'Stamp stator and rotor laminations', work(0.6, 'Оператор', { cost: 18 })),
+      node('stack', 'manualTask', 'stamp', 'Собрать и скрепить пакет статора', 'Stack and clamp the stator core', work(1.2, 'Оператор')),
+
+      node('cast', 'serviceTask', 'rotor', 'Литьё ротора под давлением (алюминий)', 'Die-cast the rotor (aluminium)', work(1.5, 'Оператор', { cost: 24 })),
+      node('shaft', 'serviceTask', 'rotor', 'Обточить вал и напрессовать ротор', 'Machine the shaft and press the rotor', work(2.5, 'Оператор')),
+      node('balance', 'serviceTask', 'rotor', 'Отбалансировать ротор', 'Balance the rotor', work(1.1, 'Техник-испытатель')),
+
+      node('coil', 'manualTask', 'wind', 'Намотать катушки', 'Wind the coils', work(6, 'Намотчик', { cost: 31 })),
+      node('insert', 'manualTask', 'wind', 'Уложить обмотку и изолировать пазы', 'Insert the winding and insulate the slots', work(4, 'Намотчик')),
+      node('surge', 'userTask', 'wind', 'Импульсный тест межвитковой изоляции', 'Surge test of the inter-turn insulation', work(1.2, 'Техник-испытатель')),
+      node('gwWind', 'exclusiveGateway', 'wind', 'Обмотка годна?', 'Winding OK?'),
+      node('rewind', 'manualTask', 'wind', 'Перемотать', 'Rewind', work(9, 'Намотчик', { cost: 26 })),
+      node('impreg', 'serviceTask', 'wind', 'Пропитка лаком и полимеризация', 'Varnish impregnation and curing', work(2, 'Оператор', { waitTime: 40 })),
+
+      node('join', 'parallelGateway', 'assy', 'Синхронизировать ветки', 'Join the branches'),
+      node('assemble', 'manualTask', 'assy', 'Собрать двигатель (щиты, подшипники, клеммная коробка)', 'Assemble the motor (end shields, bearings, terminal box)', work(7, 'Сборщик', { cost: 46 })),
+      node('nameplate', 'serviceTask', 'assy', 'Нанести шильд и серийный номер', 'Attach the nameplate and serial number', work(0.8, 'Сборщик')),
+
+      node('routine', 'userTask', 'test', 'Приёмо-сдаточные испытания по IEC 60034-1', 'Routine tests to IEC 60034-1', work(3.5, 'Техник-испытатель')),
+      node('gwTest', 'exclusiveGateway', 'test', 'Соответствует классу КПД?', 'Efficiency class met?'),
+      node('repair', 'userTask', 'test', 'Дефектовка и устранение', 'Diagnose and fix', work(24, 'Техник-испытатель', { cost: 65 })),
+      node('gwRepair', 'exclusiveGateway', 'test', 'Ремонт возможен?', 'Repairable?'),
+      node('scrap', 'endErrorEvent', 'test', 'Брак списан', 'Scrapped'),
+      node('sample', 'userTask', 'test', 'Выборочные типовые испытания партии', 'Sample type test of the batch', work(0.4, 'ОТК')),
+
+      node('paint', 'serviceTask', 'finish', 'Окрасить корпус', 'Paint the frame', work(1.8, 'Оператор', { waitTime: 25, cost: 12 })),
+      node('pack', 'manualTask', 'finish', 'Упаковать и передать на склад', 'Pack and move to the warehouse', work(1.2, 'Оператор', { cost: 9 })),
+      node('end', 'endEvent', 'finish', 'Двигатель на складе готовой продукции', 'Motor in finished goods'),
+
+      node('specData', 'dataObject', 'plan', 'Спецификация и маршрутная карта', 'BOM and routing'),
+      node('testData', 'dataStore', 'test', 'Протоколы испытаний', 'Test records'),
+      node('note', 'textAnnotation', 'test', 'Объём расчёта: 19 млн двигателей в год (публичный отчёт 2025)', 'Volume: 19m motors per year (2025 report)'),
+    ],
+    edges: [
+      flow('start', 'release'),
+      flow('release', 'split'),
+      flow('split', 'stampStator'),
+      flow('split', 'coil'),
+      flow('stampStator', 'stack'),
+      flow('stack', 'cast'),
+      flow('cast', 'shaft'),
+      flow('shaft', 'balance'),
+      flow('balance', 'join'),
+      flow('coil', 'insert'),
+      flow('insert', 'surge'),
+      flow('surge', 'gwWind'),
+      flow('gwWind', 'impreg', { share: 97, ru: 'годна', en: 'pass' }),
+      flow('gwWind', 'rewind', { share: 3, ru: 'дефект', en: 'fail' }),
+      flow('rewind', 'surge'),
+      flow('impreg', 'join'),
+      flow('join', 'assemble'),
+      flow('assemble', 'nameplate'),
+      flow('nameplate', 'routine'),
+      flow('routine', 'gwTest'),
+      flow('gwTest', 'sample', { share: 97.5, ru: 'годен', en: 'pass' }),
+      flow('gwTest', 'repair', { share: 2.5, ru: 'не соответствует', en: 'fail' }),
+      flow('repair', 'gwRepair'),
+      flow('gwRepair', 'routine', { share: 88, ru: 'исправлен', en: 'fixed' }),
+      flow('gwRepair', 'scrap', { share: 12, ru: 'неисправим', en: 'scrap' }),
+      flow('sample', 'paint'),
+      flow('paint', 'pack'),
+      flow('pack', 'end'),
+      { source: 'release', target: 'specData', type: 'dataAssociation' },
+      { source: 'routine', target: 'testData', type: 'dataAssociation' },
+      { source: 'routine', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { motorManufacturing });
+
+});
+__fm_define('app/library/weg/p3-procurement.js', function (__exports) {
+/**
+ * 3. Sourcing of strategic raw materials (copper, electrical steel, aluminium)
+ *    together with the commodity hedge that protects the margin.
+ */
+const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'mrp', label: { ru: 'Планирование материалов', en: 'Material planning' } },
+  { id: 'buy', label: { ru: 'Закупки', en: 'Procurement' } },
+  { id: 'treasury', label: { ru: 'Казначейство', en: 'Treasury' } },
+  { id: 'qa', label: { ru: 'Входной контроль', en: 'Incoming quality' } },
+  { id: 'wh', label: { ru: 'Склад и учёт', en: 'Warehouse & accounting' } },
+];
+
+const procurement = {
+  id: 'weg-procurement',
+  order: 3,
+  name: { ru: '3. Закупка сырья и хеджирование', en: '3. Raw material sourcing and hedging' },
+  description: {
+    ru: 'От прогона MRP до оплаты поставщику: отзыв по контракту или тендер, квалификация поставщика, хедж по меди, приёмка и входной контроль.',
+    en: 'From the MRP run to the supplier payment: call-off or tender, supplier qualification, copper hedge, receiving and incoming inspection.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 48000,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Планировщик', 'Закупщик', 'Казначейство', 'ОТК', 'Логист', 'Финансы'),
+  },
+  documentation: {
+    ru: `Закупка прямых материалов для производства двигателей: медный обмоточный провод, электротехническая сталь, алюминий, подшипники.
+
+Публичные данные:
+• WEG направляет около R$ ${(WEG.investments.verticalizationBrl / 1e6).toFixed(0)} млн на вертикальную интеграцию в Мексике и Бразилии — часть закупаемых позиций переводится в собственное производство;
+• выручка 2025 — R$ ${(WEG.revenue / 1e9).toFixed(1)} млрд, себестоимость материалов прямо зависит от цен на медь и сталь;
+• EBITDA-маржа ${(WEG.ebitda / WEG.revenue * 100).toFixed(1)} % — именно её защищает хеджирование.
+
+Расчёт из публичных данных: объём в модели — 48 000 заказов на закупку в год (допущение: ≈190 заказов в рабочий день на ${WEG.plants} площадок).
+
+Времена операций и доли веток — отраслевые допущения; замените их данными своей системы закупок.
+
+${dataNote('ru')}
+
+${sourceBlock(['verticalization', 'annual2025', 'fy2025'], 'ru')}`,
+    en: `Sourcing of direct materials: copper winding wire, electrical steel, aluminium, bearings.
+
+Public figures: about R$ ${(WEG.investments.verticalizationBrl / 1e6).toFixed(0)}m invested in vertical integration in Mexico and Brazil; 2025 revenue R$ ${(WEG.revenue / 1e9).toFixed(1)}bn; EBITDA margin ${(WEG.ebitda / WEG.revenue * 100).toFixed(1)}%, which the commodity hedge protects.
+
+Volume in the model: 48,000 purchase orders a year (assumption).
+
+${dataNote('en')}
+
+${sourceBlock(['verticalization', 'annual2025', 'fy2025'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Закупка сырья и хеджирование', en: 'Raw material sourcing and hedging' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startTimerEvent', 'mrp', 'Еженедельный прогон MRP', 'Weekly MRP run', reported({})),
+      node('demand', 'serviceTask', 'mrp', 'Рассчитать чистую потребность', 'Calculate the net requirement', work(9, 'Планировщик')),
+      node('gwContract', 'exclusiveGateway', 'mrp', 'Позиция покрыта рамочным контрактом?', 'Covered by a frame contract?'),
+      node('calloff', 'serviceTask', 'buy', 'Сформировать отзыв по контракту', 'Issue a call-off against the contract', work(7, 'Закупщик')),
+      node('rfq', 'sendTask', 'buy', 'Запросить котировки у поставщиков', 'Send RFQ to suppliers', work(25, 'Закупщик', { waitTime: DAY * 3 })),
+      node('compare', 'businessRuleTask', 'buy', 'Сравнить цену, сроки и условия', 'Compare price, lead time and terms', work(35, 'Закупщик')),
+      node('gwBudget', 'exclusiveGateway', 'buy', 'Цена в рамках бюджета?', 'Within budget?'),
+      node('escalate', 'userTask', 'buy', 'Согласовать отклонение с руководством', 'Escalate the deviation', work(20, 'Закупщик', { waitTime: DAY })),
+      node('gwNew', 'exclusiveGateway', 'buy', 'Поставщик новый?', 'New supplier?'),
+      node('audit', 'userTask', 'qa', 'Квалифицировать и проверить поставщика', 'Qualify and audit the supplier', work(240, 'ОТК', { cost: 3800 })),
+      node('gwCopper', 'exclusiveGateway', 'treasury', 'Позиция привязана к бирже?', 'Exchange-linked commodity?'),
+      node('hedge', 'serviceTask', 'treasury', 'Захеджировать объём (медь, алюминий)', 'Hedge the volume (copper, aluminium)', work(30, 'Казначейство', { cost: 450 })),
+      node('po', 'serviceTask', 'buy', 'Разместить заказ в ERP', 'Place the purchase order', work(8, 'Закупщик')),
+      node('confirm', 'receiveTask', 'buy', 'Получить подтверждение поставщика', 'Receive the supplier confirmation', work(5, 'Закупщик', { waitTime: DAY })),
+      node('leadTime', 'intermediateTimerEvent', 'buy', 'Срок поставки', 'Supplier lead time', wait(DAY * 21)),
+      node('receive', 'manualTask', 'wh', 'Принять груз и сверить с заказом', 'Receive and check against the order', work(30, 'Логист')),
+      node('inspect', 'userTask', 'qa', 'Входной контроль и сертификаты', 'Incoming inspection and certificates', work(45, 'ОТК')),
+      node('gwQuality', 'exclusiveGateway', 'qa', 'Соответствует спецификации?', 'Meets the specification?'),
+      node('claim', 'sendTask', 'qa', 'Оформить рекламацию поставщику', 'Raise a supplier claim', work(50, 'ОТК', { waitTime: DAY * 5 })),
+      node('gwClaim', 'exclusiveGateway', 'qa', 'Замена поставлена?', 'Replacement delivered?'),
+      node('reject', 'endErrorEvent', 'qa', 'Поставка отклонена', 'Delivery rejected'),
+      node('stock', 'serviceTask', 'wh', 'Оприходовать на склад', 'Post the goods receipt', work(6, 'Логист')),
+      node('match', 'serviceTask', 'wh', 'Трёхсторонняя сверка заказ–приёмка–счёт', 'Three-way match', work(10, 'Финансы')),
+      node('pay', 'serviceTask', 'wh', 'Оплатить в срок контракта', 'Pay per contract terms', work(4, 'Финансы', { waitTime: DAY * 30 })),
+      node('end', 'endEvent', 'wh', 'Материал доступен производству', 'Material available to production'),
+      node('contractData', 'dataStore', 'buy', 'Рамочные контракты и цены', 'Frame contracts and prices'),
+      node('certData', 'dataObject', 'qa', 'Сертификат качества партии', 'Batch quality certificate'),
+      node('note', 'textAnnotation', 'treasury', 'Хедж защищает EBITDA-маржу 21,5 % (отчёт 2025)', 'The hedge protects the 21.5% EBITDA margin (2025 report)'),
+    ],
+    edges: [
+      flow('start', 'demand'),
+      flow('demand', 'gwContract'),
+      flow('gwContract', 'calloff', { share: 72, ru: 'контракт есть', en: 'under contract' }),
+      flow('gwContract', 'rfq', { share: 28, ru: 'нужен тендер', en: 'tender needed' }),
+      flow('rfq', 'compare'),
+      flow('compare', 'gwBudget'),
+      flow('gwBudget', 'gwNew', { share: 81, ru: 'да', en: 'yes' }),
+      flow('gwBudget', 'escalate', { share: 19, ru: 'превышение', en: 'over budget' }),
+      flow('escalate', 'gwNew'),
+      flow('gwNew', 'audit', { share: 12, ru: 'новый', en: 'new' }),
+      flow('gwNew', 'gwCopper', { share: 88, ru: 'известный', en: 'known' }),
+      flow('audit', 'gwCopper'),
+      flow('calloff', 'gwCopper'),
+      flow('gwCopper', 'hedge', { share: 46, ru: 'медь / алюминий', en: 'copper / aluminium' }),
+      flow('gwCopper', 'po', { share: 54, ru: 'фиксированная цена', en: 'fixed price' }),
+      flow('hedge', 'po'),
+      flow('po', 'confirm'),
+      flow('confirm', 'leadTime'),
+      flow('leadTime', 'receive'),
+      flow('receive', 'inspect'),
+      flow('inspect', 'gwQuality'),
+      flow('gwQuality', 'stock', { share: 96, ru: 'годен', en: 'accepted' }),
+      flow('gwQuality', 'claim', { share: 4, ru: 'несоответствие', en: 'non-conformity' }),
+      flow('claim', 'gwClaim'),
+      flow('gwClaim', 'inspect', { share: 70, ru: 'замена', en: 'replaced' }),
+      flow('gwClaim', 'reject', { share: 30, ru: 'отказ', en: 'rejected' }),
+      flow('stock', 'match'),
+      flow('match', 'pay'),
+      flow('pay', 'end'),
+      { source: 'calloff', target: 'contractData', type: 'dataAssociation' },
+      { source: 'inspect', target: 'certData', type: 'dataAssociation' },
+      { source: 'hedge', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { procurement });
+
+});
+__fm_define('app/library/weg/p4-engineer-to-order.js', function (__exports) {
+/**
+ * 4. Engineer-to-order: a large custom machine (HGF motor or generator).
+ *
+ * WEG is expanding generator capacity with a US$ 165 million programme aiming
+ * at roughly 50 generators a day worldwide by 2030 - this is the process that
+ * turns such an enquiry into a commissioned machine.
+ */
+const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'customer', label: { ru: 'Заказчик', en: 'Customer' } },
+  { id: 'sales', label: { ru: 'Продажи проектов', en: 'Project sales' } },
+  { id: 'eng', label: { ru: 'Инжиниринг', en: 'Engineering' } },
+  { id: 'plan', label: { ru: 'Планирование и снабжение', en: 'Planning & supply' } },
+  { id: 'prod', label: { ru: 'Производство', en: 'Manufacturing' } },
+  { id: 'test', label: { ru: 'Испытательный центр', en: 'Test centre' } },
+  { id: 'field', label: { ru: 'Шеф-монтаж', en: 'Field service' } },
+];
+
+const engineerToOrder = {
+  id: 'weg-eto',
+  order: 4,
+  name: { ru: '4. Крупная машина на заказ (ETO)', en: '4. Engineer-to-order machine' },
+  description: {
+    ru: 'Запрос — расчёт — КП — договор — проектирование — производство — FAT с заказчиком — отгрузка — пусконаладка.',
+    en: 'Enquiry — costing — quotation — contract — design — build — customer FAT — shipment — commissioning.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 2600,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Инженер-конструктор', 'Ведущий инженер', 'Планировщик', 'Сборщик', 'Техник-испытатель', 'Сервисный инженер'),
+  },
+  documentation: {
+    ru: `Изготовление крупной электрической машины под конкретный проект заказчика (высоковольтные двигатели HGF, генераторы).
+
+Публичные данные:
+• программа инвестиций US$ ${(WEG.investments.generatorsUsd / 1e6).toFixed(0)} млн (R$ ${(WEG.investments.generatorsBrl / 1e6).toFixed(0)} млн) в производство генераторов в Северной Америке; к 2030 году — около ${WEG.investments.generatorsPerDay2030} генераторов в день на заводах в Мексике, США, Бразилии и Китае;
+• в 2024 году приобретён бизнес промышленных двигателей и генераторов Regal Rexnord: ${WEG.acquisition2024.employees} сотрудников, ${WEG.acquisition2024.plants} заводов в ${WEG.acquisition2024.countries} странах;
+• сегмент промышленного электрооборудования — ${(WEG.segments.industrial * 100).toFixed(1)} % выручки 2025 года.
+
+Расчёт из публичных данных: объём в модели — 2 600 проектных заказов в год (допущение для крупных машин; при ${WEG.investments.generatorsPerDay2030} генераторах в день к 2030 году только генераторное направление даст ≈12 500 машин в год).
+
+Конверсия 32 % в выигранные КП, 28 % замечаний по чертежам и 8 % замечаний на FAT — отраслевые допущения.
+
+${dataNote('ru')}
+
+${sourceBlock(['generators', 'annual2025', 'profile'], 'ru')}`,
+    en: `Build of a large project-specific electrical machine (HGF high-voltage motors, generators).
+
+Public figures: a US$ ${(WEG.investments.generatorsUsd / 1e6).toFixed(0)}m (R$ ${(WEG.investments.generatorsBrl / 1e6).toFixed(0)}m) generator programme targeting about ${WEG.investments.generatorsPerDay2030} generators a day by 2030 in Mexico, the US, Brazil and China; the 2024 Regal Rexnord acquisition added ${WEG.acquisition2024.employees} people and ${WEG.acquisition2024.plants} plants in ${WEG.acquisition2024.countries} countries.
+
+Volume in the model: 2,600 project orders a year (assumption).
+
+${dataNote('en')}
+
+${sourceBlock(['generators', 'annual2025', 'profile'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Крупная машина на заказ (ETO)', en: 'Engineer-to-order machine' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'customer', 'Получен запрос (RFQ)', 'Enquiry received (RFQ)', reported({})),
+      node('qualify', 'userTask', 'sales', 'Квалифицировать запрос и заказчика', 'Qualify the enquiry and the customer', work(45, 'Менеджер по продажам')),
+      node('clarify', 'userTask', 'eng', 'Уточнить техническое задание', 'Clarify the technical specification', work(180, 'Инженер-конструктор', { waitTime: DAY * 2 })),
+      node('concept', 'userTask', 'eng', 'Подобрать исполнение и рассчитать характеристики', 'Select the design and calculate performance', work(420, 'Ведущий инженер')),
+      node('cost', 'businessRuleTask', 'sales', 'Рассчитать себестоимость и цену', 'Calculate cost and price', work(120, 'Менеджер по продажам')),
+      node('gwDiscount', 'exclusiveGateway', 'sales', 'Скидка выше полномочий?', 'Discount above authority?'),
+      node('approve', 'userTask', 'sales', 'Согласовать условия у директора', 'Get management approval', work(40, 'Менеджер по продажам', { waitTime: DAY })),
+      node('quote', 'sendTask', 'sales', 'Отправить коммерческое предложение', 'Send the quotation', work(30, 'Менеджер по продажам')),
+      node('waitDecision', 'intermediateTimerEvent', 'customer', 'Ожидание решения заказчика', 'Waiting for the customer decision', wait(DAY * 20)),
+      node('gwWin', 'exclusiveGateway', 'sales', 'Заказ выигран?', 'Order won?'),
+      node('lost', 'endEvent', 'sales', 'Проиграно конкуренту', 'Lost'),
+      node('contract', 'userTask', 'sales', 'Заключить договор и получить аванс', 'Sign the contract and collect the advance', work(90, 'Менеджер по продажам', { waitTime: DAY * 5 })),
+      node('design', 'userTask', 'eng', 'Рабочее проектирование и 3D-модель', 'Detailed design and 3D model', work(2400, 'Инженер-конструктор')),
+      node('review', 'sendTask', 'eng', 'Согласовать чертежи с заказчиком', 'Customer drawing approval', work(60, 'Инженер-конструктор', { waitTime: DAY * 7 })),
+      node('gwReview', 'exclusiveGateway', 'eng', 'Есть замечания?', 'Comments raised?'),
+      node('rework', 'userTask', 'eng', 'Внести изменения в проект', 'Update the design', work(420, 'Инженер-конструктор')),
+      node('bom', 'serviceTask', 'plan', 'Сформировать спецификацию и план', 'Release the BOM and the schedule', work(120, 'Планировщик')),
+      node('longlead', 'intermediateTimerEvent', 'plan', 'Поставка длинных позиций', 'Long-lead items', wait(WEEK * 12)),
+      node('manufacture', 'manualTask', 'prod', 'Изготовить статор, ротор, корпус', 'Manufacture stator, rotor and frame', work(5400, 'Сборщик', { resourceQty: 4, cost: 42000 })),
+      node('assemble', 'manualTask', 'prod', 'Собрать машину', 'Assemble the machine', work(1800, 'Сборщик', { resourceQty: 3 })),
+      node('routine', 'userTask', 'test', 'Приёмо-сдаточные испытания', 'Routine tests', work(480, 'Техник-испытатель')),
+      node('fat', 'userTask', 'test', 'FAT в присутствии заказчика', 'Customer witnessed FAT', work(600, 'Техник-испытатель', { cost: 8500 })),
+      node('gwFat', 'exclusiveGateway', 'test', 'FAT принят?', 'FAT accepted?'),
+      node('fix', 'userTask', 'prod', 'Устранить замечания FAT', 'Close the FAT punch list', work(960, 'Сборщик', { resourceQty: 2 })),
+      node('pack', 'manualTask', 'plan', 'Консервация и упаковка для перевозки', 'Preservation and transport packing', work(420, 'Сборщик', { cost: 6200 })),
+      node('ship', 'serviceTask', 'plan', 'Отгрузить заказчику', 'Ship to the customer', work(120, 'Планировщик', { cost: 23000, waitTime: DAY * 12 })),
+      node('commission', 'userTask', 'field', 'Шеф-монтаж и пусконаладка', 'Supervised installation and commissioning', work(1920, 'Сервисный инженер', { cost: 14500 })),
+      node('handover', 'userTask', 'field', 'Подписать акт и открыть гарантию', 'Sign the acceptance certificate, start the warranty', work(90, 'Сервисный инженер')),
+      node('end', 'endEvent', 'field', 'Машина принята в эксплуатацию', 'Machine in operation'),
+      node('drawings', 'dataObject', 'eng', 'Согласованные чертежи', 'Approved drawings'),
+      node('fatReport', 'dataObject', 'test', 'Протокол FAT', 'FAT report'),
+      node('note', 'textAnnotation', 'sales', 'Конверсия КП 32 % — допущение, калибруется по CRM', 'Quote conversion 32% — assumption, calibrate with CRM'),
+    ],
+    edges: [
+      flow('start', 'qualify'),
+      flow('qualify', 'clarify'),
+      flow('clarify', 'concept'),
+      flow('concept', 'cost'),
+      flow('cost', 'gwDiscount'),
+      flow('gwDiscount', 'approve', { share: 38, ru: 'да', en: 'yes' }),
+      flow('gwDiscount', 'quote', { share: 62, ru: 'в полномочиях', en: 'within authority' }),
+      flow('approve', 'quote'),
+      flow('quote', 'waitDecision'),
+      flow('waitDecision', 'gwWin'),
+      flow('gwWin', 'contract', { share: 32, ru: 'выиграно', en: 'won' }),
+      flow('gwWin', 'lost', { share: 68, ru: 'проиграно', en: 'lost' }),
+      flow('contract', 'design'),
+      flow('design', 'review'),
+      flow('review', 'gwReview'),
+      flow('gwReview', 'rework', { share: 28, ru: 'есть замечания', en: 'comments' }),
+      flow('gwReview', 'bom', { share: 72, ru: 'согласовано', en: 'approved' }),
+      flow('rework', 'review'),
+      flow('bom', 'longlead'),
+      flow('longlead', 'manufacture'),
+      flow('manufacture', 'assemble'),
+      flow('assemble', 'routine'),
+      flow('routine', 'fat'),
+      flow('fat', 'gwFat'),
+      flow('gwFat', 'pack', { share: 92, ru: 'принят', en: 'accepted' }),
+      flow('gwFat', 'fix', { share: 8, ru: 'замечания', en: 'punch list' }),
+      flow('fix', 'fat'),
+      flow('pack', 'ship'),
+      flow('ship', 'commission'),
+      flow('commission', 'handover'),
+      flow('handover', 'end'),
+      { source: 'review', target: 'drawings', type: 'dataAssociation' },
+      { source: 'fat', target: 'fatReport', type: 'dataAssociation' },
+      { source: 'cost', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { engineerToOrder });
+
+});
+__fm_define('app/library/weg/p5-transformer-project.js', function (__exports) {
+/**
+ * 5. GTD project: a power transformer / substation package.
+ *
+ * Generation, transmission and distribution is 35.8% of WEG's 2025 revenue and
+ * the company is putting R$ 1.2 billion into transformer capacity.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'utility', label: { ru: 'Заказчик (энергокомпания)', en: 'Customer (utility)' } },
+  { id: 'bid', label: { ru: 'Тендерный отдел', en: 'Bid office' } },
+  { id: 'eng', label: { ru: 'Инжиниринг GTD', en: 'GTD engineering' } },
+  { id: 'prod', label: { ru: 'Производство трансформаторов', en: 'Transformer plant' } },
+  { id: 'lab', label: { ru: 'Высоковольтная лаборатория', en: 'High-voltage laboratory' } },
+  { id: 'site', label: { ru: 'Монтаж и пусконаладка', en: 'Site works & commissioning' } },
+];
+
+const transformerProject = {
+  id: 'weg-gtd',
+  order: 5,
+  name: { ru: '5. Проект силового трансформатора (GTD)', en: '5. Power transformer project (GTD)' },
+  description: {
+    ru: 'Тендер энергокомпании — расчёт — контракт — проектирование — изготовление активной части — высоковольтные испытания — монтаж на подстанции.',
+    en: 'Utility tender — costing — contract — design — active part manufacturing — high-voltage tests — substation installation.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 1800,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Инженер-конструктор', 'Ведущий инженер', 'Планировщик', 'Сборщик', 'Техник-испытатель', 'Сервисный инженер'),
+  },
+  documentation: {
+    ru: `Проектная поставка силового трансформатора и оборудования подстанции.
+
+Публичные данные:
+• сегмент генерации, передачи и распределения (GTD) — ${(WEG.segments.gtd * 100).toFixed(1)} % выручки 2025 года, это ≈ R$ ${(DERIVED.gtdRevenue / 1e9).toFixed(1)} млрд;
+• объявлены инвестиции R$ ${(WEG.investments.transformersBrl / 1e9).toFixed(1)} млрд в расширение производства трансформаторов;
+• в Бразилии работает сеть из более чем ${WEG.serviceNetworkBrazilTransformers} аккредитованных партнёров по сервису трансформаторов — они же выполняют часть работ на площадке;
+• в 4-м квартале 2025 года выручка снизилась на 5,3 % из-за меньшего спроса на солнечные проекты — сезонность спроса в GTD видна в отчётности.
+
+Расчёт из публичных данных: объём в модели — 1 800 проектов в год (допущение: ≈ R$ 8 млн средняя стоимость проекта × 1 800 ≈ R$ 14,6 млрд выручки сегмента GTD).
+
+Вероятность победы в тендере 25 % и доля замечаний по испытаниям 6 % — отраслевые допущения.
+
+${dataNote('ru')}
+
+${sourceBlock(['transformers', 'annual2025', 'fy2025', 'astec'], 'ru')}`,
+    en: `Project delivery of a power transformer and substation equipment.
+
+Public figures: GTD is ${(WEG.segments.gtd * 100).toFixed(1)}% of 2025 revenue (≈ R$ ${(DERIVED.gtdRevenue / 1e9).toFixed(1)}bn); R$ ${(WEG.investments.transformersBrl / 1e9).toFixed(1)}bn is being invested in transformer capacity; more than ${WEG.serviceNetworkBrazilTransformers} accredited transformer service partners operate in Brazil.
+
+Volume in the model: 1,800 projects a year, derived from the segment revenue at an assumed R$ 8m average project value.
+
+${dataNote('en')}
+
+${sourceBlock(['transformers', 'annual2025', 'fy2025', 'astec'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Проект силового трансформатора (GTD)', en: 'Power transformer project (GTD)' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'utility', 'Опубликован тендер', 'Tender published', reported({})),
+      node('screen', 'userTask', 'bid', 'Оценить условия и требования тендера', 'Screen the tender conditions', work(120, 'Менеджер по продажам')),
+      node('gwGo', 'exclusiveGateway', 'bid', 'Участвуем?', 'Bid / no bid?'),
+      node('noBid', 'endEvent', 'bid', 'Отказ от участия', 'No bid'),
+      node('techSpec', 'userTask', 'eng', 'Разобрать техническое задание', 'Work through the specification', work(480, 'Ведущий инженер')),
+      node('design1', 'userTask', 'eng', 'Предварительный расчёт активной части', 'Preliminary active-part design', work(720, 'Инженер-конструктор')),
+      node('cost', 'businessRuleTask', 'bid', 'Рассчитать себестоимость и риски', 'Cost and risk calculation', work(300, 'Менеджер по продажам')),
+      node('submit', 'sendTask', 'bid', 'Подать заявку и банковскую гарантию', 'Submit the bid and the bond', work(180, 'Менеджер по продажам', { cost: 9500 })),
+      node('waitBid', 'intermediateTimerEvent', 'utility', 'Рассмотрение заявок', 'Tender evaluation', wait(DAY * 45)),
+      node('gwWin', 'exclusiveGateway', 'bid', 'Тендер выигран?', 'Tender won?'),
+      node('lost', 'endEvent', 'bid', 'Тендер проигран', 'Tender lost'),
+      node('contract', 'userTask', 'bid', 'Подписать контракт и график', 'Sign the contract and the schedule', work(240, 'Менеджер по продажам', { waitTime: DAY * 10 })),
+      node('design2', 'userTask', 'eng', 'Рабочий проект и согласование с заказчиком', 'Detailed design and customer approval', work(2880, 'Инженер-конструктор', { waitTime: DAY * 10 })),
+      node('order', 'serviceTask', 'prod', 'Заказать сердечник, обмоточный провод, масло', 'Order core, winding wire and oil', work(150, 'Планировщик')),
+      node('longlead', 'intermediateTimerEvent', 'prod', 'Поставка длинных позиций', 'Long-lead deliveries', wait(WEEK * 10)),
+      node('core', 'manualTask', 'prod', 'Собрать магнитопровод', 'Stack the core', work(2400, 'Сборщик', { resourceQty: 3, cost: 180000 })),
+      node('windings', 'manualTask', 'prod', 'Намотать обмотки ВН и НН', 'Wind the HV and LV coils', work(3600, 'Сборщик', { resourceQty: 4, cost: 260000 })),
+      node('dryout', 'serviceTask', 'prod', 'Сушка активной части в вакууме', 'Vapour-phase drying of the active part', work(240, 'Сборщик', { waitTime: DAY * 3 })),
+      node('tank', 'manualTask', 'prod', 'Установить в бак и залить масло', 'Tanking and oil filling', work(1440, 'Сборщик', { resourceQty: 3 })),
+      node('routine', 'userTask', 'lab', 'Приёмо-сдаточные испытания (IEC 60076)', 'Routine tests to IEC 60076', work(720, 'Техник-испытатель')),
+      node('gwTest', 'exclusiveGateway', 'lab', 'Испытания пройдены?', 'Tests passed?'),
+      node('fixDefect', 'userTask', 'prod', 'Вскрыть и устранить дефект', 'Open up and fix the defect', work(2880, 'Сборщик', { resourceQty: 3, cost: 60000 })),
+      node('typeTest', 'userTask', 'lab', 'Типовые испытания в присутствии заказчика', 'Witnessed type tests', work(960, 'Техник-испытатель', { cost: 45000 })),
+      node('ship', 'serviceTask', 'site', 'Перевозка на подстанцию', 'Transport to the substation', work(180, 'Планировщик', { cost: 120000, waitTime: DAY * 8 })),
+      node('install', 'userTask', 'site', 'Монтаж на фундаменте, сборка вводов', 'Installation and bushing assembly', work(2400, 'Сервисный инженер', { resourceQty: 2 })),
+      node('commission', 'userTask', 'site', 'Пусконаладка и испытания на площадке', 'Commissioning and site tests', work(1440, 'Сервисный инженер', { resourceQty: 2, cost: 38000 })),
+      node('handover', 'userTask', 'site', 'Передать заказчику, закрыть гарантию по вводу', 'Hand over to the utility', work(240, 'Сервисный инженер')),
+      node('end', 'endEvent', 'site', 'Трансформатор в сети', 'Transformer energised'),
+      node('protocol', 'dataObject', 'lab', 'Протоколы испытаний IEC 60076', 'IEC 60076 test reports'),
+      node('asbuilt', 'dataObject', 'site', 'Исполнительная документация', 'As-built documentation'),
+      node('note', 'textAnnotation', 'bid', 'GTD = 35,8 % выручки 2025 (публичный отчёт)', 'GTD = 35.8% of 2025 revenue (public report)'),
+    ],
+    edges: [
+      flow('start', 'screen'),
+      flow('screen', 'gwGo'),
+      flow('gwGo', 'techSpec', { share: 58, ru: 'участвуем', en: 'bid' }),
+      flow('gwGo', 'noBid', { share: 42, ru: 'отказ', en: 'no bid' }),
+      flow('techSpec', 'design1'),
+      flow('design1', 'cost'),
+      flow('cost', 'submit'),
+      flow('submit', 'waitBid'),
+      flow('waitBid', 'gwWin'),
+      flow('gwWin', 'contract', { share: 25, ru: 'победа', en: 'won' }),
+      flow('gwWin', 'lost', { share: 75, ru: 'проигрыш', en: 'lost' }),
+      flow('contract', 'design2'),
+      flow('design2', 'order'),
+      flow('order', 'longlead'),
+      flow('longlead', 'core'),
+      flow('core', 'windings'),
+      flow('windings', 'dryout'),
+      flow('dryout', 'tank'),
+      flow('tank', 'routine'),
+      flow('routine', 'gwTest'),
+      flow('gwTest', 'typeTest', { share: 94, ru: 'пройдены', en: 'passed' }),
+      flow('gwTest', 'fixDefect', { share: 6, ru: 'дефект', en: 'defect' }),
+      flow('fixDefect', 'routine'),
+      flow('typeTest', 'ship'),
+      flow('ship', 'install'),
+      flow('install', 'commission'),
+      flow('commission', 'handover'),
+      flow('handover', 'end'),
+      { source: 'routine', target: 'protocol', type: 'dataAssociation' },
+      { source: 'commission', target: 'asbuilt', type: 'dataAssociation' },
+      { source: 'screen', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { transformerProject });
+
+});
+__fm_define('app/library/weg/p6-service.js', function (__exports) {
+/**
+ * 6. After-sales service and repair through the authorised network (ASTEC).
+ */
+const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'customer', label: { ru: 'Клиент', en: 'Customer' } },
+  { id: 'support', label: { ru: 'Техническая поддержка', en: 'Technical support' } },
+  { id: 'astec', label: { ru: 'Авторизованный сервис (ASTEC)', en: 'Authorised service (ASTEC)' } },
+  { id: 'plant', label: { ru: 'Завод-изготовитель', en: 'Manufacturing plant' } },
+  { id: 'log', label: { ru: 'Логистика и запчасти', en: 'Logistics & spare parts' } },
+];
+
+const serviceProcess = {
+  id: 'weg-service',
+  order: 6,
+  name: { ru: '6. Сервис и ремонт оборудования', en: '6. After-sales service and repair' },
+  description: {
+    ru: 'Обращение клиента — удалённая диагностика — определение гарантии — ремонт в авторизованном сервисе или на заводе — испытания — возврат.',
+    en: 'Customer request — remote diagnosis — warranty decision — repair in the authorised network or at the plant — testing — return.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 145000,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Техник', 'Сервисный инженер', 'Инженер', 'Логист', 'ОТК'),
+  },
+  documentation: {
+    ru: `Послепродажное обслуживание двигателей, приводов и трансформаторов.
+
+Публичные данные:
+• WEG поддерживает сеть авторизованного сервиса ASTEC; только по трансформаторам в Бразилии работают более ${WEG.serviceNetworkBrazilTransformers} аккредитованных партнёров — крупнейшая сеть в стране;
+• базы сервиса WEG Automação: Jaraguá do Sul (SC), São Bernardo do Campo (SP), Ribeirão Preto (SP);
+• установленный парк растёт: более ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн двигателей выпускается ежегодно, и часть из них возвращается в сервис в течение срока службы.
+
+Расчёт из публичных данных: объём в модели — 145 000 обращений в год (допущение: ≈0,8 % годового выпуска двигателей обращается в сервис).
+
+Доли веток (35 % решается удалённо, 41 % гарантийных случаев, 78 % согласований сметы) — отраслевые допущения, их следует заменить статистикой собственной CRM.
+
+${dataNote('ru')}
+
+${sourceBlock(['astec', 'production', 'numbers'], 'ru')}`,
+    en: `After-sales service for motors, drives and transformers.
+
+Public figures: the ASTEC authorised network includes more than ${WEG.serviceNetworkBrazilTransformers} accredited transformer partners in Brazil alone; WEG Automação service bases sit in Jaraguá do Sul, São Bernardo do Campo and Ribeirão Preto.
+
+Volume in the model: 145,000 requests a year (assumption: ≈0.8% of annual motor output returns for service).
+
+${dataNote('en')}
+
+${sourceBlock(['astec', 'production', 'numbers'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Сервис и ремонт оборудования', en: 'After-sales service and repair' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'customer', 'Обращение клиента', 'Customer request', reported({})),
+      node('register', 'serviceTask', 'support', 'Зарегистрировать обращение в CRM', 'Log the request in CRM', work(8, 'Техник')),
+      node('remote', 'userTask', 'support', 'Удалённая диагностика по данным привода', 'Remote diagnosis from drive data', work(35, 'Техник')),
+      node('gwRemote', 'exclusiveGateway', 'support', 'Решено удалённо?', 'Solved remotely?'),
+      node('closeRemote', 'serviceTask', 'support', 'Закрыть обращение и выслать инструкцию', 'Close the case with instructions', work(10, 'Техник')),
+      node('endRemote', 'endEvent', 'support', 'Решено без выезда', 'Closed remotely'),
+      node('warranty', 'businessRuleTask', 'support', 'Определить гарантийный статус', 'Determine the warranty status', work(15, 'Техник')),
+      node('gwWarranty', 'exclusiveGateway', 'support', 'Случай гарантийный?', 'Under warranty?'),
+      node('assign', 'userTask', 'support', 'Назначить авторизованный сервис по региону', 'Assign the regional service partner', work(12, 'Техник')),
+      node('pickup', 'serviceTask', 'log', 'Забрать оборудование у клиента', 'Collect the equipment', work(60, 'Логист', { cost: 420, waitTime: DAY * 2 })),
+      node('inspect', 'userTask', 'astec', 'Дефектовка и измерения', 'Tear-down and measurements', work(180, 'Сервисный инженер')),
+      node('gwScope', 'exclusiveGateway', 'astec', 'Ремонт на месте или на заводе?', 'Local repair or factory?'),
+      node('quote', 'sendTask', 'astec', 'Согласовать смету с клиентом', 'Agree the quotation with the customer', work(40, 'Сервисный инженер', { waitTime: DAY * 3 })),
+      node('gwAccept', 'exclusiveGateway', 'astec', 'Смета согласована?', 'Quotation accepted?'),
+      node('return', 'serviceTask', 'log', 'Вернуть без ремонта', 'Return without repair', work(45, 'Логист', { cost: 380 })),
+      node('endDecline', 'endEvent', 'log', 'Клиент отказался от ремонта', 'Customer declined'),
+      node('parts', 'serviceTask', 'log', 'Подобрать и отгрузить запчасти', 'Pick and ship the spare parts', work(50, 'Логист', { cost: 1650, waitTime: DAY * 4 })),
+      node('repairLocal', 'manualTask', 'astec', 'Выполнить ремонт в сервисном центре', 'Repair in the service centre', work(600, 'Сервисный инженер', { cost: 2400 })),
+      node('repairPlant', 'manualTask', 'plant', 'Капитальный ремонт на заводе', 'Full overhaul at the plant', work(2400, 'Инженер', { resourceQty: 2, cost: 12800, waitTime: DAY * 10 })),
+      node('test', 'userTask', 'astec', 'Испытать и снять характеристики', 'Test and record the performance', work(120, 'ОТК')),
+      node('gwTest', 'exclusiveGateway', 'astec', 'Испытания пройдены?', 'Tests passed?'),
+      node('deliver', 'serviceTask', 'log', 'Доставить и установить у клиента', 'Deliver and install at the customer', work(150, 'Логист', { cost: 520, waitTime: DAY * 2 })),
+      node('report', 'serviceTask', 'astec', 'Оформить отчёт и обновить историю оборудования', 'Issue the report, update the asset history', work(30, 'Сервисный инженер')),
+      node('feedback', 'sendTask', 'support', 'Запросить оценку качества сервиса', 'Ask for a service rating', work(6, 'Техник')),
+      node('end', 'endEvent', 'support', 'Обращение закрыто', 'Case closed'),
+      node('history', 'dataStore', 'astec', 'История обслуживания оборудования', 'Equipment service history'),
+      node('note', 'textAnnotation', 'astec', 'Сеть ASTEC: 40+ аккредитованных партнёров только по трансформаторам (WEG)', 'ASTEC network: 40+ accredited transformer partners (WEG)'),
+    ],
+    edges: [
+      flow('start', 'register'),
+      flow('register', 'remote'),
+      flow('remote', 'gwRemote'),
+      flow('gwRemote', 'closeRemote', { share: 35, ru: 'да', en: 'yes' }),
+      flow('gwRemote', 'warranty', { share: 65, ru: 'нужен ремонт', en: 'repair needed' }),
+      flow('closeRemote', 'endRemote'),
+      flow('warranty', 'gwWarranty'),
+      flow('gwWarranty', 'assign', { share: 41, ru: 'гарантия', en: 'warranty' }),
+      flow('gwWarranty', 'assign', { share: 59, ru: 'платный', en: 'chargeable' }),
+      flow('assign', 'pickup'),
+      flow('pickup', 'inspect'),
+      flow('inspect', 'quote'),
+      flow('quote', 'gwAccept'),
+      flow('gwAccept', 'gwScope', { share: 78, ru: 'согласована', en: 'accepted' }),
+      flow('gwAccept', 'return', { share: 22, ru: 'отказ', en: 'declined' }),
+      flow('return', 'endDecline'),
+      flow('gwScope', 'parts', { share: 81, ru: 'на месте', en: 'local' }),
+      flow('gwScope', 'repairPlant', { share: 19, ru: 'на заводе', en: 'factory' }),
+      flow('parts', 'repairLocal'),
+      flow('repairLocal', 'test'),
+      flow('repairPlant', 'test'),
+      flow('test', 'gwTest'),
+      flow('gwTest', 'deliver', { share: 93, ru: 'годен', en: 'pass' }),
+      flow('gwTest', 'repairLocal', { share: 7, ru: 'повторный ремонт', en: 'rework' }),
+      flow('deliver', 'report'),
+      flow('report', 'feedback'),
+      flow('feedback', 'end'),
+      { source: 'report', target: 'history', type: 'dataAssociation' },
+      { source: 'inspect', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { serviceProcess });
+
+});
+__fm_define('app/library/weg/p7-new-product.js', function (__exports) {
+/**
+ * 7. New product development (stage-gate) for an efficiency-class motor.
+ *
+ * WEG spent R$ 1.4 billion on research, development and innovation in 2025 -
+ * 3.4% of net revenue - and reports that 71% of revenue comes from products
+ * classified as sustainable.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'market', label: { ru: 'Маркетинг и продукт', en: 'Marketing & product' } },
+  { id: 'rnd', label: { ru: 'R&D — расчёт и конструкция', en: 'R&D — design' } },
+  { id: 'proto', label: { ru: 'Опытное производство', en: 'Prototype shop' } },
+  { id: 'lab', label: { ru: 'Испытательная лаборатория', en: 'Test laboratory' } },
+  { id: 'cert', label: { ru: 'Сертификация', en: 'Certification' } },
+  { id: 'ops', label: { ru: 'Подготовка производства', en: 'Industrialisation' } },
+];
+
+const newProduct = {
+  id: 'weg-npd',
+  order: 7,
+  name: { ru: '7. Разработка нового продукта (stage-gate)', en: '7. New product development (stage-gate)' },
+  description: {
+    ru: 'Идея — бизнес-кейс — конструкция — прототип — испытания КПД по IEC 60034-2-1 — сертификация — подготовка производства — запуск.',
+    en: 'Idea — business case — design — prototype — IEC 60034-2-1 efficiency tests — certification — industrialisation — launch.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 320,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Аналитик', 'Инженер-конструктор', 'Ведущий инженер', 'Оператор', 'Техник-испытатель', 'ОТК', 'Планировщик'),
+  },
+  documentation: {
+    ru: `Разработка нового продукта — от идеи до серийного запуска, с воротами принятия решения (stage-gate).
+
+Публичные данные:
+• расходы на исследования, разработку и инновации в 2025 году — R$ ${(WEG.rndSpend / 1e9).toFixed(1)} млрд, это ${DERIVED.rndShare} % чистой выручки;
+• 71 % выручки приходится на продукты, отнесённые компанией к устойчивым (энергоэффективные двигатели, приводы, решения для ВИЭ);
+• выручка 2025 — R$ ${(WEG.revenue / 1e9).toFixed(1)} млрд, чистая прибыль R$ ${(WEG.netIncome / 1e9).toFixed(2)} млрд.
+
+Расчёт из публичных данных: объём в модели — 320 проектов разработки в год; R$ ${(WEG.rndSpend / 1e9).toFixed(1)} млрд ÷ 320 ≈ R$ ${Math.round(WEG.rndSpend / 320 / 1e6)} млн среднего бюджета проекта — этот порядок величины и заложен в стоимость этапов.
+
+Прохождение ворот (45 % на Gate 1) и доля повторных испытаний — отраслевые допущения.
+
+${dataNote('ru')}
+
+${sourceBlock(['annual2025', 'fy2025', 'numbers'], 'ru')}`,
+    en: `Stage-gate development of a new product, from idea to serial launch.
+
+Public figures: R$ ${(WEG.rndSpend / 1e9).toFixed(1)}bn spent on R&D and innovation in 2025 (${DERIVED.rndShare}% of net revenue); 71% of revenue comes from products the company classifies as sustainable.
+
+Derived: 320 development projects a year gives an average project budget of about R$ ${Math.round(WEG.rndSpend / 320 / 1e6)}m, which is what the stage costs reflect.
+
+${dataNote('en')}
+
+${sourceBlock(['annual2025', 'fy2025', 'numbers'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Разработка нового продукта', en: 'New product development' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startEvent', 'market', 'Идея или запрос рынка', 'Idea or market request', reported({})),
+      node('screen', 'userTask', 'market', 'Оценить рынок, объём и цену', 'Assess market, volume and price', work(960, 'Аналитик')),
+      node('business', 'businessRuleTask', 'market', 'Собрать бизнес-кейс и NPV', 'Build the business case and NPV', work(720, 'Аналитик')),
+      node('gate1', 'exclusiveGateway', 'market', 'Ворота 1: идея принята?', 'Gate 1: idea approved?'),
+      node('stop1', 'endEvent', 'market', 'Проект закрыт на Gate 1', 'Stopped at Gate 1'),
+      node('concept', 'userTask', 'rnd', 'Разработать техническую концепцию', 'Develop the technical concept', work(1920, 'Ведущий инженер')),
+      node('simulate', 'serviceTask', 'rnd', 'Электромагнитный и тепловой расчёт (МКЭ)', 'Electromagnetic and thermal FEA', work(1440, 'Инженер-конструктор', { cost: 18000 })),
+      node('gate2', 'exclusiveGateway', 'rnd', 'Ворота 2: конструкция утверждена?', 'Gate 2: design approved?'),
+      node('redesign', 'userTask', 'rnd', 'Переработать конструкцию', 'Rework the design', work(1200, 'Инженер-конструктор')),
+      node('proto', 'manualTask', 'proto', 'Изготовить опытный образец', 'Build the prototype', work(2880, 'Оператор', { resourceQty: 2, cost: 145000 })),
+      node('split', 'parallelGateway', 'lab', 'Запустить испытания параллельно', 'Start the test programme'),
+      node('efficiency', 'userTask', 'lab', 'Испытания КПД по IEC 60034-2-1', 'Efficiency tests to IEC 60034-2-1', work(1440, 'Техник-испытатель', { cost: 26000 })),
+      node('thermal', 'userTask', 'lab', 'Тепловые и вибрационные испытания', 'Thermal and vibration tests', work(960, 'Техник-испытатель')),
+      node('life', 'userTask', 'lab', 'Ресурсные испытания подшипниковых узлов', 'Bearing endurance tests', work(720, 'Техник-испытатель', { waitTime: WEEK * 4 })),
+      node('join', 'parallelGateway', 'lab', 'Свести результаты испытаний', 'Collect the test results'),
+      node('gwClass', 'exclusiveGateway', 'lab', 'Класс энергоэффективности достигнут?', 'Efficiency class achieved?'),
+      node('tune', 'userTask', 'rnd', 'Оптимизировать активную часть', 'Optimise the active part', work(1680, 'Ведущий инженер', { cost: 42000 })),
+      node('cert', 'sendTask', 'cert', 'Сертификация (INMETRO, UL, CE)', 'Certification (INMETRO, UL, CE)', work(600, 'ОТК', { cost: 95000, waitTime: WEEK * 8 })),
+      node('gate3', 'exclusiveGateway', 'cert', 'Ворота 3: к производству готов?', 'Gate 3: ready to industrialise?'),
+      node('tooling', 'userTask', 'ops', 'Изготовить оснастку и штампы', 'Build tooling and dies', work(3840, 'Планировщик', { cost: 380000, waitTime: WEEK * 6 })),
+      node('pilot', 'manualTask', 'ops', 'Выпустить пилотную партию', 'Run the pilot batch', work(2400, 'Оператор', { resourceQty: 3, cost: 120000 })),
+      node('ppap', 'userTask', 'ops', 'Подтвердить процесс и качество (PPAP)', 'Confirm the process and quality (PPAP)', work(600, 'ОТК')),
+      node('gwPilot', 'exclusiveGateway', 'ops', 'Пилот успешен?', 'Pilot successful?'),
+      node('launch', 'userTask', 'market', 'Запустить продажи и обучить сеть', 'Launch sales and train the channel', work(1200, 'Аналитик', { cost: 85000 })),
+      node('end', 'endEvent', 'market', 'Продукт в серийном производстве', 'Product in serial production'),
+      node('spec', 'dataObject', 'rnd', 'Техническое описание и расчёты', 'Design record and calculations'),
+      node('certDoc', 'dataObject', 'cert', 'Сертификаты соответствия', 'Certificates of conformity'),
+      node('note', 'textAnnotation', 'market', 'R&D 2025: R$ 1,4 млрд = 3,4 % выручки (публичный отчёт)', 'R&D 2025: R$ 1.4bn = 3.4% of revenue (public report)'),
+    ],
+    edges: [
+      flow('start', 'screen'),
+      flow('screen', 'business'),
+      flow('business', 'gate1'),
+      flow('gate1', 'concept', { share: 45, ru: 'принято', en: 'approved' }),
+      flow('gate1', 'stop1', { share: 55, ru: 'закрыто', en: 'stopped' }),
+      flow('concept', 'simulate'),
+      flow('simulate', 'gate2'),
+      flow('gate2', 'proto', { share: 78, ru: 'утверждено', en: 'approved' }),
+      flow('gate2', 'redesign', { share: 22, ru: 'на доработку', en: 'rework' }),
+      flow('redesign', 'simulate'),
+      flow('proto', 'split'),
+      flow('split', 'efficiency'),
+      flow('split', 'thermal'),
+      flow('split', 'life'),
+      flow('efficiency', 'join'),
+      flow('thermal', 'join'),
+      flow('life', 'join'),
+      flow('join', 'gwClass'),
+      flow('gwClass', 'cert', { share: 70, ru: 'достигнут', en: 'achieved' }),
+      flow('gwClass', 'tune', { share: 30, ru: 'не достигнут', en: 'not achieved' }),
+      flow('tune', 'split'),
+      flow('cert', 'gate3'),
+      flow('gate3', 'tooling', { share: 88, ru: 'да', en: 'yes' }),
+      flow('gate3', 'stop1', { share: 12, ru: 'стоп', en: 'stop' }),
+      flow('tooling', 'pilot'),
+      flow('pilot', 'ppap'),
+      flow('ppap', 'gwPilot'),
+      flow('gwPilot', 'launch', { share: 85, ru: 'успешен', en: 'ok' }),
+      flow('gwPilot', 'pilot', { share: 15, ru: 'повтор', en: 'repeat' }),
+      flow('launch', 'end'),
+      { source: 'simulate', target: 'spec', type: 'dataAssociation' },
+      { source: 'cert', target: 'certDoc', type: 'dataAssociation' },
+      { source: 'business', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { newProduct });
+
+});
+__fm_define('app/library/weg/p8-export-customs.js', function (__exports) {
+/**
+ * 8. Export shipment from Brazil and customs clearance (DU-E / Siscomex).
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'client', label: { ru: 'Зарубежный заказчик', en: 'Overseas customer' } },
+  { id: 'sales', label: { ru: 'Экспортные продажи', en: 'Export sales' } },
+  { id: 'fin', label: { ru: 'Финансы и казначейство', en: 'Finance & treasury' } },
+  { id: 'plant', label: { ru: 'Завод и упаковка', en: 'Plant & packing' } },
+  { id: 'customs', label: { ru: 'Таможенный брокер', en: 'Customs broker' } },
+  { id: 'carrier', label: { ru: 'Перевозчик и порт', en: 'Carrier & port' } },
+  { id: 'dest', label: { ru: 'Компания WEG в стране назначения', en: 'WEG company at destination' } },
+];
+
+const SHIPMENT_VALUE = 420000; // R$, average consolidated export shipment
+const BRAZIL_EXPORT_SHARE = 0.45; // share of external revenue shipped out of Brazil
+const EXPORT_REVENUE = Math.round(DERIVED.externalRevenue * BRAZIL_EXPORT_SHARE);
+const SHIPMENTS = Math.round(EXPORT_REVENUE / SHIPMENT_VALUE / 100) * 100; // ≈ 26 000
+
+const exportProcess = {
+  id: 'weg-export',
+  order: 8,
+  name: {
+    ru: '8. Экспортная поставка и таможенное оформление',
+    en: '8. Export shipment and customs clearance',
+  },
+  description: {
+    ru: 'Экспортный заказ — комплаенс по стране и контрагенту — условия оплаты (аккредитив, предоплата, открытый счёт) — экспортная упаковка и документы — DU-E в Siscomex — канал досмотра — погрузка на судно — морской переход — оформление в стране назначения — поставка и закрытие валютного контракта.',
+    en: 'Export order — country and counterparty compliance — payment terms (L/C, advance, open account) — export packing and documents — DU-E in Siscomex — inspection channel — vessel loading — ocean transit — destination clearance — delivery and FX contract settlement.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: SHIPMENTS,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Аналитик', 'Логист', 'Таможенный брокер', 'Финансы', 'Оператор'),
+  },
+  documentation: {
+    ru: `Отгрузка готовой продукции с бразильских площадок зарубежному заказчику и таможенное оформление на экспорт.
+
+Публичные данные:
+• ${Math.round(WEG.externalShare * 1000) / 10} % выручки 2025 года WEG получает вне Бразилии — это ≈ R$ ${(DERIVED.externalRevenue / 1e9).toFixed(1)} млрд от общей выручки R$ ${(WEG.revenue / 1e9).toFixed(1)} млрд;
+• WEG работает на ${WEG.plants} производственных площадках в ${WEG.countries} странах, поэтому часть зарубежной выручки производится локально и через бразильскую таможню не проходит.
+
+Расчёт из публичных данных (объём процесса):
+1) внешняя выручка = R$ ${(WEG.revenue / 1e9).toFixed(1)} млрд × ${Math.round(WEG.externalShare * 1000) / 10} % = R$ ${(DERIVED.externalRevenue / 1e9).toFixed(1)} млрд;
+2) допущение: ${Math.round(BRAZIL_EXPORT_SHARE * 100)} % этой суммы вывозится из Бразилии, остальное делают заводы в других странах → R$ ${(EXPORT_REVENUE / 1e9).toFixed(1)} млрд;
+3) допущение: средняя стоимость консолидированной отгрузки (один-два 40-футовых контейнера) — R$ ${(SHIPMENT_VALUE / 1000).toFixed(0)} тыс.;
+4) объём = R$ ${(EXPORT_REVENUE / 1e9).toFixed(1)} млрд ÷ R$ ${(SHIPMENT_VALUE / 1000).toFixed(0)} тыс. ≈ ${SHIPMENTS.toLocaleString('ru-RU')} отгрузок в год.
+
+Нормативная часть процесса (соответствует бразильскому порядку, а не внутренним регламентам WEG):
+• DU-E (Declaração Única de Exportação) оформляется в Portal Único Siscomex и заменяет прежние RE/DDE;
+• после регистрации DU-E груз проходит параметризацию и получает канал: зелёный (выпуск без проверки), жёлтый (проверка документов), красный (физический досмотр);
+• разрешение на погрузку и последующая «averbação» подтверждают фактический вывоз;
+• экспортная деревянная тара маркируется по ISPM 15, счёт-фактура выпускается как NF-e с экспортным CFOP (7.xxx);
+• валютная выручка закрывается контрактом обмена (ACC/ACE) в уполномоченном банке.
+
+Доли каналов досмотра (${84} / ${11} / ${5} %) и распределение условий оплаты — отраслевые допущения, их следует заменить статистикой собственного Siscomex-кабинета и CRM.
+
+${dataNote('ru')}
+
+${sourceBlock(['fy2025', 'profile', 'numbers', 'annual2025'], 'ru')}`,
+    en: `Shipment of finished goods from the Brazilian plants to an overseas customer, including export customs clearance.
+
+Public figures: ${Math.round(WEG.externalShare * 1000) / 10}% of WEG's 2025 revenue came from markets outside Brazil — about R$ ${(DERIVED.externalRevenue / 1e9).toFixed(1)}bn of R$ ${(WEG.revenue / 1e9).toFixed(1)}bn. WEG also runs ${WEG.plants} plants in ${WEG.countries} countries, so part of that revenue is produced locally and never crosses Brazilian customs.
+
+Volume derivation: external revenue R$ ${(DERIVED.externalRevenue / 1e9).toFixed(1)}bn × ${Math.round(BRAZIL_EXPORT_SHARE * 100)}% shipped out of Brazil (assumption) ÷ R$ ${(SHIPMENT_VALUE / 1000).toFixed(0)}k average consolidated shipment (assumption) ≈ ${SHIPMENTS.toLocaleString('en-US')} shipments a year.
+
+Regulatory steps follow Brazilian practice rather than WEG internal procedure: the DU-E is filed in Portal Único Siscomex, parameterisation assigns a green / yellow / red channel, the shipping authorisation and later averbação confirm the physical export, wooden export packing is ISPM 15 marked, the invoice is issued as an NF-e with an export CFOP, and the currency proceeds are settled through an FX contract (ACC/ACE) at an authorised bank.
+
+Channel shares (84 / 11 / 5%) and the payment-term mix are assumptions — replace them with your own Siscomex and CRM statistics.
+
+${dataNote('en')}
+
+${sourceBlock(['fy2025', 'profile', 'numbers', 'annual2025'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Экспортная поставка и таможенное оформление', en: 'Export shipment and customs clearance' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'client', 'Экспортный заказ подтверждён', 'Export order confirmed', reported({})),
+      node('terms', 'userTask', 'sales', 'Проверить Incoterms, страну и требования сертификации', 'Check Incoterms, country and certification requirements', work(45, 'Менеджер по продажам')),
+      node('screen', 'businessRuleTask', 'sales', 'Комплаенс: санкционный скрининг страны и контрагента', 'Compliance: sanctions screening of country and counterparty', work(20, 'Аналитик')),
+      node('gwScreen', 'exclusiveGateway', 'sales', 'Поставка допустима?', 'Shipment allowed?'),
+      node('reject', 'sendTask', 'sales', 'Отказать и зафиксировать причину в комплаенс-журнале', 'Decline and record the reason in the compliance log', work(25, 'Аналитик')),
+      node('endReject', 'endEvent', 'sales', 'Отгрузка запрещена комплаенсом', 'Blocked by compliance'),
+      node('proforma', 'userTask', 'sales', 'Выпустить proforma invoice и подтвердить срок отгрузки', 'Issue the proforma invoice and confirm the shipping date', work(40, 'Менеджер по продажам')),
+      node('gwPay', 'exclusiveGateway', 'fin', 'Условия оплаты?', 'Payment terms?'),
+      node('lc', 'userTask', 'fin', 'Проверить аккредитив и список документов с банком', 'Check the L/C and the document set with the bank', work(120, 'Финансы', { waitTime: DAY * 4 })),
+      node('advance', 'receiveTask', 'fin', 'Получить предоплату', 'Receive the advance payment', work(30, 'Финансы', { waitTime: DAY * 5 })),
+      node('credit', 'businessRuleTask', 'fin', 'Проверить кредитный лимит и страховое покрытие экспорта', 'Check the credit limit and export credit insurance', work(35, 'Финансы')),
+      node('gwPayJoin', 'exclusiveGateway', 'fin', 'Оплата обеспечена', 'Payment secured'),
+      node('release', 'serviceTask', 'plant', 'Выпустить заказ на отгрузку и зарезервировать продукцию', 'Release the shipping order and reserve the goods', work(20, 'Логист')),
+      node('waitGoods', 'intermediateTimerEvent', 'plant', 'Ожидание готовности продукции на складе', 'Waiting for the goods to be ready', { waitTime: WEEK * 2, dataSource: 'assumption' }),
+      node('pgSplit', 'parallelGateway', 'plant', 'Упаковка и документы параллельно', 'Packing and documents in parallel'),
+      node('pack', 'manualTask', 'plant', 'Экспортная упаковка и тара по ISPM 15', 'Export packing and ISPM 15 crating', work(300, 'Оператор', { resourceQty: 3, cost: 2600 })),
+      node('marking', 'serviceTask', 'plant', 'Нанести маркировку, взвесить, снять фотоотчёт', 'Apply markings, weigh and photograph the packages', work(60, 'Оператор', { cost: 180 })),
+      node('docs', 'userTask', 'customs', 'Подготовить инвойс, packing list и сертификат происхождения', 'Prepare the invoice, packing list and certificate of origin', work(90, 'Таможенный брокер', { cost: 320 })),
+      node('nfe', 'serviceTask', 'fin', 'Выпустить NF-e с экспортным CFOP', 'Issue the NF-e with an export CFOP', work(25, 'Финансы')),
+      node('insure', 'serviceTask', 'fin', 'Оформить морское страхование груза', 'Arrange marine cargo insurance', work(20, 'Финансы', { cost: 1050 })),
+      node('pgJoin', 'parallelGateway', 'customs', 'Груз и документы готовы', 'Cargo and documents ready'),
+      node('due', 'serviceTask', 'customs', 'Зарегистрировать DU-E в Portal Único Siscomex', 'File the DU-E in Portal Único Siscomex', work(75, 'Таможенный брокер', { cost: 1450 })),
+      node('gwLicense', 'exclusiveGateway', 'customs', 'Нужна экспортная лицензия (ануэнсия)?', 'Export licence (anuência) required?'),
+      node('license', 'userTask', 'customs', 'Получить согласование уполномоченного органа', 'Obtain the licensing authority approval', work(90, 'Таможенный брокер', { waitTime: DAY * 6 })),
+      node('booking', 'sendTask', 'carrier', 'Забукировать судно и получить booking confirmation', 'Book the vessel and get the booking confirmation', work(45, 'Логист', { cost: 12000, waitTime: DAY * 2 })),
+      node('stuff', 'manualTask', 'plant', 'Загрузить контейнер и опломбировать', 'Stuff the container and seal it', work(180, 'Оператор', { resourceQty: 2, cost: 900 })),
+      node('drayage', 'serviceTask', 'carrier', 'Доставить контейнер в порт и пройти gate-in', 'Truck the container to the port and gate in', work(90, 'Логист', { cost: 3800, waitTime: DAY * 2 })),
+      node('channel', 'businessRuleTask', 'customs', 'Параметризация DU-E и канал досмотра', 'DU-E parameterisation and inspection channel', work(15, 'Таможенный брокер')),
+      node('gwChannel', 'exclusiveGateway', 'customs', 'Канал досмотра?', 'Inspection channel?'),
+      node('yellow', 'userTask', 'customs', 'Жёлтый канал: проверка документов таможней', 'Yellow channel: customs document review', work(60, 'Таможенный брокер', { waitTime: DAY })),
+      node('red', 'userTask', 'customs', 'Красный канал: физический досмотр', 'Red channel: physical inspection', work(240, 'Таможенный брокер', { cost: 2100, waitTime: DAY * 3 })),
+      node('gwChannelJoin', 'exclusiveGateway', 'customs', 'Груз выпущен таможней', 'Cleared by customs'),
+      node('authorise', 'serviceTask', 'customs', 'Разрешение на погрузку и averbação', 'Shipping authorisation and averbação', work(30, 'Таможенный брокер', { cost: 1900 })),
+      node('load', 'serviceTask', 'carrier', 'Погрузить на судно и выпустить Bill of Lading', 'Load on board and issue the Bill of Lading', work(40, 'Логист', { waitTime: DAY * 2 })),
+      node('transit', 'intermediateTimerEvent', 'carrier', 'Морской переход до порта назначения', 'Ocean transit to the destination port', { waitTime: DAY * 26, dataSource: 'assumption' }),
+      node('sendDocs', 'sendTask', 'sales', 'Передать комплект документов банку и заказчику', 'Send the document set to the bank and the customer', work(35, 'Менеджер по продажам', { cost: 260 })),
+      node('destClear', 'userTask', 'dest', 'Оформить импорт в стране назначения', 'Clear the import at the destination', work(180, 'Таможенный брокер', { cost: 2400, waitTime: DAY * 4 })),
+      node('checkCargo', 'userTask', 'dest', 'Принять груз и проверить сохранность', 'Receive the cargo and check for damage', work(60, 'Логист')),
+      node('gwDamage', 'exclusiveGateway', 'dest', 'Есть повреждения?', 'Any damage?'),
+      node('claim', 'userTask', 'dest', 'Открыть страховую претензию и согласовать возмещение', 'Open the insurance claim and agree the settlement', work(150, 'Логист', { waitTime: DAY * 12 })),
+      node('deliver', 'serviceTask', 'dest', 'Доставить заказчику и получить подтверждение приёмки', 'Deliver to the customer and obtain the acceptance', work(120, 'Логист', { cost: 1700, waitTime: DAY * 2 })),
+      node('payment', 'receiveTask', 'fin', 'Получить платёж по контракту', 'Receive the contract payment', work(25, 'Финансы', { waitTime: DAY * 12 })),
+      node('fx', 'serviceTask', 'fin', 'Закрыть валютный контракт обмена и разнести выручку', 'Settle the FX contract and post the revenue', work(45, 'Финансы')),
+      node('end', 'endEvent', 'fin', 'Экспортная поставка закрыта', 'Export shipment closed'),
+      node('duDoc', 'dataObject', 'customs', 'DU-E (Siscomex)', 'DU-E (Siscomex)'),
+      node('blDoc', 'dataObject', 'carrier', 'Bill of Lading', 'Bill of Lading'),
+      node('regStore', 'dataStore', 'fin', 'Реестр экспортных операций и валютных контрактов', 'Register of export operations and FX contracts'),
+      node('note', 'textAnnotation', 'customs', 'Каналы Siscomex: зелёный — выпуск без проверки, жёлтый — документы, красный — физический досмотр', 'Siscomex channels: green — released, yellow — documents, red — physical inspection'),
+    ],
+    edges: [
+      flow('start', 'terms'),
+      flow('terms', 'screen'),
+      flow('screen', 'gwScreen'),
+      flow('gwScreen', 'reject', { share: 2, ru: 'ограничение', en: 'restricted' }),
+      flow('gwScreen', 'proforma', { share: 98, ru: 'допустима', en: 'allowed' }),
+      flow('reject', 'endReject'),
+      flow('proforma', 'gwPay'),
+      flow('gwPay', 'lc', { share: 34, ru: 'аккредитив', en: 'letter of credit', condition: 'terms == "L/C"' }),
+      flow('gwPay', 'advance', { share: 18, ru: 'предоплата', en: 'advance', condition: 'terms == "advance"' }),
+      flow('gwPay', 'credit', { share: 48, ru: 'открытый счёт', en: 'open account', condition: 'terms == "open account"' }),
+      flow('lc', 'gwPayJoin'),
+      flow('advance', 'gwPayJoin'),
+      flow('credit', 'gwPayJoin'),
+      flow('gwPayJoin', 'release'),
+      flow('release', 'waitGoods'),
+      flow('waitGoods', 'pgSplit'),
+      flow('pgSplit', 'pack'),
+      flow('pgSplit', 'docs'),
+      flow('pgSplit', 'nfe'),
+      flow('pack', 'marking'),
+      flow('marking', 'pgJoin'),
+      flow('docs', 'pgJoin'),
+      flow('nfe', 'insure'),
+      flow('insure', 'pgJoin'),
+      flow('pgJoin', 'due'),
+      flow('due', 'gwLicense'),
+      flow('gwLicense', 'license', { share: 12, ru: 'нужна ануэнсия', en: 'licence needed' }),
+      flow('gwLicense', 'booking', { share: 88, ru: 'не требуется', en: 'not required' }),
+      flow('license', 'booking'),
+      flow('booking', 'stuff'),
+      flow('stuff', 'drayage'),
+      flow('drayage', 'channel'),
+      flow('channel', 'gwChannel'),
+      flow('gwChannel', 'gwChannelJoin', { share: 84, ru: 'зелёный', en: 'green' }),
+      flow('gwChannel', 'yellow', { share: 11, ru: 'жёлтый', en: 'yellow' }),
+      flow('gwChannel', 'red', { share: 5, ru: 'красный', en: 'red' }),
+      flow('yellow', 'gwChannelJoin'),
+      flow('red', 'gwChannelJoin'),
+      flow('gwChannelJoin', 'authorise'),
+      flow('authorise', 'load'),
+      flow('load', 'transit'),
+      flow('transit', 'sendDocs'),
+      flow('sendDocs', 'destClear'),
+      flow('destClear', 'checkCargo'),
+      flow('checkCargo', 'gwDamage'),
+      flow('gwDamage', 'claim', { share: 3, ru: 'да', en: 'yes' }),
+      flow('gwDamage', 'deliver', { share: 97, ru: 'нет', en: 'no' }),
+      flow('claim', 'deliver'),
+      flow('deliver', 'payment'),
+      flow('payment', 'fx'),
+      flow('fx', 'end'),
+      { source: 'due', target: 'duDoc', type: 'dataAssociation' },
+      { source: 'load', target: 'blDoc', type: 'dataAssociation' },
+      { source: 'fx', target: 'regStore', type: 'dataAssociation' },
+      { source: 'channel', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { exportProcess });
+
+});
+__fm_define('app/library/weg/index.js', function (__exports) {
+/**
+ * WEG process library.
+ *
+ * Eight BPMN 2.0 models of WEG S.A.'s main business processes, grounded in the
+ * company's public disclosure (see `facts.js`). The library is shipped with the
+ * application: it is loaded on start-up into a "WEG" folder of the model
+ * explorer, so every user sees the diagrams on entering the program.
+ *
+ * Each process is stored as a notation-neutral specification and turned into a
+ * real diagram (identity, geometry, lanes, routed connections) by the same
+ * pipeline the templates and the table builder use.
+ */
+const { createProject } = __fm_require('app/core/model.js');
+const { buildBpmnDiagram } = __fm_require('app/ai/schema.js');
+const { WEG, WEG_SOURCES, dataNote, roleLabel } = __fm_require('app/library/weg/facts.js');
+const { orderToCash } = __fm_require('app/library/weg/p1-order-to-cash.js');
+const { motorManufacturing } = __fm_require('app/library/weg/p2-motor-manufacturing.js');
+const { procurement } = __fm_require('app/library/weg/p3-procurement.js');
+const { engineerToOrder } = __fm_require('app/library/weg/p4-engineer-to-order.js');
+const { transformerProject } = __fm_require('app/library/weg/p5-transformer-project.js');
+const { serviceProcess } = __fm_require('app/library/weg/p6-service.js');
+const { newProduct } = __fm_require('app/library/weg/p7-new-product.js');
+const { exportProcess } = __fm_require('app/library/weg/p8-export-customs.js');
+/** Folder name shown in the model explorer. */
+const WEG_FOLDER = 'WEG';
+
+const WEG_PROCESSES = [
+  orderToCash,
+  motorManufacturing,
+  procurement,
+  engineerToOrder,
+  transformerProject,
+  serviceProcess,
+  newProduct,
+  exportProcess,
+].sort((a, b) => a.order - b.order);
+
+/* ------------------------------------------------------------ localisation */
+
+function pick(value, locale) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  return value[locale] || value.en || value.ru || '';
+}
+
+function localizeProps(props, locale) {
+  if (!props) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && ('ru' in value || 'en' in value)) {
+      out[key] = pick(value, locale);
+    } else if (key === 'resource' && typeof value === 'string') {
+      out[key] = roleLabel(value, locale);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+/** Resolves every `{ ru, en }` pair of a specification into one language. */
+function localizeSpec(spec, locale = 'ru') {
+  return {
+    notation: spec.notation || 'bpmn',
+    name: pick(spec.name, locale),
+    poolLabel: spec.poolLabel ? pick(spec.poolLabel, locale) : undefined,
+    lanes: (spec.lanes || []).map((lane) => ({ id: lane.id, label: pick(lane.label, locale) })),
+    nodes: (spec.nodes || []).map((node) => ({
+      ...node,
+      label: pick(node.label, locale),
+      props: localizeProps(node.props, locale),
+    })),
+    edges: (spec.edges || []).map((edge) => ({
+      ...edge,
+      label: edge.label ? pick(edge.label, locale) : undefined,
+      props: localizeProps(edge.props, locale),
+    })),
+  };
+}
+
+function localizeAnalysis(analysis, locale) {
+  if (!analysis) return undefined;
+  return {
+    ...analysis,
+    roles: (analysis.roles || []).map((role) => ({ ...role, name: roleLabel(role.name, locale) })),
+  };
+}
+
+/* --------------------------------------------------------------- building */
+
+/** One library process -> one ready diagram placed in the WEG folder. */
+function buildWegDiagram(process, locale = 'ru') {
+  const spec = localizeSpec(process.spec, locale);
+  const diagram = buildBpmnDiagram(spec, { locale, name: pick(process.name, locale) });
+  diagram.name = pick(process.name, locale);
+  diagram.meta.folder = WEG_FOLDER;
+  diagram.meta.library = 'weg';
+  diagram.meta.processId = process.id;
+  diagram.meta.description = pick(process.description, locale);
+  diagram.meta.documentation = pick(process.documentation, locale);
+  diagram.meta.author = 'WEG S.A. — public disclosure';
+  diagram.meta.analysis = localizeAnalysis(process.analysis, locale);
+  return diagram;
+}
+
+/** Every library process as diagrams, in the documented order. */
+function buildWegDiagrams(locale = 'ru') {
+  return WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
+}
+
+function wegProjectName(locale = 'ru') {
+  return locale === 'en' ? 'WEG — business process library' : 'WEG — библиотека бизнес-процессов';
+}
+
+function wegProjectDocumentation(locale = 'ru') {
+  const head =
+    locale === 'en'
+      ? `WEG S.A. business process library — ${WEG_PROCESSES.length} BPMN 2.0 models with calculable time, resource and cost parameters.
+
+WEG in ${WEG.year}: net revenue R$ ${(WEG.revenue / 1e9).toFixed(1)}bn, EBITDA R$ ${(WEG.ebitda / 1e9).toFixed(2)}bn, net income R$ ${(WEG.netIncome / 1e9).toFixed(2)}bn, ROIC ${(WEG.roic * 100).toFixed(1)}%, more than ${WEG.employees.toLocaleString('en-US')} employees, ${WEG.plants} plants in ${WEG.countries} countries, more than ${(WEG.motorsPerYear / 1e6).toFixed(0)} million motors a year, ${(WEG.externalShare * 100).toFixed(1)}% of revenue from outside Brazil.
+
+Open the Analysis tab (⌥⇧A) to recalculate lead time, cost, resource demand and the bottleneck of the selected diagram; every parameter can be edited in the Properties panel and the totals follow.`
+      : `Библиотека бизнес-процессов WEG S.A. — ${WEG_PROCESSES.length} моделей BPMN 2.0 с рассчитываемыми параметрами времени, ресурсов и стоимости.
+
+WEG в ${WEG.year} году: выручка R$ ${(WEG.revenue / 1e9).toFixed(1)} млрд, EBITDA R$ ${(WEG.ebitda / 1e9).toFixed(2)} млрд, чистая прибыль R$ ${(WEG.netIncome / 1e9).toFixed(2)} млрд, ROIC ${(WEG.roic * 100).toFixed(1)} %, более ${WEG.employees.toLocaleString('ru-RU')} сотрудников, ${WEG.plants} производственных площадок в ${WEG.countries} странах, более ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн двигателей в год, ${(WEG.externalShare * 100).toFixed(1)} % выручки — вне Бразилии.
+
+Вкладка «Анализ» (⌥⇧A) пересчитывает длительность, стоимость, потребность в ресурсах и узкое место выбранной схемы; любой параметр правится в панели свойств, и итоги пересчитываются сразу.`;
+
+  const list = WEG_PROCESSES.map((process) => `• ${pick(process.name, locale)} — ${pick(process.description, locale)}`).join('\n');
+  const sources = WEG_SOURCES.map((item) => `• ${item.title[locale] || item.title.en} — ${item.url}`).join('\n');
+  const sourceHead = locale === 'en' ? 'Public sources:' : 'Источники публичных данных:';
+  return `${head}\n\n${list}\n\n${dataNote(locale)}\n\n${sourceHead}\n${sources}`;
+}
+
+/** The library as a stand-alone project - what the application opens on start. */
+function createWegProject(locale = 'ru') {
+  const project = createProject({
+    name: wegProjectName(locale),
+    company: 'WEG S.A.',
+    author: 'FiberModeler',
+    description:
+      locale === 'en'
+        ? 'Eight BPMN 2.0 models of WEG main business processes with calculable parameters.'
+        : 'Восемь моделей BPMN 2.0 по основным бизнес-процессам WEG с рассчитываемыми параметрами.',
+  });
+  project.documentation = wegProjectDocumentation(locale);
+  project.diagrams = buildWegDiagrams(locale);
+  return project;
+}
+
+/** Adds the library to an existing project, replacing an older copy of it. */
+function addWegLibrary(project, locale = 'ru') {
+  const kept = project.diagrams.filter((diagram) => diagram.meta?.library !== 'weg');
+  project.diagrams = [...kept, ...buildWegDiagrams(locale)];
+  return project;
+}
+
+Object.assign(__exports, { WEG_FOLDER, WEG_PROCESSES, localizeSpec, buildWegDiagram, buildWegDiagrams, wegProjectName, wegProjectDocumentation, createWegProject, addWegLibrary });
+
+});
 __fm_define('app/storage/db.js', function (__exports) {
 /**
  * IndexedDB storage: projects live in the browser so a session survives a
@@ -10812,6 +12849,7 @@ const NS = {
   'xmlns:dc': 'http://www.omg.org/spec/DD/20100524/DC',
   'xmlns:di': 'http://www.omg.org/spec/DD/20100524/DI',
   'xmlns:fm': 'https://fibermodeler.app/schema',
+  'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
 };
 
 const EVENT_DEFINITIONS = {
@@ -11788,7 +13826,36 @@ class Explorer {
         rows.push(`<div class="tree-empty" style="padding-left:34px">${t('explorer.empty')}</div>`);
         continue;
       }
-      for (const diagram of roots) this.renderDiagram(diagram, 2, rows);
+      // diagrams that declare `meta.folder` are grouped under that folder
+      const folders = new Map();
+      const loose = [];
+      for (const diagram of roots) {
+        const folder = diagram.meta?.folder;
+        if (!folder) {
+          loose.push(diagram);
+          continue;
+        }
+        if (!folders.has(folder)) folders.set(folder, []);
+        folders.get(folder).push(diagram);
+      }
+      for (const [folder, list] of folders) {
+        const folderId = `__folder_${notation}_${folder}`;
+        const folderCollapsed = this.collapsed.has(folderId);
+        rows.push(
+          row({
+            id: folderId,
+            level: 2,
+            label: folder,
+            iconName: 'folder',
+            badge: String(list.length),
+            hasChildren: true,
+            collapsed: folderCollapsed,
+          })
+        );
+        if (folderCollapsed) continue;
+        for (const diagram of list) this.renderDiagram(diagram, 3, rows);
+      }
+      for (const diagram of loose) this.renderDiagram(diagram, 2, rows);
     }
 
     rows.push(
@@ -11835,7 +13902,7 @@ class Explorer {
       this.app.openProjectProperties();
       return;
     }
-    if (id.startsWith('__group_')) {
+    if (id.startsWith('__group_') || id.startsWith('__folder_')) {
       if (this.collapsed.has(id)) this.collapsed.delete(id);
       else this.collapsed.add(id);
       this.render();
@@ -12521,6 +14588,702 @@ function escapeHtml(value) {
 Object.assign(__exports, { Properties });
 
 });
+__fm_define('app/analysis/simulate.js', function (__exports) {
+/**
+ * Process calculation engine.
+ *
+ * Standard process-analysis maths over a BPMN graph:
+ *   1. token propagation - how often each step runs per process instance,
+ *      following gateway shares and rework loops;
+ *   2. time - processing time, waiting time, expected and critical lead time;
+ *   3. money - direct cost plus labour cost from role rates;
+ *   4. capacity - hours per role per year and the resulting headcount (FTE);
+ *   5. bottleneck - the step that consumes the most time per instance.
+ *
+ * Everything is derived from the parameters stored on the elements, so the
+ * numbers change the moment the model changes.
+ */
+const { BPMN_TYPES } = __fm_require('app/notations/bpmn/types.js');
+const { analysisSettings, edgeProbability, nodeCost, nodeDuration, nodeResource, nodeResourceQty, nodeWait, roleRate, round } = __fm_require('app/analysis/parameters.js');
+const FLOW_CATEGORIES = new Set(['event', 'activity', 'gateway']);
+
+function isFlowNode(node) {
+  const type = BPMN_TYPES[node?.type];
+  return !!type && FLOW_CATEGORIES.has(type.category);
+}
+
+function typeOf(node) {
+  return BPMN_TYPES[node?.type] || null;
+}
+
+function laneOf(diagram, node) {
+  let current = node;
+  const seen = new Set();
+  while (current?.parent && !seen.has(current.id)) {
+    seen.add(current.id);
+    const parent = diagram.nodes.find((x) => x.id === current.parent);
+    if (!parent) break;
+    if (parent.type === 'lane' || parent.type === 'pool') return parent.label || '';
+    current = parent;
+  }
+  return '';
+}
+
+/** Depth-first ordering that also reports the back edges (rework loops). */
+function topologicalOrder(ids, outgoing) {
+  const state = new Map(ids.map((id) => [id, 0]));
+  const order = [];
+  const backEdges = [];
+  const visit = (id, stack) => {
+    state.set(id, 1);
+    for (const edge of outgoing.get(id) || []) {
+      const next = edge.target;
+      if (!state.has(next)) continue;
+      if (state.get(next) === 1 || stack.has(next)) {
+        backEdges.push(edge);
+        continue;
+      }
+      if (state.get(next) === 0) {
+        stack.add(next);
+        visit(next, stack);
+        stack.delete(next);
+      }
+    }
+    state.set(id, 2);
+    order.push(id);
+  };
+  for (const id of ids) if (state.get(id) === 0) visit(id, new Set([id]));
+  return { order: order.reverse(), backEdges };
+}
+
+/** Share of tokens that leave `node` through `edge`. */
+function branchWeight(node, edge, outgoing) {
+  const flows = outgoing.get(node.id) || [];
+  if (flows.length <= 1) return 1;
+  const type = typeOf(node);
+  const explicit = edgeProbability(edge);
+  const kind = type?.category === 'gateway' ? node.type : 'implicit';
+
+  if (kind === 'parallelGateway') return 1;
+  if (kind === 'inclusiveGateway') return explicit === null ? 1 : explicit;
+  if (kind === 'exclusiveGateway' || kind === 'eventBasedGateway' || kind === 'complexGateway') {
+    if (explicit !== null) return explicit;
+    const known = flows.map(edgeProbability).filter((value) => value !== null);
+    const rest = Math.max(0, 1 - known.reduce((sum, value) => sum + value, 0));
+    const unknownCount = flows.length - known.length;
+    return unknownCount > 0 ? rest / unknownCount : 1 / flows.length;
+  }
+  return explicit === null ? 1 : explicit;
+}
+
+function analyzeProcess(diagram, overrides = {}) {
+  const settings = { ...analysisSettings(diagram), ...overrides };
+  const empty = {
+    ok: false,
+    settings,
+    nodes: [],
+    totals: { workMinutes: 0, waitMinutes: 0, leadExpected: 0, leadCritical: 0, costPerRun: 0, labourCost: 0, directCost: 0 },
+    resources: [],
+    bottleneck: null,
+    annual: { volume: settings.volumePerYear || 0, hours: 0, cost: 0, fte: 0 },
+    issues: [],
+  };
+  if (!diagram || diagram.notation !== 'bpmn') return empty;
+
+  const flowNodes = diagram.nodes.filter(isFlowNode);
+  if (!flowNodes.length) return empty;
+  const byId = new Map(flowNodes.map((node) => [node.id, node]));
+  const flows = diagram.edges.filter((edge) => edge.type === 'sequenceFlow' && byId.has(edge.source) && byId.has(edge.target));
+
+  const outgoing = new Map(flowNodes.map((node) => [node.id, []]));
+  const incoming = new Map(flowNodes.map((node) => [node.id, []]));
+  for (const edge of flows) {
+    outgoing.get(edge.source).push(edge);
+    incoming.get(edge.target).push(edge);
+  }
+
+  const ids = flowNodes.map((node) => node.id);
+  const { order, backEdges } = topologicalOrder(ids, outgoing);
+  const backSet = new Set(backEdges.map((edge) => edge.id));
+  void backEdges;
+
+  /* 1. how often does each step run per instance -------------------------- */
+
+  // a node with no incoming flow starts the process - unless it is an end
+  // event that was simply left unconnected, which must not create tokens
+  const starts = flowNodes.filter((node) => {
+    const kind = typeOf(node)?.kind;
+    if (kind === 'start') return true;
+    if (kind === 'end') return false;
+    return (incoming.get(node.id) || []).length === 0;
+  });
+  const startShare = starts.length ? 1 / starts.length : 0;
+  const startIds = new Set(starts.map((node) => node.id));
+  const isAndJoin = (node) => ['parallelGateway', 'inclusiveGateway'].includes(node.type);
+
+  // Fixpoint sweep: a plain topological pass cannot see rework loops, so the
+  // token counts are relaxed until they converge (they form a geometric
+  // series whenever the loop feedback is below 100%).
+  const tokens = new Map(ids.map((id) => [id, startIds.has(id) ? startShare : 0]));
+  let converged = false;
+  for (let pass = 0; pass < 200 && !converged; pass++) {
+    let delta = 0;
+    for (const id of order) {
+      const node = byId.get(id);
+      const inflow = incoming.get(id) || [];
+      let value = startIds.has(id) ? startShare : 0;
+      if (inflow.length) {
+        const contributions = inflow.map(
+          (edge) => (tokens.get(edge.source) || 0) * branchWeight(byId.get(edge.source), edge, outgoing)
+        );
+        // an AND-join lets one instance through once, it does not add tokens up
+        const merged = isAndJoin(node) && inflow.length > 1 ? Math.max(...contributions) : contributions.reduce((a, b) => a + b, 0);
+        value += merged;
+      }
+      value = Math.min(value, 1e6);
+      delta = Math.max(delta, Math.abs(value - (tokens.get(id) || 0)));
+      tokens.set(id, value);
+    }
+    converged = delta < 1e-9;
+  }
+
+  /* 2. time ---------------------------------------------------------------- */
+
+  const finishExpected = new Map();
+  const finishCritical = new Map();
+  for (const id of order) {
+    const node = byId.get(id);
+    const inflow = (incoming.get(id) || []).filter((edge) => !backSet.has(edge.id));
+    const isParallelJoin = node.type === 'parallelGateway' || node.type === 'inclusiveGateway';
+    let startExpected = 0;
+    let startCritical = 0;
+    if (inflow.length) {
+      const arrivals = inflow.map((edge) => ({
+        expected: finishExpected.get(edge.source) || 0,
+        critical: finishCritical.get(edge.source) || 0,
+        weight: (tokens.get(edge.source) || 0) * branchWeight(byId.get(edge.source), edge, outgoing),
+      }));
+      const totalWeight = arrivals.reduce((sum, item) => sum + item.weight, 0);
+      startExpected = isParallelJoin || !totalWeight
+        ? Math.max(...arrivals.map((item) => item.expected))
+        : arrivals.reduce((sum, item) => sum + item.expected * item.weight, 0) / totalWeight;
+      startCritical = Math.max(...arrivals.map((item) => item.critical));
+    }
+    const own = nodeDuration(node) + nodeWait(node);
+    finishExpected.set(id, startExpected + own);
+    finishCritical.set(id, startCritical + own);
+  }
+
+  const ends = flowNodes.filter((node) => typeOf(node)?.kind === 'end' || (outgoing.get(node.id) || []).length === 0);
+  // expected lead time averages the end events by how often each one is reached
+  const endWeight = ends.reduce((sum, node) => sum + (tokens.get(node.id) || 0), 0);
+  const leadAcyclic = !ends.length
+    ? 0
+    : endWeight > 0
+      ? ends.reduce((sum, node) => sum + (finishExpected.get(node.id) || 0) * (tokens.get(node.id) || 0), 0) / endWeight
+      : Math.max(...ends.map((node) => finishExpected.get(node.id) || 0));
+  const leadCriticalAcyclic = ends.length ? Math.max(...ends.map((node) => finishCritical.get(node.id) || 0)) : 0;
+  // repeated steps (rework loops) add their extra passes to the lead time
+  let reworkDelay = 0;
+  for (const node of flowNodes) {
+    const runs = tokens.get(node.id) || 0;
+    if (runs > 1.0001) reworkDelay += (runs - 1) * (nodeDuration(node) + nodeWait(node));
+  }
+  const leadExpected = leadAcyclic + reworkDelay;
+  const leadCritical = leadCriticalAcyclic + reworkDelay;
+
+  /* 3. money and resources ------------------------------------------------- */
+
+  const rows = [];
+  const resourceMap = new Map();
+  let workMinutes = 0;
+  let waitMinutes = 0;
+  let directCost = 0;
+  let labourCost = 0;
+
+  for (const node of flowNodes) {
+    const runs = tokens.get(node.id) || 0;
+    const duration = nodeDuration(node);
+    const wait = nodeWait(node);
+    const role = nodeResource(node);
+    const qty = nodeResourceQty(node);
+    const rate = roleRate(settings, role);
+    const minutes = runs * duration;
+    const labour = (minutes / 60) * rate * qty;
+    const direct = runs * nodeCost(node);
+    workMinutes += minutes;
+    waitMinutes += runs * wait;
+    directCost += direct;
+    labourCost += labour;
+
+    if (role) {
+      const entry = resourceMap.get(role) || { role, minutesPerRun: 0, costPerRun: 0, rate };
+      entry.minutesPerRun += minutes * qty;
+      entry.costPerRun += labour;
+      entry.rate = rate || entry.rate;
+      resourceMap.set(role, entry);
+    }
+
+    rows.push({
+      id: node.id,
+      label: node.label || node.id,
+      type: node.type,
+      category: typeOf(node)?.category || '',
+      lane: laneOf(diagram, node),
+      runs: round(runs, 3),
+      duration,
+      wait,
+      resource: role,
+      resourceQty: qty,
+      totalMinutes: round(minutes, 2),
+      totalCost: round(direct + labour, 2),
+      dataSource: node.props?.dataSource || '',
+      finish: round(finishExpected.get(node.id) || 0, 2),
+    });
+  }
+
+  const volume = Math.max(0, Number(settings.volumePerYear) || 0);
+  const hoursPerFte = Math.max(1, Number(settings.hoursPerFte) || 1800);
+  const resources = [...resourceMap.values()]
+    .map((entry) => {
+      const hoursPerYear = (entry.minutesPerRun / 60) * volume;
+      return {
+        ...entry,
+        minutesPerRun: round(entry.minutesPerRun, 2),
+        costPerRun: round(entry.costPerRun, 2),
+        hoursPerYear: round(hoursPerYear, 1),
+        fte: round(hoursPerYear / hoursPerFte, 2),
+        costPerYear: round(entry.costPerRun * volume, 2),
+      };
+    })
+    .sort((a, b) => b.minutesPerRun - a.minutesPerRun);
+
+  const activityRows = rows.filter((row) => row.category === 'activity');
+  const bottleneck = activityRows.length
+    ? activityRows.reduce((best, row) => (row.totalMinutes > best.totalMinutes ? row : best))
+    : null;
+
+  const costPerRun = directCost + labourCost;
+
+  /* 4. data quality checks ------------------------------------------------- */
+
+  const issues = [];
+  for (const node of flowNodes) {
+    if (typeOf(node)?.category !== 'gateway') continue;
+    const flowsOut = outgoing.get(node.id) || [];
+    if (flowsOut.length < 2) continue;
+    if (!['exclusiveGateway', 'eventBasedGateway', 'complexGateway'].includes(node.type)) continue;
+    const values = flowsOut.map(edgeProbability);
+    if (values.every((value) => value === null)) continue;
+    const sum = values.reduce((acc, value) => acc + (value || 0), 0);
+    if (Math.abs(sum - 1) > 0.005) {
+      issues.push({
+        severity: 'warning',
+        code: 'shareSum',
+        elementId: node.id,
+        params: { name: node.label || node.id, sum: Math.round(sum * 100) },
+        message: {
+          en: 'Branch shares of “{name}” add up to {sum}% instead of 100%',
+          ru: 'Доли веток шлюза «{name}» дают {sum}% вместо 100%',
+        },
+      });
+    }
+  }
+  const missing = activityRows.filter((row) => !row.duration);
+  if (missing.length) {
+    issues.push({
+      severity: 'info',
+      code: 'noDuration',
+      elementId: missing[0].id,
+      params: { count: missing.length },
+      message: {
+        en: '{count} task(s) have no processing time - they are counted as instant',
+        ru: 'У {count} задач(и) не задано время — они считаются мгновенными',
+      },
+    });
+  }
+  const unreachable = rows.filter((row) => !row.runs);
+  if (unreachable.length) {
+    issues.push({
+      severity: 'warning',
+      code: 'unreachable',
+      elementId: unreachable[0].id,
+      params: { count: unreachable.length, name: unreachable[0].label },
+      message: {
+        en: '{count} element(s) are never reached, starting with “{name}”',
+        ru: 'До {count} элемент(ов) поток не доходит, первый — «{name}»',
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    settings,
+    nodes: rows.sort((a, b) => a.finish - b.finish),
+    totals: {
+      workMinutes: round(workMinutes, 2),
+      waitMinutes: round(waitMinutes, 2),
+      leadExpected: round(leadExpected, 2),
+      leadCritical: round(leadCritical, 2),
+      reworkDelay: round(reworkDelay, 2),
+      costPerRun: round(costPerRun, 2),
+      labourCost: round(labourCost, 2),
+      directCost: round(directCost, 2),
+      // how much of the elapsed time is spent waiting, and how much labour is
+      // packed into one unit of lead time (> 1 means work runs in parallel)
+      waitShare: workMinutes + waitMinutes ? round((waitMinutes / (workMinutes + waitMinutes)) * 100, 1) : 0,
+      laborPerLead: leadExpected ? round(workMinutes / leadExpected, 2) : 0,
+      steps: activityRows.length,
+    },
+    resources,
+    bottleneck,
+    annual: {
+      volume,
+      hours: round((workMinutes / 60) * volume, 1),
+      cost: round(costPerRun * volume, 2),
+      fte: round(((workMinutes / 60) * volume) / hoursPerFte, 2),
+    },
+    issues,
+  };
+}
+
+Object.assign(__exports, { analyzeProcess });
+
+});
+__fm_define('app/ui/panels/analysis.js', function (__exports) {
+/**
+ * Process calculation panel.
+ *
+ * Shows what the model costs and how long it takes, recomputed from the
+ * element parameters every time the diagram changes. Every row links back to
+ * the element on the canvas, and every number carries the source of its input
+ * data (public report / derived / assumption).
+ */
+const { i18n, t } = __fm_require('app/i18n/index.js');
+const { analyzeProcess } = __fm_require('app/analysis/simulate.js');
+const { analysisSettings, formatDuration, formatMoney, round } = __fm_require('app/analysis/parameters.js');
+const { icon } = __fm_require('app/ui/icons.js');
+const { downloadText, safeFileName } = __fm_require('app/io/files.js');
+const SOURCE_LABEL = {
+  report: 'analysis.sourceReport',
+  derived: 'analysis.sourceDerived',
+  assumption: 'analysis.sourceAssumption',
+};
+
+class AnalysisPanel {
+  constructor(element, context) {
+    this.el = element;
+    this.doc = context.doc;
+    this.history = context.history;
+    this.selection = context.selection;
+    this.app = context.app;
+    this.result = null;
+  }
+
+  get diagram() {
+    return this.app.activeDiagram;
+  }
+
+  render() {
+    const diagram = this.diagram;
+    this.el.innerHTML = '';
+    if (!diagram) {
+      this.note(t('canvas.emptyNoDiagram'));
+      return;
+    }
+    if (diagram.notation !== 'bpmn') {
+      this.note(t('analysis.needBpmn'));
+      return;
+    }
+    const result = analyzeProcess(diagram);
+    this.result = result;
+    if (!result.ok) {
+      this.note(t('analysis.empty'), t('analysis.emptyHint'));
+      return;
+    }
+    const settings = result.settings;
+    const locale = i18n.locale;
+    const money = (value) => formatMoney(value, settings.currency, locale);
+
+    /* headline numbers */
+    const kpis = [
+      { label: t('analysis.lead'), value: formatDuration(result.totals.leadExpected, locale), hint: `${t('analysis.leadCritical')}: ${formatDuration(result.totals.leadCritical, locale)}` },
+      { label: t('analysis.work'), value: formatDuration(result.totals.workMinutes, locale), hint: `${t('analysis.steps')}: ${result.totals.steps}` },
+      { label: t('analysis.wait'), value: formatDuration(result.totals.waitMinutes, locale), hint: `${t('analysis.waitShare')}: ${result.totals.waitShare}%` },
+      { label: t('analysis.cost'), value: money(result.totals.costPerRun), hint: `${t('analysis.costLabour')}: ${money(result.totals.labourCost)}` },
+    ];
+    if (result.totals.reworkDelay > 0) {
+      kpis[0].hint = `${t('analysis.rework')}: ${formatDuration(result.totals.reworkDelay, locale)}`;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'kpi-grid';
+    grid.innerHTML = kpis
+      .map(
+        (kpi) =>
+          `<div class="kpi"><div class="kpi-label">${escapeHtml(kpi.label)}</div><div class="kpi-value">${escapeHtml(
+            kpi.value
+          )}</div><div class="kpi-hint">${escapeHtml(kpi.hint)}</div></div>`
+      )
+      .join('');
+    this.el.appendChild(grid);
+
+    if (result.bottleneck) {
+      const row = document.createElement('div');
+      row.className = 'note clickable';
+      row.innerHTML = `<b>${t('analysis.bottleneck')}:</b> ${escapeHtml(result.bottleneck.label)} — ${escapeHtml(
+        formatDuration(result.bottleneck.totalMinutes, locale)
+      )} ${escapeHtml(t('analysis.perCase'))}`;
+      row.addEventListener('click', () => this.app.canvas.revealElement(result.bottleneck.id));
+      this.el.appendChild(row);
+    }
+
+    /* annual projection */
+    if (settings.volumePerYear > 0) {
+      const annual = this.section(t('analysis.annual'));
+      const table = document.createElement('table');
+      table.className = 'grid';
+      table.innerHTML = `<tbody>
+        <tr><td>${t('analysis.volume')}</td><td class="num-cell">${formatNumber(settings.volumePerYear, locale)}</td></tr>
+        <tr><td>${t('analysis.annualHours')}</td><td class="num-cell">${formatNumber(result.annual.hours, locale)}</td></tr>
+        <tr><td>${t('analysis.annualCost')}</td><td class="num-cell">${escapeHtml(money(result.annual.cost))}</td></tr>
+        <tr><td>${t('analysis.fte')}</td><td class="num-cell">${formatNumber(result.annual.fte, locale)}</td></tr>
+      </tbody>`;
+      annual.appendChild(table);
+    }
+
+    /* resources */
+    if (result.resources.length) {
+      const section = this.section(t('analysis.resources'));
+      const table = document.createElement('table');
+      table.className = 'grid';
+      table.innerHTML =
+        `<thead><tr><th>${t('analysis.role')}</th><th>${t('analysis.perCase')}</th><th>${t('analysis.hoursYear')}</th><th>${t('analysis.fte')}</th></tr></thead>` +
+        `<tbody>${result.resources
+          .map(
+            (row) =>
+              `<tr><td>${escapeHtml(row.role)}${row.rate ? `<div class="sub">${escapeHtml(money(row.rate))}/${locale === 'ru' ? 'ч' : 'h'}</div>` : ''}</td>` +
+              `<td class="num-cell">${escapeHtml(formatDuration(row.minutesPerRun, locale))}</td>` +
+              `<td class="num-cell">${formatNumber(row.hoursPerYear, locale)}</td>` +
+              `<td class="num-cell">${formatNumber(row.fte, locale)}</td></tr>`
+          )
+          .join('')}</tbody>`;
+      section.appendChild(table);
+    }
+
+    /* steps */
+    const stepsSection = this.section(t('analysis.stepTable'));
+    const steps = document.createElement('table');
+    steps.className = 'grid steps-table';
+    steps.innerHTML =
+      `<thead><tr><th>${t('props.name')}</th><th>${t('analysis.runs')}</th><th>${t('analysis.time')}</th><th>${t('analysis.cost')}</th></tr></thead>` +
+      `<tbody>${result.nodes
+        .filter((row) => row.category === 'activity' || row.duration || row.totalCost)
+        .map(
+          (row) =>
+            `<tr data-id="${escapeHtml(row.id)}"><td>${escapeHtml(row.label)}${
+              row.resource ? `<div class="sub">${escapeHtml(row.resource)}${row.resourceQty > 1 ? ` ×${row.resourceQty}` : ''}</div>` : ''
+            }${sourceTag(row.dataSource)}</td>` +
+            `<td class="num-cell">${formatNumber(row.runs, locale)}</td>` +
+            `<td class="num-cell">${escapeHtml(formatDuration(row.totalMinutes, locale))}</td>` +
+            `<td class="num-cell">${escapeHtml(money(row.totalCost))}</td></tr>`
+        )
+        .join('')}</tbody>`;
+    steps.addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-id]');
+      if (row) this.app.canvas.revealElement(row.dataset.id);
+    });
+    stepsSection.appendChild(steps);
+
+    /* data quality */
+    if (result.issues.length) {
+      const section = this.section(t('analysis.issues'));
+      for (const issue of result.issues) {
+        const row = document.createElement('div');
+        row.className = `problem-row severity-${issue.severity}`;
+        row.style.padding = '6px 0';
+        row.innerHTML = `<span class="problem-icon" style="color:${
+          issue.severity === 'warning' ? 'var(--warning)' : 'var(--accent)'
+        }">${icon(issue.severity === 'warning' ? 'warning' : 'info', 14)}</span><span>${escapeHtml(formatIssue(issue, locale))}</span>`;
+        if (issue.elementId) row.addEventListener('click', () => this.app.canvas.revealElement(issue.elementId));
+        section.appendChild(row);
+      }
+    }
+
+    /* calculation settings */
+    const settingsSection = this.section(t('analysis.settings'));
+    settingsSection.appendChild(
+      this.numberField(t('analysis.volume'), settings.volumePerYear, (value) => this.updateSettings({ volumePerYear: Math.max(0, value) }))
+    );
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    row.appendChild(this.numberField(t('analysis.hoursPerFte'), settings.hoursPerFte, (value) => this.updateSettings({ hoursPerFte: Math.max(1, value) })));
+    row.appendChild(this.textField(t('analysis.currency'), settings.currency, (value) => this.updateSettings({ currency: value || 'R$' })));
+    settingsSection.appendChild(row);
+
+    /* role rates */
+    const roles = settings.roles || [];
+    const rolesTable = document.createElement('table');
+    rolesTable.className = 'grid';
+    rolesTable.innerHTML =
+      `<thead><tr><th>${t('analysis.role')}</th><th>${t('analysis.rate')}</th><th></th></tr></thead><tbody>${roles
+        .map(
+          (role, index) =>
+            `<tr><td><input data-role-name="${index}" value="${escapeHtml(role.name || role.id || '')}"></td>` +
+            `<td><input data-role-rate="${index}" type="number" value="${Number(role.rate) || 0}"></td>` +
+            `<td class="act"><button class="icon-btn" data-role-remove="${index}">${icon('close', 12)}</button></td></tr>`
+        )
+        .join('')}</tbody>`;
+    rolesTable.addEventListener('change', (event) => {
+      const nameInput = event.target.closest('[data-role-name]');
+      const rateInput = event.target.closest('[data-role-rate]');
+      const next = roles.map((role) => ({ ...role }));
+      if (nameInput) {
+        const index = Number(nameInput.dataset.roleName);
+        next[index] = { ...next[index], id: nameInput.value.trim(), name: nameInput.value.trim() };
+      } else if (rateInput) {
+        const index = Number(rateInput.dataset.roleRate);
+        next[index] = { ...next[index], rate: Number(rateInput.value) || 0 };
+      } else return;
+      this.updateSettings({ roles: next });
+    });
+    rolesTable.addEventListener('click', (event) => {
+      const remove = event.target.closest('[data-role-remove]');
+      if (!remove) return;
+      const index = Number(remove.dataset.roleRemove);
+      this.updateSettings({ roles: roles.filter((_, position) => position !== index) });
+    });
+    settingsSection.appendChild(rolesTable);
+
+    const actions = document.createElement('div');
+    actions.className = 'inline-actions';
+    const addRole = document.createElement('button');
+    addRole.className = 'btn';
+    addRole.textContent = t('analysis.addRole');
+    addRole.addEventListener('click', () =>
+      this.updateSettings({ roles: [...roles, { id: '', name: '', rate: 0 }] })
+    );
+    const csv = document.createElement('button');
+    csv.className = 'btn';
+    csv.textContent = t('analysis.exportCsv');
+    csv.addEventListener('click', () => this.exportCsv());
+    actions.append(addRole, csv);
+    settingsSection.appendChild(actions);
+
+    const legend = document.createElement('div');
+    legend.className = 'note';
+    legend.style.marginTop = '12px';
+    legend.textContent = t('analysis.sourceLegend');
+    this.el.appendChild(legend);
+  }
+
+  /* ---------------------------------------------------------------- utils */
+
+  note(title, hint) {
+    const box = document.createElement('div');
+    box.className = 'props-empty';
+    box.innerHTML = `${icon('validate', 40)}<div>${escapeHtml(title)}</div>${hint ? `<div style="margin-top:8px;font-size:var(--fs-sm)">${escapeHtml(hint)}</div>` : ''}`;
+    this.el.appendChild(box);
+  }
+
+  section(title) {
+    const section = document.createElement('div');
+    section.className = 'props-section';
+    section.innerHTML = `<h4>${escapeHtml(title)}</h4>`;
+    this.el.appendChild(section);
+    return section;
+  }
+
+  numberField(label, value, onChange) {
+    return this.field(label, value, onChange, 'number');
+  }
+
+  textField(label, value, onChange) {
+    return this.field(label, value, onChange, 'text');
+  }
+
+  field(label, value, onChange, type) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'field';
+    wrapper.innerHTML = `<label>${escapeHtml(label)}</label>`;
+    const input = document.createElement('input');
+    input.className = 'input';
+    input.type = type;
+    input.value = value ?? '';
+    input.addEventListener('change', () => onChange(type === 'number' ? Number(input.value) || 0 : input.value));
+    input.addEventListener('keydown', (event) => event.stopPropagation());
+    wrapper.appendChild(input);
+    return wrapper;
+  }
+
+  updateSettings(patch) {
+    const diagram = this.diagram;
+    if (!diagram) return;
+    const next = { ...analysisSettings(diagram), ...patch };
+    this.history.run('analysis', diagram.id, (doc) => doc.updateDiagram(diagram.id, { meta: { analysis: next } }));
+    this.render();
+    this.app.refreshCanvas();
+  }
+
+  exportCsv() {
+    const diagram = this.diagram;
+    const result = this.result;
+    if (!diagram || !result?.ok) return;
+    const settings = result.settings;
+    const rows = [
+      ['#', 'Step', 'Type', 'Lane', 'Runs per case', 'Processing min', 'Waiting min', 'Total min', 'Resource', 'Units', `Cost, ${settings.currency}`, 'Data source'],
+      ...result.nodes.map((row, index) => [
+        index + 1,
+        row.label,
+        row.type,
+        row.lane,
+        row.runs,
+        row.duration,
+        row.wait,
+        row.totalMinutes,
+        row.resource,
+        row.resourceQty,
+        row.totalCost,
+        row.dataSource,
+      ]),
+      [],
+      ['Lead time (expected), min', result.totals.leadExpected],
+      ['Critical path, min', result.totals.leadCritical],
+      ['Work time, min', result.totals.workMinutes],
+      ['Waiting, min', result.totals.waitMinutes],
+      [`Cost per case, ${settings.currency}`, result.totals.costPerRun],
+      ['Cases per year', settings.volumePerYear],
+      [`Cost per year, ${settings.currency}`, result.annual.cost],
+      ['Headcount, FTE', result.annual.fte],
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => (typeof cell === 'string' && /[",;\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell)).join(';'))
+      .join('\n');
+    downloadText(`﻿${csv}`, safeFileName(`${diagram.name} - calculation`, '.csv'), 'text/csv;charset=utf-8');
+  }
+}
+
+function sourceTag(kind) {
+  if (!kind || !SOURCE_LABEL[kind]) return '';
+  return `<span class="tag tag-${kind}">${escapeHtml(t(SOURCE_LABEL[kind]))}</span>`;
+}
+
+function formatIssue(issue, locale = 'ru') {
+  const template = issue.message?.[locale] || issue.message?.en || issue.code;
+  return template.replace(/\{(\w+)\}/g, (match, key) => (issue.params?.[key] !== undefined ? issue.params[key] : match));
+}
+
+function formatNumber(value, locale) {
+  const number = Number(value) || 0;
+  return number.toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US', { maximumFractionDigits: 2 });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+}
+
+Object.assign(__exports, { AnalysisPanel, formatIssue });
+
+});
 __fm_define('app/ui/commands.js', function (__exports) {
 /**
  * Single command registry.
@@ -12579,6 +15342,7 @@ function commandList(app) {
     { id: 'file.save', group: 'file', icon: 'save', shortcut: 'Mod+s', label: t('file.save'), run: () => app.saveProject() },
     { id: 'file.saveAs', group: 'file', icon: 'save', shortcut: 'Mod+Shift+s', label: t('file.saveAs'), run: () => app.saveProject({ as: true }) },
     { id: 'file.demo', group: 'file', icon: 'sparkles', label: t('file.demo'), run: () => app.openDemoProject() },
+    { id: 'file.weg', group: 'file', icon: 'folder', label: t('weg.open'), run: () => app.openWegLibrary() },
     { id: 'file.projectInfo', group: 'file', icon: 'file', label: t('file.projectInfo'), run: () => app.openProjectProperties() },
     { id: 'file.print', group: 'file', icon: 'print', shortcut: 'Mod+p', label: t('file.print'), enabled: hasDiagram, run: () => app.openPrint() },
 
@@ -12615,6 +15379,8 @@ function commandList(app) {
     { id: 'view.rulers', group: 'view', icon: 'map', label: t('view.rulers'), checked: app.settings.get('canvas.rulers'), run: () => app.toggleSetting('canvas.rulers') },
     { id: 'view.minimap', group: 'view', icon: 'map', label: t('view.minimap'), checked: app.settings.get('canvas.minimap'), run: () => app.toggleSetting('canvas.minimap') },
     { id: 'view.guides', group: 'view', icon: 'route', label: t('view.guides'), checked: app.settings.get('canvas.guides'), run: () => app.toggleSetting('canvas.guides') },
+    { id: 'view.params', group: 'view', icon: 'validate', label: t('analysis.showParams'), checked: app.settings.get('canvas.showParams'), run: () => { app.toggleSetting('canvas.showParams'); app.refreshCanvas(true); } },
+    { id: 'view.analysis', group: 'view', icon: 'table', shortcut: 'Mod+Shift+a', label: t('analysis.title'), run: () => app.setRightTab('analysis') },
     { id: 'view.leftPanel', group: 'view', icon: 'panelLeft', shortcut: 'Mod+1', label: t('view.leftPanel'), checked: app.settings.get('ui.leftPanel'), run: () => app.toggleSetting('ui.leftPanel') },
     { id: 'view.rightPanel', group: 'view', icon: 'panelRight', shortcut: 'Mod+2', label: t('view.rightPanel'), checked: app.settings.get('ui.rightPanel'), run: () => app.toggleSetting('ui.rightPanel') },
     { id: 'view.problems', group: 'view', icon: 'panelBottom', shortcut: 'Mod+3', label: t('view.problems'), checked: app.settings.get('ui.bottomPanel'), run: () => app.toggleSetting('ui.bottomPanel') },
@@ -12833,6 +15599,7 @@ function menuDefinitions(app) {
             : [{ label: t('welcome.noRecent'), disabled: true }],
         },
         item('file.demo'),
+        item('file.weg'),
         { separator: true },
         item('file.save'),
         item('file.saveAs'),
@@ -12890,11 +15657,13 @@ function menuDefinitions(app) {
         item('view.grid'),
         item('view.snap'),
         item('view.guides'),
+        item('view.params'),
         item('view.rulers'),
         item('view.minimap'),
         { separator: true },
         item('view.leftPanel'),
         item('view.rightPanel'),
+        item('view.analysis'),
         item('view.problems'),
         { separator: true },
         {
@@ -13002,6 +15771,7 @@ function renderWelcome(host, app) {
           <button class="btn primary" data-action="new">${icon('new', 15)}${t('welcome.new')}</button>
           <button class="btn" data-action="open">${icon('open', 15)}${t('welcome.open')}</button>
           <button class="btn" data-action="demo">${icon('sparkles', 15)}${t('welcome.demo')}</button>
+          <button class="btn" data-action="weg">${icon('folder', 15)}${t('weg.library')}</button>
         </div>
         <div class="welcome-steps">
           <div class="welcome-step"><span class="n">1</span><span>${t('welcome.step1')}</span></div>
@@ -13031,6 +15801,7 @@ function renderWelcome(host, app) {
   host.querySelector('[data-action="new"]').addEventListener('click', () => app.newProject());
   host.querySelector('[data-action="open"]').addEventListener('click', () => app.openProjectFile());
   host.querySelector('[data-action="demo"]').addEventListener('click', () => app.openDemoProject());
+  host.querySelector('[data-action="weg"]').addEventListener('click', () => app.openWegLibrary());
   for (const item of host.querySelectorAll('.recent-item')) {
     item.addEventListener('click', () => app.openRecent(item.dataset.id));
   }
@@ -15341,6 +18112,7 @@ const { autoLayout: computeLayout, alignNodes, distributeNodes, equalizeSize, fi
 const { buildDiagrams } = __fm_require('app/ai/schema.js');
 const { generateModel } = __fm_require('app/ai/index.js');
 const { createDemoProject } = __fm_require('app/demo.js');
+const { buildWegDiagrams, createWegProject, wegProjectDocumentation, wegProjectName } = __fm_require('app/library/weg/index.js');
 const { Autosave, recoveryInfo } = __fm_require('app/storage/autosave.js');
 const { deleteProjectRecord, listProjectRecords, loadProjectRecord, saveProjectRecord, storageAvailable } = __fm_require('app/storage/db.js');
 const { forgetProject, rememberProject } = __fm_require('app/storage/recent.js');
@@ -15353,6 +18125,7 @@ const { Explorer } = __fm_require('app/ui/panels/explorer.js');
 const { Palette } = __fm_require('app/ui/panels/palette.js');
 const { Problems, formatMessage } = __fm_require('app/ui/panels/problems.js');
 const { Properties } = __fm_require('app/ui/panels/properties.js');
+const { AnalysisPanel } = __fm_require('app/ui/panels/analysis.js');
 const { commandList, matchShortcut, prettyShortcut, IS_MAC } = __fm_require('app/ui/commands.js');
 const { openCommandPalette } = __fm_require('app/ui/commandpalette.js');
 const { menuDefinitions, toolbarDefinition } = __fm_require('app/ui/menus.js');
@@ -15407,7 +18180,8 @@ class App {
       minimap: q('#minimap'),
       zoomValue: q('#zoom-value'),
       props: q('#props'),
-      propsTitle: q('#props-title'),
+      analysis: q('#analysis'),
+      rightTabs: q('#right-tabs'),
       bottom: q('#bottom'),
       status: {
         message: q('#status-message'),
@@ -15449,7 +18223,9 @@ class App {
     this.explorer = new Explorer(this.el.explorer, context);
     this.palette = new Palette(this.el.palette, context);
     this.properties = new Properties(this.el.props, context);
+    this.analysisPanel = new AnalysisPanel(this.el.analysis, context);
     this.problemsPanel = new Problems(this.el.bottom, context);
+    this.rightTab = 'props';
     this.explorer.render();
     this.palette.render();
     this.properties.render();
@@ -15474,6 +18250,8 @@ class App {
     this.doc.on('change', (event) => {
       this.refreshChrome();
       if (event?.type?.startsWith('diagram')) this.explorer.render();
+      // the calculation follows the model live
+      if (this.rightTab === 'analysis') this.analysisPanel.render();
     });
     this.doc.on('reset', () => {
       this.explorer.render();
@@ -15522,6 +18300,11 @@ class App {
     this.root.querySelector('#btn-close-bottom')?.addEventListener('click', () => this.toggleSetting('ui.bottomPanel', false));
     this.root.querySelector('#btn-revalidate')?.addEventListener('click', () => this.validate());
     this.el.status.problems?.addEventListener('click', () => this.toggleSetting('ui.bottomPanel', true));
+
+    this.el.rightTabs?.addEventListener('click', (event) => {
+      const tab = event.target.closest('[data-tab]');
+      if (tab) this.setRightTab(tab.dataset.tab);
+    });
 
     this.el.tabstrip.addEventListener('click', (event) => {
       const close = event.target.closest('.close');
@@ -15648,6 +18431,18 @@ class App {
     this.el.tabstrip.hidden = this.openTabs.length === 0;
   }
 
+  setRightTab(tab) {
+    this.rightTab = tab === 'analysis' ? 'analysis' : 'props';
+    for (const button of this.el.rightTabs?.querySelectorAll('[data-tab]') || []) {
+      button.classList.toggle('is-active', button.dataset.tab === this.rightTab);
+    }
+    this.el.props.hidden = this.rightTab !== 'props';
+    this.el.analysis.hidden = this.rightTab !== 'analysis';
+    if (this.rightTab === 'analysis') this.analysisPanel.render();
+    else this.properties.render();
+    this.settings.set('ui.rightPanel', true);
+  }
+
   applySettings() {
     this.applyTheme();
     const settings = this.settings;
@@ -15688,13 +18483,36 @@ class App {
   setLanguage(locale) {
     this.settings.set('language', locale);
     i18n.setLocale(locale);
+    this._relocalizeWegLibrary();
     localizeDom(this.root);
     this.palette.localize();
     this.explorer.render();
     this.properties.render();
+    this.analysisPanel.render();
     this.problemsPanel.render();
     this.refreshChrome();
     this.refreshToolbar();
+  }
+
+  /**
+   * The shipped WEG diagrams are generated content, so switching the interface
+   * language regenerates them - but only while they are untouched, so an edited
+   * copy is never overwritten.
+   */
+  _relocalizeWegLibrary() {
+    const library = this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg');
+    if (!library.length || this.history.canUndo) return;
+    const active = this.activeDiagram?.meta?.processId || null;
+    const fresh = buildWegDiagrams(i18n.locale);
+    for (const stale of library) this.doc.removeDiagram(stale.id);
+    for (const diagram of fresh) this.doc.addDiagram(diagram);
+    this.doc.project.name = wegProjectName(i18n.locale);
+    this.doc.project.documentation = wegProjectDocumentation(i18n.locale);
+    this.openTabs = [];
+    this.activeDiagramId = null;
+    const next = fresh.find((d) => d.meta.processId === active) || fresh[0];
+    this.openDiagram(next.id);
+    this.history.clear();
   }
 
   toggleSetting(path, value) {
@@ -15718,6 +18536,7 @@ class App {
     this.canvas.setDiagram(id);
     this.palette.setNotation(diagram.notation);
     this.properties.render();
+    if (this.rightTab === 'analysis') this.analysisPanel.render();
     this.refreshChrome();
     this.hideWelcome();
   }
@@ -16064,6 +18883,7 @@ class App {
 
   refreshProperties() {
     this.properties.render();
+    if (this.rightTab === 'analysis') this.analysisPanel.render();
   }
 
   /* ---------------------------------------------------------- edit verbs */
@@ -16338,6 +19158,30 @@ class App {
     this.openDiagram(this.doc.project.diagrams[0].id);
     this.settings.set('onboarding.demoOffered', true);
     toastSuccess(t('toast.opened'));
+  }
+
+  /**
+   * Shipped WEG process library. Opened as its own project when the current one
+   * is untouched, otherwise the eight diagrams are added to the open project so
+   * nothing the user made is thrown away.
+   */
+  openWegLibrary() {
+    const project = this.doc.project;
+    const untouched = !project.diagrams.length || project.diagrams.every((d) => d.meta?.library === 'weg');
+    if (untouched && !this.history.canUndo) {
+      this._loadProject(createWegProject(i18n.locale), { fresh: true });
+    } else {
+      this.history.run('library', '*', (doc) => {
+        for (const stale of doc.project.diagrams.filter((d) => d.meta?.library === 'weg')) doc.removeDiagram(stale.id);
+        for (const diagram of buildWegDiagrams(i18n.locale)) doc.addDiagram(diagram);
+      });
+      this.openTabs = this.openTabs.filter((id) => this.doc.diagram(id));
+      this.explorer.render();
+    }
+    const first = this.doc.project.diagrams.find((d) => d.meta?.library === 'weg');
+    if (first) this.openDiagram(first.id);
+    this.refreshChrome();
+    toastSuccess(t('weg.loaded', { count: this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg').length }));
   }
 
   _loadProject(project, { fresh = false } = {}) {
@@ -16918,7 +19762,11 @@ class App {
         return;
       }
     }
-    this.showWelcome();
+    // every user sees the shipped WEG process library on entering the program
+    this._loadProject(createWegProject(i18n.locale), { fresh: true });
+    this.openDiagram(this.doc.project.diagrams[0].id);
+    this.history.clear();
+    this.refreshChrome();
   }
 }
 

@@ -135,6 +135,9 @@ export class History extends Emitter {
     }
     const afterIds = this._resolveIds(diagramIds === '*' ? '*' : ids);
     const after = this._snapshot(afterIds);
+    // diagrams the mutation created did not exist before - record them as
+    // absent so that undo removes them again
+    for (const id of Object.keys(after)) if (!(id in before)) before[id] = null;
     if (sameSnapshot(before, after)) return result;
     this._push(new SnapshotCommand(label, before, after));
     return result;

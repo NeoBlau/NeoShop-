@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS = {
     smoothEdges: true,
     connectionStyle: 'orthogonal', // orthogonal | straight
     quickHandles: true,
+    showParams: true,
   },
   autosave: { enabled: true, intervalSec: 30 },
   ai: {

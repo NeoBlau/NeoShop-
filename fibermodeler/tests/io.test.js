@@ -64,6 +64,12 @@ test('BPMN 2.0 export produces a valid document with DI', () => {
     assert.includes(xml, marker);
   }
   assert.includes(xml, 'Проверить заказ');
+  // every prefix the document uses must be declared, or the file is not XML
+  const prefixes = new Set([...xml.matchAll(/<\/?([a-zA-Z0-9]+):/g)].map((m) => m[1]));
+  for (const attr of xml.matchAll(/\s([a-zA-Z0-9]+):[a-zA-Z0-9]+="/g)) {
+    if (attr[1] !== 'xmlns') prefixes.add(attr[1]);
+  }
+  for (const prefix of prefixes) assert.includes(xml, `xmlns:${prefix}=`, `namespace ${prefix} is declared`);
 });
 
 test('BPMN round trip keeps types, labels, geometry and flows', () => {
