@@ -49,7 +49,7 @@ def main():
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer((args.host, args.port), Handler) as server:
         url = f"http://{args.host}:{args.port}/index.html"
-        print(f"FiberModeler → {url}")
+        print(f"FiberModeler -> {url}")
         print("Ctrl+C to stop")
         if not args.no_open:
             threading.Timer(0.8, lambda: webbrowser.open(url)).start()

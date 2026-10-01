@@ -30,26 +30,48 @@ IDEF0 с декомпозицией и ICOM-стрелками (как в IDEF0-
 
 ## Запуск
 
-### macOS (рекомендуется)
+Полная инструкция по шагам — Windows, macOS, Linux, с терминалом и без — **[INSTALL.md](INSTALL.md)**.
+Коротко:
+
+### Один файл, без установки
+
+`dist/FiberModeler.html` — всё приложение в одном файле. Скачайте и откройте двойным кликом.
+Ни Python, ни интернета, ни прав администратора. Пересобрать: `python3 tools/build_single_file.py`.
+
+### macOS
 
 ```bash
-git clone <repo> && cd FiberModeler
-./FiberModeler.command        # или двойной клик по файлу в Finder
+git clone https://github.com/NeoBlau/FiberModeler.git && cd FiberModeler
+python3 serve.py              # или двойной клик по FiberModeler.command в Finder
 ```
 
-Откроется браузер на `http://127.0.0.1:8765`. Нужен только Python 3 (в macOS он есть из коробки).
+Python 3 в macOS есть из коробки.
 
-### Любая система
+### Windows
+
+```cmd
+git clone https://github.com/NeoBlau/FiberModeler.git
+cd FiberModeler
+py serve.py                   rem или двойной клик по FiberModeler.bat
+```
+
+Нужен Python 3 с галочкой «Add python.exe to PATH» при установке.
+
+### Linux
 
 ```bash
-python3 serve.py              # http://127.0.0.1:8765
-python3 serve.py --port 9000 --no-open
+sudo apt install python3 git
+git clone https://github.com/NeoBlau/FiberModeler.git && cd FiberModeler
+python3 serve.py
 ```
 
-### Один файл, без сервера
+### Ключи сервера
 
-`dist/FiberModeler.html` — всё приложение в одном файле: скачайте и откройте двойным кликом.
-Пересобрать: `python3 tools/build_single_file.py`.
+```bash
+python3 serve.py --port 9000      # другой порт
+python3 serve.py --no-open        # не открывать браузер
+python3 serve.py --host 0.0.0.0   # пустить коллег по локальной сети
+```
 
 ## Первые пять минут
 
