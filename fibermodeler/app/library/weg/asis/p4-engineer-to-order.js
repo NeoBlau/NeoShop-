@@ -5,8 +5,8 @@
  * at roughly 50 generators a day worldwide by 2030 - this is the process that
  * turns such an enquiry into a commissioned machine.
  */
-import { WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { DAY, WEEK, flow, node, reported, wait, work } from './kit.js';
+import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { DAY, WEEK, flow, node, reported, wait, work } from '../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Заказчик', en: 'Customer' } },
@@ -21,6 +21,7 @@ const LANES = [
 export const engineerToOrder = {
   id: 'weg-eto',
   order: 4,
+  variant: 'as-is',
   name: { ru: '4. Крупная машина на заказ (ETO)', en: '4. Engineer-to-order machine' },
   description: {
     ru: 'Запрос — расчёт — КП — договор — проектирование — производство — FAT с заказчиком — отгрузка — пусконаладка.',
@@ -91,7 +92,7 @@ ${sourceBlock(['generators', 'annual2025', 'profile'], 'en')}`,
       node('ship', 'serviceTask', 'plan', 'Отгрузить заказчику', 'Ship to the customer', work(120, 'Планировщик', { cost: 23000, waitTime: DAY * 12 })),
       node('commission', 'userTask', 'field', 'Шеф-монтаж и пусконаладка', 'Supervised installation and commissioning', work(1920, 'Сервисный инженер', { cost: 14500 })),
       node('handover', 'userTask', 'field', 'Подписать акт и открыть гарантию', 'Sign the acceptance certificate, start the warranty', work(90, 'Сервисный инженер')),
-      node('end', 'endEvent', 'field', 'Машина принята в эксплуатацию', 'Machine in operation'),
+      node('end', 'endEvent', 'field', 'Машина принята в эксплуатацию', 'Machine in operation', { completes: true }),
       node('drawings', 'dataObject', 'eng', 'Согласованные чертежи', 'Approved drawings'),
       node('fatReport', 'dataObject', 'test', 'Протокол FAT', 'FAT report'),
       node('note', 'textAnnotation', 'sales', 'Конверсия КП 32 % — допущение, калибруется по CRM', 'Quote conversion 32% — assumption, calibrate with CRM'),

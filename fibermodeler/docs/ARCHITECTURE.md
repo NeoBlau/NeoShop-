@@ -47,13 +47,13 @@ app/
   layout/               layered (Сугияма), idef0layout, align
   io/                   zip, xml, bpmn, projectfile, svgexport, raster, pdf, files
   ai/                   schema, local, providers, index
-  analysis/             parameters (схема и форматирование), simulate (расчёт процесса)
-  library/weg/          библиотека процессов WEG: facts, kit, p1…p8, index
+  analysis/             parameters (схема и форматирование), simulate (расчёт), compare (AS-IS/TO-BE)
+  library/weg/          библиотека WEG: facts, kit, asis/p1…p8, tobe/p1…p8, index
   storage/              db (IndexedDB), recent, autosave
   ui/                   app, commands, menus, panels/, dialogs/, icons, menu, dialog, toast
   i18n/                 ru, en
   assets/fonts/         подмножество DejaVu Sans для PDF
-tests/                  83 теста, свой раннер
+tests/                  87 тестов, свой раннер
 tools/                  сборка одного файла, subsetting шрифта
 ```
 

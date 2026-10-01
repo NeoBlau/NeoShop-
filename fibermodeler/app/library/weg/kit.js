@@ -33,6 +33,11 @@ export function reported(props) {
   return { dataSource: 'report', ...props };
 }
 
+/** A fully automated step: system time, no person occupied. */
+export function auto(duration, extra = {}) {
+  return { duration, dataSource: 'assumption', ...extra };
+}
+
 /** Waiting time that no one works during (queues, transport, customer). */
 export function wait(minutes, extra = {}) {
   return { waitTime: minutes, dataSource: 'assumption', ...extra };

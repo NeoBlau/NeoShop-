@@ -139,7 +139,7 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
   let cursorY = 70;
   for (const lane of lanes) {
     const nodes = byLane.get(lane.id) || [];
-    const rows = groupByColumn(nodes);
+    const { index: rowOf, count: rows } = assignRows(nodes);
     // leave room above the flow when the lane carries data objects or notes
     const headroom = nodes.some((node) => satelliteOwners.has(node.id)) ? SATELLITE_ROOM : 0;
     const height = Math.max(LANE_MIN_HEIGHT + headroom, rows * 110 + LANE_PADDING + headroom);
@@ -148,11 +148,8 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
     lane.w = laneWidth;
     lane.h = height;
     // vertical placement inside the band
-    const columns = new Map();
     for (const node of nodes) {
-      const key = Math.round(node.x / 40);
-      const index = columns.get(key) || 0;
-      columns.set(key, index + 1);
+      const index = rowOf.get(node.id) || 0;
       node.x = node.x - left + 60 + POOL_HEADER + 40;
       node.y = Math.round(
         lane.y + headroom + LANE_PADDING / 2 + index * 108 + (height - headroom - LANE_PADDING - (rows - 1) * 108 - node.h) / 2
@@ -166,33 +163,61 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
 }
 
 
-/** Data objects and annotations follow their owner, staying inside its lane. */
+/**
+ * Data objects and annotations follow their owner, staying inside its lane.
+ * One element can own several of them (a data store *and* a note), so they are
+ * laid out as a row above the owner rather than all on the same spot.
+ */
 function placeSatellites(diagram, lanes) {
   const SATELLITES = SATELLITE_TYPES;
   const laneById = new Map(lanes.map((lane) => [lane.id, lane]));
+  const nodeById = new Map(diagram.nodes.map((node) => [node.id, node]));
+  const SATELLITE_GAP = 20;
+
+  // group the satellites by the element they hang off
+  const groups = new Map();
   for (const node of diagram.nodes) {
     if (!SATELLITES.includes(node.type)) continue;
     const link = diagram.edges.find((e) => e.source === node.id || e.target === node.id);
     const ownerId = link ? (link.source === node.id ? link.target : link.source) : null;
-    const owner = ownerId ? diagram.nodes.find((n) => n.id === ownerId) : null;
-    if (!owner) continue;
-    node.parent = owner.parent || node.parent;
-    node.x = Math.round(owner.x + owner.w / 2 - node.w / 2);
-    node.y = Math.round(owner.y - node.h - 24);
-    const lane = laneById.get(node.parent);
-    if (!lane) continue;
-    const top = lane.y + 6;
-    const bottom = lane.y + lane.h - node.h - 6;
-    if (node.y < top) {
-      // no room above: try below the owner, otherwise beside it
-      const below = owner.y + owner.h + 24;
-      if (below <= bottom) node.y = Math.round(below);
-      else {
-        node.y = Math.round(Math.min(Math.max(owner.y, top), bottom));
-        node.x = Math.round(owner.x + owner.w + 26);
+    const owner = ownerId ? nodeById.get(ownerId) : null;
+    if (!owner || SATELLITES.includes(owner.type)) continue;
+    if (!groups.has(owner.id)) groups.set(owner.id, []);
+    groups.get(owner.id).push(node);
+  }
+
+  for (const [ownerId, group] of groups) {
+    const owner = nodeById.get(ownerId);
+    const parent = owner.parent || group[0].parent;
+    const lane = laneById.get(parent);
+    const rowWidth = group.reduce((sum, node) => sum + node.w, 0) + SATELLITE_GAP * (group.length - 1);
+    const rowHeight = Math.max(...group.map((node) => node.h));
+    let cursor = Math.round(owner.x + owner.w / 2 - rowWidth / 2);
+    let y = Math.round(owner.y - rowHeight - 24);
+    let beside = false;
+
+    if (lane) {
+      const top = lane.y + 6;
+      const bottom = lane.y + lane.h - rowHeight - 6;
+      if (y < top) {
+        // no room above: try below the owner, otherwise stack them beside it
+        const below = owner.y + owner.h + 24;
+        if (below <= bottom) y = Math.round(below);
+        else {
+          y = Math.round(Math.min(Math.max(owner.y, top), Math.max(top, bottom)));
+          cursor = Math.round(owner.x + owner.w + 26);
+          beside = true;
+        }
       }
+      y = Math.round(Math.min(Math.max(y, top), Math.max(top, bottom)));
     }
-    node.y = Math.round(Math.min(Math.max(node.y, top), Math.max(top, bottom)));
+
+    for (const node of group) {
+      node.parent = parent || node.parent;
+      node.x = cursor;
+      node.y = beside ? y : Math.round(y + rowHeight - node.h);
+      cursor += node.w + SATELLITE_GAP;
+    }
   }
 }
 
@@ -232,13 +257,29 @@ function restackLanes(diagram, lanes, pool) {
   }
 }
 
-function groupByColumn(nodes) {
-  const columns = new Map();
-  for (const node of nodes) {
-    const key = Math.round(node.x / 40);
-    columns.set(key, (columns.get(key) || 0) + 1);
+/**
+ * Rows inside one lane.
+ *
+ * Bucketing by x alone is not enough: a small end event and a wide task can
+ * fall into different buckets and still sit on top of each other. So each node
+ * takes the first row where its box, plus a gap, hits nothing already placed.
+ */
+function assignRows(nodes, gap = 26) {
+  const rows = [];
+  const index = new Map();
+  for (const node of [...nodes].sort((a, b) => a.x - b.x || a.y - b.y)) {
+    let row = 0;
+    while (
+      rows[row] &&
+      rows[row].some((other) => node.x < other.x + other.w + gap && other.x < node.x + node.w + gap)
+    ) {
+      row++;
+    }
+    if (!rows[row]) rows[row] = [];
+    rows[row].push(node);
+    index.set(node.id, row);
   }
-  return Math.max(1, ...columns.values());
+  return { index, count: Math.max(1, rows.length) };
 }
 
 /* ----------------------------------------------------------------- IDEF0 */

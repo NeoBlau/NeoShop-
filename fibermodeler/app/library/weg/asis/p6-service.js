@@ -1,8 +1,8 @@
 /**
  * 6. After-sales service and repair through the authorised network (ASTEC).
  */
-import { WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { DAY, flow, node, reported, wait, work } from './kit.js';
+import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { DAY, flow, node, reported, wait, work } from '../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент', en: 'Customer' } },
@@ -15,6 +15,7 @@ const LANES = [
 export const serviceProcess = {
   id: 'weg-service',
   order: 6,
+  variant: 'as-is',
   name: { ru: '6. Сервис и ремонт оборудования', en: '6. After-sales service and repair' },
   description: {
     ru: 'Обращение клиента — удалённая диагностика — определение гарантии — ремонт в авторизованном сервисе или на заводе — испытания — возврат.',
@@ -62,7 +63,7 @@ ${sourceBlock(['astec', 'production', 'numbers'], 'en')}`,
       node('remote', 'userTask', 'support', 'Удалённая диагностика по данным привода', 'Remote diagnosis from drive data', work(35, 'Техник')),
       node('gwRemote', 'exclusiveGateway', 'support', 'Решено удалённо?', 'Solved remotely?'),
       node('closeRemote', 'serviceTask', 'support', 'Закрыть обращение и выслать инструкцию', 'Close the case with instructions', work(10, 'Техник')),
-      node('endRemote', 'endEvent', 'support', 'Решено без выезда', 'Closed remotely'),
+      node('endRemote', 'endEvent', 'support', 'Решено без выезда', 'Closed remotely', { completes: true }),
       node('warranty', 'businessRuleTask', 'support', 'Определить гарантийный статус', 'Determine the warranty status', work(15, 'Техник')),
       node('gwWarranty', 'exclusiveGateway', 'support', 'Случай гарантийный?', 'Under warranty?'),
       node('assign', 'userTask', 'support', 'Назначить авторизованный сервис по региону', 'Assign the regional service partner', work(12, 'Техник')),
@@ -81,7 +82,7 @@ ${sourceBlock(['astec', 'production', 'numbers'], 'en')}`,
       node('deliver', 'serviceTask', 'log', 'Доставить и установить у клиента', 'Deliver and install at the customer', work(150, 'Логист', { cost: 520, waitTime: DAY * 2 })),
       node('report', 'serviceTask', 'astec', 'Оформить отчёт и обновить историю оборудования', 'Issue the report, update the asset history', work(30, 'Сервисный инженер')),
       node('feedback', 'sendTask', 'support', 'Запросить оценку качества сервиса', 'Ask for a service rating', work(6, 'Техник')),
-      node('end', 'endEvent', 'support', 'Обращение закрыто', 'Case closed'),
+      node('end', 'endEvent', 'support', 'Обращение закрыто', 'Case closed', { completes: true }),
       node('history', 'dataStore', 'astec', 'История обслуживания оборудования', 'Equipment service history'),
       node('note', 'textAnnotation', 'astec', 'Сеть ASTEC: 40+ аккредитованных партнёров только по трансформаторам (WEG)', 'ASTEC network: 40+ accredited transformer partners (WEG)'),
     ],

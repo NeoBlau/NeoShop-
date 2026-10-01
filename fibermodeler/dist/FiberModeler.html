@@ -1818,6 +1818,37 @@ table.grid.steps-table tbody tr:hover {
   color: var(--warning);
 }
 
+/* AS-IS / TO-BE comparison in the analysis panel */
+.delta-good { color: var(--success); font-weight: 600; }
+.delta-bad { color: var(--danger); font-weight: 600; }
+/* four columns in a narrow sidebar: fixed widths, everything may wrap */
+.compare-table { table-layout: fixed; width: 100%; }
+.compare-table th,
+.compare-table td {
+  font-size: var(--fs-xs);
+  padding: 5px 3px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.compare-table th:first-child,
+.compare-table td:first-child { width: 31%; }
+.compare-table th:nth-child(2),
+.compare-table td:nth-child(2),
+.compare-table th:nth-child(3),
+.compare-table td:nth-child(3) { width: 25%; }
+.compare-table th:last-child,
+.compare-table td:last-child { width: 19%; }
+/* numbers wrap here too - a sidebar column is narrower than "R$ 307.5 тыс";
+   the selector has to outweigh `table.grid td.num-cell` above */
+table.grid.compare-table td.num-cell { white-space: normal; padding: 5px 3px; }
+.props-section .compare-hint {
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
 /* Canvas surface, overlays and printing. */
 
 .canvas-root {
@@ -3774,6 +3805,13 @@ const en = {
   'analysis.sourceAssumption': 'assumption',
   'analysis.sourceLegend': 'Every number is tagged: from a public report, derived from public figures, or an industry assumption you can calibrate.',
   'props.analysis': 'Calculation',
+  'compare.title': 'As-is → to-be comparison',
+  'compare.baseline': 'Baseline model',
+  'compare.asIs': 'As is',
+  'compare.toBe': 'To be',
+  'compare.delta': 'Δ',
+  'compare.costPerDone': 'Cost per completed case',
+  'compare.completion': '{from}% of cases reach a successful end in the baseline model and {to}% in the target one. When a process stops rejecting late, the cost per started case can rise while the cost per completed one falls.',
   'weg.library': 'WEG process library',
   'weg.open': 'Open the WEG library',
   'weg.folder': 'WEG',
@@ -4174,6 +4212,13 @@ const ru = {
   'analysis.sourceAssumption': 'отраслевое допущение',
   'analysis.sourceLegend': 'У каждого числа помечен источник: публичная отчётность, расчёт из публичных данных или отраслевое допущение, которое можно откалибровать.',
   'props.analysis': 'Расчёт',
+  'compare.title': 'Сравнение «как есть» → «как будет»',
+  'compare.baseline': 'Исходная модель',
+  'compare.asIs': 'Как есть',
+  'compare.toBe': 'Как будет',
+  'compare.delta': 'Δ',
+  'compare.costPerDone': 'Стоимость доведённого до конца случая',
+  'compare.completion': 'До успешного завершения доходит {from} % случаев в исходной модели и {to} % в целевой. Если процесс перестаёт отбраковывать поздно, стоимость «на один запущенный случай» может вырасти, пока стоимость «на один доведённый до конца» падает.',
   'weg.library': 'Библиотека процессов WEG',
   'weg.open': 'Открыть библиотеку WEG',
   'weg.folder': 'WEG',
@@ -9159,7 +9204,7 @@ function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
   let cursorY = 70;
   for (const lane of lanes) {
     const nodes = byLane.get(lane.id) || [];
-    const rows = groupByColumn(nodes);
+    const { index: rowOf, count: rows } = assignRows(nodes);
     // leave room above the flow when the lane carries data objects or notes
     const headroom = nodes.some((node) => satelliteOwners.has(node.id)) ? SATELLITE_ROOM : 0;
     const height = Math.max(LANE_MIN_HEIGHT + headroom, rows * 110 + LANE_PADDING + headroom);
@@ -9168,11 +9213,8 @@ function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
     lane.w = laneWidth;
     lane.h = height;
     // vertical placement inside the band
-    const columns = new Map();
     for (const node of nodes) {
-      const key = Math.round(node.x / 40);
-      const index = columns.get(key) || 0;
-      columns.set(key, index + 1);
+      const index = rowOf.get(node.id) || 0;
       node.x = node.x - left + 60 + POOL_HEADER + 40;
       node.y = Math.round(
         lane.y + headroom + LANE_PADDING / 2 + index * 108 + (height - headroom - LANE_PADDING - (rows - 1) * 108 - node.h) / 2
@@ -9186,33 +9228,61 @@ function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
 }
 
 
-/** Data objects and annotations follow their owner, staying inside its lane. */
+/**
+ * Data objects and annotations follow their owner, staying inside its lane.
+ * One element can own several of them (a data store *and* a note), so they are
+ * laid out as a row above the owner rather than all on the same spot.
+ */
 function placeSatellites(diagram, lanes) {
   const SATELLITES = SATELLITE_TYPES;
   const laneById = new Map(lanes.map((lane) => [lane.id, lane]));
+  const nodeById = new Map(diagram.nodes.map((node) => [node.id, node]));
+  const SATELLITE_GAP = 20;
+
+  // group the satellites by the element they hang off
+  const groups = new Map();
   for (const node of diagram.nodes) {
     if (!SATELLITES.includes(node.type)) continue;
     const link = diagram.edges.find((e) => e.source === node.id || e.target === node.id);
     const ownerId = link ? (link.source === node.id ? link.target : link.source) : null;
-    const owner = ownerId ? diagram.nodes.find((n) => n.id === ownerId) : null;
-    if (!owner) continue;
-    node.parent = owner.parent || node.parent;
-    node.x = Math.round(owner.x + owner.w / 2 - node.w / 2);
-    node.y = Math.round(owner.y - node.h - 24);
-    const lane = laneById.get(node.parent);
-    if (!lane) continue;
-    const top = lane.y + 6;
-    const bottom = lane.y + lane.h - node.h - 6;
-    if (node.y < top) {
-      // no room above: try below the owner, otherwise beside it
-      const below = owner.y + owner.h + 24;
-      if (below <= bottom) node.y = Math.round(below);
-      else {
-        node.y = Math.round(Math.min(Math.max(owner.y, top), bottom));
-        node.x = Math.round(owner.x + owner.w + 26);
+    const owner = ownerId ? nodeById.get(ownerId) : null;
+    if (!owner || SATELLITES.includes(owner.type)) continue;
+    if (!groups.has(owner.id)) groups.set(owner.id, []);
+    groups.get(owner.id).push(node);
+  }
+
+  for (const [ownerId, group] of groups) {
+    const owner = nodeById.get(ownerId);
+    const parent = owner.parent || group[0].parent;
+    const lane = laneById.get(parent);
+    const rowWidth = group.reduce((sum, node) => sum + node.w, 0) + SATELLITE_GAP * (group.length - 1);
+    const rowHeight = Math.max(...group.map((node) => node.h));
+    let cursor = Math.round(owner.x + owner.w / 2 - rowWidth / 2);
+    let y = Math.round(owner.y - rowHeight - 24);
+    let beside = false;
+
+    if (lane) {
+      const top = lane.y + 6;
+      const bottom = lane.y + lane.h - rowHeight - 6;
+      if (y < top) {
+        // no room above: try below the owner, otherwise stack them beside it
+        const below = owner.y + owner.h + 24;
+        if (below <= bottom) y = Math.round(below);
+        else {
+          y = Math.round(Math.min(Math.max(owner.y, top), Math.max(top, bottom)));
+          cursor = Math.round(owner.x + owner.w + 26);
+          beside = true;
+        }
       }
+      y = Math.round(Math.min(Math.max(y, top), Math.max(top, bottom)));
     }
-    node.y = Math.round(Math.min(Math.max(node.y, top), Math.max(top, bottom)));
+
+    for (const node of group) {
+      node.parent = parent || node.parent;
+      node.x = cursor;
+      node.y = beside ? y : Math.round(y + rowHeight - node.h);
+      cursor += node.w + SATELLITE_GAP;
+    }
   }
 }
 
@@ -9252,13 +9322,29 @@ function restackLanes(diagram, lanes, pool) {
   }
 }
 
-function groupByColumn(nodes) {
-  const columns = new Map();
-  for (const node of nodes) {
-    const key = Math.round(node.x / 40);
-    columns.set(key, (columns.get(key) || 0) + 1);
+/**
+ * Rows inside one lane.
+ *
+ * Bucketing by x alone is not enough: a small end event and a wide task can
+ * fall into different buckets and still sit on top of each other. So each node
+ * takes the first row where its box, plus a gap, hits nothing already placed.
+ */
+function assignRows(nodes, gap = 26) {
+  const rows = [];
+  const index = new Map();
+  for (const node of [...nodes].sort((a, b) => a.x - b.x || a.y - b.y)) {
+    let row = 0;
+    while (
+      rows[row] &&
+      rows[row].some((other) => node.x < other.x + other.w + gap && other.x < node.x + node.w + gap)
+    ) {
+      row++;
+    }
+    if (!rows[row]) rows[row] = [];
+    rows[row].push(node);
+    index.set(node.id, row);
   }
-  return Math.max(1, ...columns.values());
+  return { index, count: Math.max(1, rows.length) };
 }
 
 /* ----------------------------------------------------------------- IDEF0 */
@@ -10698,6 +10784,451 @@ function createDemoProject(locale = 'ru') {
 Object.assign(__exports, { createDemoProject });
 
 });
+__fm_define('app/analysis/simulate.js', function (__exports) {
+/**
+ * Process calculation engine.
+ *
+ * Standard process-analysis maths over a BPMN graph:
+ *   1. token propagation - how often each step runs per process instance,
+ *      following gateway shares and rework loops;
+ *   2. time - processing time, waiting time, expected and critical lead time;
+ *   3. money - direct cost plus labour cost from role rates;
+ *   4. capacity - hours per role per year and the resulting headcount (FTE);
+ *   5. bottleneck - the step that consumes the most time per instance.
+ *
+ * Everything is derived from the parameters stored on the elements, so the
+ * numbers change the moment the model changes.
+ */
+const { BPMN_TYPES } = __fm_require('app/notations/bpmn/types.js');
+const { analysisSettings, edgeProbability, nodeCost, nodeDuration, nodeResource, nodeResourceQty, nodeWait, roleRate, round } = __fm_require('app/analysis/parameters.js');
+const FLOW_CATEGORIES = new Set(['event', 'activity', 'gateway']);
+
+function isFlowNode(node) {
+  const type = BPMN_TYPES[node?.type];
+  return !!type && FLOW_CATEGORIES.has(type.category);
+}
+
+function typeOf(node) {
+  return BPMN_TYPES[node?.type] || null;
+}
+
+function laneOf(diagram, node) {
+  let current = node;
+  const seen = new Set();
+  while (current?.parent && !seen.has(current.id)) {
+    seen.add(current.id);
+    const parent = diagram.nodes.find((x) => x.id === current.parent);
+    if (!parent) break;
+    if (parent.type === 'lane' || parent.type === 'pool') return parent.label || '';
+    current = parent;
+  }
+  return '';
+}
+
+/** Depth-first ordering that also reports the back edges (rework loops). */
+function topologicalOrder(ids, outgoing) {
+  const state = new Map(ids.map((id) => [id, 0]));
+  const order = [];
+  const backEdges = [];
+  const visit = (id, stack) => {
+    state.set(id, 1);
+    for (const edge of outgoing.get(id) || []) {
+      const next = edge.target;
+      if (!state.has(next)) continue;
+      if (state.get(next) === 1 || stack.has(next)) {
+        backEdges.push(edge);
+        continue;
+      }
+      if (state.get(next) === 0) {
+        stack.add(next);
+        visit(next, stack);
+        stack.delete(next);
+      }
+    }
+    state.set(id, 2);
+    order.push(id);
+  };
+  for (const id of ids) if (state.get(id) === 0) visit(id, new Set([id]));
+  return { order: order.reverse(), backEdges };
+}
+
+/** Share of tokens that leave `node` through `edge`. */
+function branchWeight(node, edge, outgoing) {
+  const flows = outgoing.get(node.id) || [];
+  if (flows.length <= 1) return 1;
+  const type = typeOf(node);
+  const explicit = edgeProbability(edge);
+  const kind = type?.category === 'gateway' ? node.type : 'implicit';
+
+  if (kind === 'parallelGateway') return 1;
+  if (kind === 'inclusiveGateway') return explicit === null ? 1 : explicit;
+  if (kind === 'exclusiveGateway' || kind === 'eventBasedGateway' || kind === 'complexGateway') {
+    if (explicit !== null) return explicit;
+    const known = flows.map(edgeProbability).filter((value) => value !== null);
+    const rest = Math.max(0, 1 - known.reduce((sum, value) => sum + value, 0));
+    const unknownCount = flows.length - known.length;
+    return unknownCount > 0 ? rest / unknownCount : 1 / flows.length;
+  }
+  return explicit === null ? 1 : explicit;
+}
+
+function analyzeProcess(diagram, overrides = {}) {
+  const settings = { ...analysisSettings(diagram), ...overrides };
+  const empty = {
+    ok: false,
+    settings,
+    nodes: [],
+    totals: { workMinutes: 0, waitMinutes: 0, leadExpected: 0, leadCritical: 0, costPerRun: 0, labourCost: 0, directCost: 0 },
+    resources: [],
+    bottleneck: null,
+    annual: { volume: settings.volumePerYear || 0, hours: 0, cost: 0, fte: 0 },
+    issues: [],
+  };
+  if (!diagram || diagram.notation !== 'bpmn') return empty;
+
+  const flowNodes = diagram.nodes.filter(isFlowNode);
+  if (!flowNodes.length) return empty;
+  const byId = new Map(flowNodes.map((node) => [node.id, node]));
+  const flows = diagram.edges.filter((edge) => edge.type === 'sequenceFlow' && byId.has(edge.source) && byId.has(edge.target));
+
+  const outgoing = new Map(flowNodes.map((node) => [node.id, []]));
+  const incoming = new Map(flowNodes.map((node) => [node.id, []]));
+  for (const edge of flows) {
+    outgoing.get(edge.source).push(edge);
+    incoming.get(edge.target).push(edge);
+  }
+
+  const ids = flowNodes.map((node) => node.id);
+  const { order, backEdges } = topologicalOrder(ids, outgoing);
+  const backSet = new Set(backEdges.map((edge) => edge.id));
+  void backEdges;
+
+  /* 1. how often does each step run per instance -------------------------- */
+
+  // a node with no incoming flow starts the process - unless it is an end
+  // event that was simply left unconnected, which must not create tokens
+  const starts = flowNodes.filter((node) => {
+    const kind = typeOf(node)?.kind;
+    if (kind === 'start') return true;
+    if (kind === 'end') return false;
+    return (incoming.get(node.id) || []).length === 0;
+  });
+  const startShare = starts.length ? 1 / starts.length : 0;
+  const startIds = new Set(starts.map((node) => node.id));
+  const isAndJoin = (node) => ['parallelGateway', 'inclusiveGateway'].includes(node.type);
+
+  // Fixpoint sweep: a plain topological pass cannot see rework loops, so the
+  // token counts are relaxed until they converge (they form a geometric
+  // series whenever the loop feedback is below 100%).
+  const tokens = new Map(ids.map((id) => [id, startIds.has(id) ? startShare : 0]));
+  let converged = false;
+  for (let pass = 0; pass < 200 && !converged; pass++) {
+    let delta = 0;
+    for (const id of order) {
+      const node = byId.get(id);
+      const inflow = incoming.get(id) || [];
+      let value = startIds.has(id) ? startShare : 0;
+      if (inflow.length) {
+        const contributions = inflow.map(
+          (edge) => (tokens.get(edge.source) || 0) * branchWeight(byId.get(edge.source), edge, outgoing)
+        );
+        // an AND-join lets one instance through once, it does not add tokens up
+        const merged = isAndJoin(node) && inflow.length > 1 ? Math.max(...contributions) : contributions.reduce((a, b) => a + b, 0);
+        value += merged;
+      }
+      value = Math.min(value, 1e6);
+      delta = Math.max(delta, Math.abs(value - (tokens.get(id) || 0)));
+      tokens.set(id, value);
+    }
+    converged = delta < 1e-9;
+  }
+
+  /* 2. time ---------------------------------------------------------------- */
+
+  const finishExpected = new Map();
+  const finishCritical = new Map();
+  for (const id of order) {
+    const node = byId.get(id);
+    const inflow = (incoming.get(id) || []).filter((edge) => !backSet.has(edge.id));
+    const isParallelJoin = node.type === 'parallelGateway' || node.type === 'inclusiveGateway';
+    let startExpected = 0;
+    let startCritical = 0;
+    if (inflow.length) {
+      const arrivals = inflow.map((edge) => ({
+        expected: finishExpected.get(edge.source) || 0,
+        critical: finishCritical.get(edge.source) || 0,
+        weight: (tokens.get(edge.source) || 0) * branchWeight(byId.get(edge.source), edge, outgoing),
+      }));
+      const totalWeight = arrivals.reduce((sum, item) => sum + item.weight, 0);
+      startExpected = isParallelJoin || !totalWeight
+        ? Math.max(...arrivals.map((item) => item.expected))
+        : arrivals.reduce((sum, item) => sum + item.expected * item.weight, 0) / totalWeight;
+      startCritical = Math.max(...arrivals.map((item) => item.critical));
+    }
+    const own = nodeDuration(node) + nodeWait(node);
+    finishExpected.set(id, startExpected + own);
+    finishCritical.set(id, startCritical + own);
+  }
+
+  const ends = flowNodes.filter((node) => typeOf(node)?.kind === 'end' || (outgoing.get(node.id) || []).length === 0);
+  // expected lead time averages the end events by how often each one is reached
+  const endWeight = ends.reduce((sum, node) => sum + (tokens.get(node.id) || 0), 0);
+  const leadAcyclic = !ends.length
+    ? 0
+    : endWeight > 0
+      ? ends.reduce((sum, node) => sum + (finishExpected.get(node.id) || 0) * (tokens.get(node.id) || 0), 0) / endWeight
+      : Math.max(...ends.map((node) => finishExpected.get(node.id) || 0));
+  const leadCriticalAcyclic = ends.length ? Math.max(...ends.map((node) => finishCritical.get(node.id) || 0)) : 0;
+  // repeated steps (rework loops) add their extra passes to the lead time
+  let reworkDelay = 0;
+  for (const node of flowNodes) {
+    const runs = tokens.get(node.id) || 0;
+    if (runs > 1.0001) reworkDelay += (runs - 1) * (nodeDuration(node) + nodeWait(node));
+  }
+  const leadExpected = leadAcyclic + reworkDelay;
+  const leadCritical = leadCriticalAcyclic + reworkDelay;
+
+  /* 3. money and resources ------------------------------------------------- */
+
+  const rows = [];
+  const resourceMap = new Map();
+  let workMinutes = 0;
+  let waitMinutes = 0;
+  let directCost = 0;
+  let labourCost = 0;
+
+  for (const node of flowNodes) {
+    const runs = tokens.get(node.id) || 0;
+    const duration = nodeDuration(node);
+    const wait = nodeWait(node);
+    const role = nodeResource(node);
+    const qty = nodeResourceQty(node);
+    const rate = roleRate(settings, role);
+    const minutes = runs * duration;
+    const labour = (minutes / 60) * rate * qty;
+    const direct = runs * nodeCost(node);
+    workMinutes += minutes;
+    waitMinutes += runs * wait;
+    directCost += direct;
+    labourCost += labour;
+
+    if (role) {
+      const entry = resourceMap.get(role) || { role, minutesPerRun: 0, costPerRun: 0, rate };
+      entry.minutesPerRun += minutes * qty;
+      entry.costPerRun += labour;
+      entry.rate = rate || entry.rate;
+      resourceMap.set(role, entry);
+    }
+
+    rows.push({
+      id: node.id,
+      label: node.label || node.id,
+      type: node.type,
+      category: typeOf(node)?.category || '',
+      lane: laneOf(diagram, node),
+      runs: round(runs, 3),
+      duration,
+      wait,
+      resource: role,
+      resourceQty: qty,
+      totalMinutes: round(minutes, 2),
+      totalCost: round(direct + labour, 2),
+      dataSource: node.props?.dataSource || '',
+      finish: round(finishExpected.get(node.id) || 0, 2),
+    });
+  }
+
+  const volume = Math.max(0, Number(settings.volumePerYear) || 0);
+  const hoursPerFte = Math.max(1, Number(settings.hoursPerFte) || 1800);
+  const resources = [...resourceMap.values()]
+    .map((entry) => {
+      const hoursPerYear = (entry.minutesPerRun / 60) * volume;
+      return {
+        ...entry,
+        minutesPerRun: round(entry.minutesPerRun, 2),
+        costPerRun: round(entry.costPerRun, 2),
+        hoursPerYear: round(hoursPerYear, 1),
+        fte: round(hoursPerYear / hoursPerFte, 2),
+        costPerYear: round(entry.costPerRun * volume, 2),
+      };
+    })
+    .sort((a, b) => b.minutesPerRun - a.minutesPerRun);
+
+  const activityRows = rows.filter((row) => row.category === 'activity');
+  const bottleneck = activityRows.length
+    ? activityRows.reduce((best, row) => (row.totalMinutes > best.totalMinutes ? row : best))
+    : null;
+
+  const costPerRun = directCost + labourCost;
+
+  /* 4. data quality checks ------------------------------------------------- */
+
+  const issues = [];
+  for (const node of flowNodes) {
+    if (typeOf(node)?.category !== 'gateway') continue;
+    const flowsOut = outgoing.get(node.id) || [];
+    if (flowsOut.length < 2) continue;
+    if (!['exclusiveGateway', 'eventBasedGateway', 'complexGateway'].includes(node.type)) continue;
+    const values = flowsOut.map(edgeProbability);
+    if (values.every((value) => value === null)) continue;
+    const sum = values.reduce((acc, value) => acc + (value || 0), 0);
+    if (Math.abs(sum - 1) > 0.005) {
+      issues.push({
+        severity: 'warning',
+        code: 'shareSum',
+        elementId: node.id,
+        params: { name: node.label || node.id, sum: Math.round(sum * 100) },
+        message: {
+          en: 'Branch shares of “{name}” add up to {sum}% instead of 100%',
+          ru: 'Доли веток шлюза «{name}» дают {sum}% вместо 100%',
+        },
+      });
+    }
+  }
+  const missing = activityRows.filter((row) => !row.duration);
+  if (missing.length) {
+    issues.push({
+      severity: 'info',
+      code: 'noDuration',
+      elementId: missing[0].id,
+      params: { count: missing.length },
+      message: {
+        en: '{count} task(s) have no processing time - they are counted as instant',
+        ru: 'У {count} задач(и) не задано время — они считаются мгновенными',
+      },
+    });
+  }
+  const unreachable = rows.filter((row) => !row.runs);
+  if (unreachable.length) {
+    issues.push({
+      severity: 'warning',
+      code: 'unreachable',
+      elementId: unreachable[0].id,
+      params: { count: unreachable.length, name: unreachable[0].label },
+      message: {
+        en: '{count} element(s) are never reached, starting with “{name}”',
+        ru: 'До {count} элемент(ов) поток не доходит, первый — «{name}»',
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    settings,
+    nodes: rows.sort((a, b) => a.finish - b.finish),
+    totals: {
+      workMinutes: round(workMinutes, 2),
+      waitMinutes: round(waitMinutes, 2),
+      leadExpected: round(leadExpected, 2),
+      leadCritical: round(leadCritical, 2),
+      reworkDelay: round(reworkDelay, 2),
+      costPerRun: round(costPerRun, 2),
+      labourCost: round(labourCost, 2),
+      directCost: round(directCost, 2),
+      // how much of the elapsed time is spent waiting, and how much labour is
+      // packed into one unit of lead time (> 1 means work runs in parallel)
+      waitShare: workMinutes + waitMinutes ? round((waitMinutes / (workMinutes + waitMinutes)) * 100, 1) : 0,
+      laborPerLead: leadExpected ? round(workMinutes / leadExpected, 2) : 0,
+      steps: activityRows.length,
+    },
+    resources,
+    bottleneck,
+    annual: {
+      volume,
+      hours: round((workMinutes / 60) * volume, 1),
+      cost: round(costPerRun * volume, 2),
+      fte: round(((workMinutes / 60) * volume) / hoursPerFte, 2),
+    },
+    issues,
+  };
+}
+
+Object.assign(__exports, { analyzeProcess });
+
+});
+__fm_define('app/analysis/compare.js', function (__exports) {
+/**
+ * Comparing two versions of one process (current state against target state).
+ *
+ * Both sides are recomputed from the models themselves - nothing here is
+ * stored or hand-written, so editing a parameter on either diagram moves the
+ * comparison with it.
+ *
+ * One subtlety the plain "cost per case" number hides: a process that stops
+ * killing cases late lets more of them reach the expensive steps, so its cost
+ * per *started* case can rise while the cost per *completed* one falls. An end
+ * event marked with `completes: true` tells us how many cases actually finish,
+ * and `costPerCompletion` divides by that share.
+ */
+const { analyzeProcess } = __fm_require('app/analysis/simulate.js');
+/** Share of cases that reach an end event marked as a successful completion. */
+function completionShare(diagram, result) {
+  const ids = new Set((diagram?.nodes || []).filter((node) => node.props?.completes).map((node) => node.id));
+  if (!ids.size) return 1;
+  const share = (result?.nodes || []).filter((row) => ids.has(row.id)).reduce((sum, row) => sum + row.runs, 0);
+  return share > 0 ? share : 1;
+}
+
+/** Metrics compared side by side; `lowerIsBetter` drives the colour of the delta. */
+const COMPARE_METRICS = [
+  { key: 'lead', labelKey: 'analysis.lead', kind: 'duration', lowerIsBetter: true },
+  { key: 'work', labelKey: 'analysis.work', kind: 'duration', lowerIsBetter: true },
+  { key: 'wait', labelKey: 'analysis.wait', kind: 'duration', lowerIsBetter: true },
+  { key: 'cost', labelKey: 'analysis.cost', kind: 'money', lowerIsBetter: true },
+  { key: 'costPerCompletion', labelKey: 'compare.costPerDone', kind: 'money', lowerIsBetter: true },
+  { key: 'annualCost', labelKey: 'analysis.annualCost', kind: 'money', lowerIsBetter: true },
+  { key: 'fte', labelKey: 'analysis.fte', kind: 'number', lowerIsBetter: true },
+];
+
+function metrics(diagram, result) {
+  const done = completionShare(diagram, result);
+  return {
+    lead: result.totals.leadExpected,
+    work: result.totals.workMinutes,
+    wait: result.totals.waitMinutes,
+    cost: result.totals.costPerRun,
+    costPerCompletion: result.totals.costPerRun / done,
+    annualCost: result.annual.cost,
+    fte: result.annual.fte,
+    completion: done,
+  };
+}
+
+/**
+ * @param {object} baseline  diagram of the current state ("as is")
+ * @param {object} current   diagram of the target state ("to be")
+ */
+function compareProcesses(baseline, current) {
+  if (!baseline || !current) return null;
+  const baseResult = analyzeProcess(baseline);
+  const result = analyzeProcess(current);
+  if (!baseResult.ok || !result.ok) return null;
+  const a = metrics(baseline, baseResult);
+  const b = metrics(current, result);
+  const rows = COMPARE_METRICS.map((metric) => {
+    const from = a[metric.key];
+    const to = b[metric.key];
+    const deltaPct = from ? ((to - from) / from) * 100 : 0;
+    return {
+      ...metric,
+      from,
+      to,
+      deltaPct: Math.round(deltaPct * 10) / 10,
+      improved: metric.lowerIsBetter ? to < from : to > from,
+    };
+  });
+  return {
+    baselineResult: baseResult,
+    result,
+    currency: result.settings.currency,
+    completion: { from: a.completion, to: b.completion },
+    rows,
+  };
+}
+
+Object.assign(__exports, { completionShare, COMPARE_METRICS, compareProcesses });
+
+});
 __fm_define('app/library/weg/facts.js', function (__exports) {
 /**
  * Public facts about WEG S.A. used by the process library.
@@ -10972,6 +11503,11 @@ function reported(props) {
   return { dataSource: 'report', ...props };
 }
 
+/** A fully automated step: system time, no person occupied. */
+function auto(duration, extra = {}) {
+  return { duration, dataSource: 'assumption', ...extra };
+}
+
 /** Waiting time that no one works during (queues, transport, customer). */
 function wait(minutes, extra = {}) {
   return { waitTime: minutes, dataSource: 'assumption', ...extra };
@@ -10980,10 +11516,10 @@ function wait(minutes, extra = {}) {
 const DAY = 480; // one working day in minutes
 const WEEK = DAY * 5;
 
-Object.assign(__exports, { node, flow, work, derived, reported, wait, DAY, WEEK });
+Object.assign(__exports, { node, flow, work, derived, reported, auto, wait, DAY, WEEK });
 
 });
-__fm_define('app/library/weg/p1-order-to-cash.js', function (__exports) {
+__fm_define('app/library/weg/asis/p1-order-to-cash.js', function (__exports) {
 /**
  * 1. Order to cash for catalogue motors (make to stock).
  *
@@ -11005,6 +11541,7 @@ const LANES = [
 const orderToCash = {
   id: 'weg-o2c',
   order: 1,
+  variant: 'as-is',
   name: { ru: '1. Обработка заказа на серийный двигатель', en: '1. Order to cash — catalogue motors' },
   description: {
     ru: 'От заказа дистрибьютора до поступления оплаты: проверка спецификации, кредитный лимит, резерв на складе, отгрузка и закрытие дебиторки.',
@@ -11074,7 +11611,7 @@ ${sourceBlock(['annual2025', 'production', 'fy2025', 'profile'], 'en')}`,
       node('gwCash', 'exclusiveGateway', 'fin', 'Оплата поступила в срок?', 'Paid on time?'),
       node('dunning', 'userTask', 'fin', 'Работа с просрочкой', 'Collections', work(30, 'Финансы', { waitTime: DAY * 12 })),
       node('close', 'serviceTask', 'fin', 'Закрыть заказ и разнести оплату', 'Close the order and apply the payment', work(6, 'Финансы')),
-      node('end', 'endEvent', 'fin', 'Деньги получены', 'Cash received'),
+      node('end', 'endEvent', 'fin', 'Деньги получены', 'Cash received', { completes: true }),
       node('note', 'textAnnotation', 'sales', 'Объём: ≈760 тыс. заказов в год (расчёт из 19 млн двигателей)', 'Volume: ≈760k orders/year (derived from 19m motors)'),
     ],
     edges: [
@@ -11115,7 +11652,7 @@ ${sourceBlock(['annual2025', 'production', 'fy2025', 'profile'], 'en')}`,
 Object.assign(__exports, { orderToCash });
 
 });
-__fm_define('app/library/weg/p2-motor-manufacturing.js', function (__exports) {
+__fm_define('app/library/weg/asis/p2-motor-manufacturing.js', function (__exports) {
 /**
  * 2. Manufacturing of a low-voltage induction motor.
  *
@@ -11138,6 +11675,7 @@ const LANES = [
 const motorManufacturing = {
   id: 'weg-make-motor',
   order: 2,
+  variant: 'as-is',
   name: { ru: '2. Производство асинхронного двигателя', en: '2. Induction motor manufacturing' },
   description: {
     ru: 'Маршрут одного двигателя по линии: штамповка, литьё ротора, обмотка, пропитка, сборка, испытания по IEC 60034, окраска и упаковка.',
@@ -11215,7 +11753,7 @@ ${sourceBlock(['production', 'annual2025', 'verticalization', 'numbers'], 'en')}
 
       node('paint', 'serviceTask', 'finish', 'Окрасить корпус', 'Paint the frame', work(1.8, 'Оператор', { waitTime: 25, cost: 12 })),
       node('pack', 'manualTask', 'finish', 'Упаковать и передать на склад', 'Pack and move to the warehouse', work(1.2, 'Оператор', { cost: 9 })),
-      node('end', 'endEvent', 'finish', 'Двигатель на складе готовой продукции', 'Motor in finished goods'),
+      node('end', 'endEvent', 'finish', 'Двигатель на складе готовой продукции', 'Motor in finished goods', { completes: true }),
 
       node('specData', 'dataObject', 'plan', 'Спецификация и маршрутная карта', 'BOM and routing'),
       node('testData', 'dataStore', 'test', 'Протоколы испытаний', 'Test records'),
@@ -11260,7 +11798,7 @@ ${sourceBlock(['production', 'annual2025', 'verticalization', 'numbers'], 'en')}
 Object.assign(__exports, { motorManufacturing });
 
 });
-__fm_define('app/library/weg/p3-procurement.js', function (__exports) {
+__fm_define('app/library/weg/asis/p3-procurement.js', function (__exports) {
 /**
  * 3. Sourcing of strategic raw materials (copper, electrical steel, aluminium)
  *    together with the commodity hedge that protects the margin.
@@ -11278,6 +11816,7 @@ const LANES = [
 const procurement = {
   id: 'weg-procurement',
   order: 3,
+  variant: 'as-is',
   name: { ru: '3. Закупка сырья и хеджирование', en: '3. Raw material sourcing and hedging' },
   description: {
     ru: 'От прогона MRP до оплаты поставщику: отзыв по контракту или тендер, квалификация поставщика, хедж по меди, приёмка и входной контроль.',
@@ -11344,7 +11883,7 @@ ${sourceBlock(['verticalization', 'annual2025', 'fy2025'], 'en')}`,
       node('stock', 'serviceTask', 'wh', 'Оприходовать на склад', 'Post the goods receipt', work(6, 'Логист')),
       node('match', 'serviceTask', 'wh', 'Трёхсторонняя сверка заказ–приёмка–счёт', 'Three-way match', work(10, 'Финансы')),
       node('pay', 'serviceTask', 'wh', 'Оплатить в срок контракта', 'Pay per contract terms', work(4, 'Финансы', { waitTime: DAY * 30 })),
-      node('end', 'endEvent', 'wh', 'Материал доступен производству', 'Material available to production'),
+      node('end', 'endEvent', 'wh', 'Материал доступен производству', 'Material available to production', { completes: true }),
       node('contractData', 'dataStore', 'buy', 'Рамочные контракты и цены', 'Frame contracts and prices'),
       node('certData', 'dataObject', 'qa', 'Сертификат качества партии', 'Batch quality certificate'),
       node('note', 'textAnnotation', 'treasury', 'Хедж защищает EBITDA-маржу 21,5 % (отчёт 2025)', 'The hedge protects the 21.5% EBITDA margin (2025 report)'),
@@ -11389,7 +11928,7 @@ ${sourceBlock(['verticalization', 'annual2025', 'fy2025'], 'en')}`,
 Object.assign(__exports, { procurement });
 
 });
-__fm_define('app/library/weg/p4-engineer-to-order.js', function (__exports) {
+__fm_define('app/library/weg/asis/p4-engineer-to-order.js', function (__exports) {
 /**
  * 4. Engineer-to-order: a large custom machine (HGF motor or generator).
  *
@@ -11412,6 +11951,7 @@ const LANES = [
 const engineerToOrder = {
   id: 'weg-eto',
   order: 4,
+  variant: 'as-is',
   name: { ru: '4. Крупная машина на заказ (ETO)', en: '4. Engineer-to-order machine' },
   description: {
     ru: 'Запрос — расчёт — КП — договор — проектирование — производство — FAT с заказчиком — отгрузка — пусконаладка.',
@@ -11482,7 +12022,7 @@ ${sourceBlock(['generators', 'annual2025', 'profile'], 'en')}`,
       node('ship', 'serviceTask', 'plan', 'Отгрузить заказчику', 'Ship to the customer', work(120, 'Планировщик', { cost: 23000, waitTime: DAY * 12 })),
       node('commission', 'userTask', 'field', 'Шеф-монтаж и пусконаладка', 'Supervised installation and commissioning', work(1920, 'Сервисный инженер', { cost: 14500 })),
       node('handover', 'userTask', 'field', 'Подписать акт и открыть гарантию', 'Sign the acceptance certificate, start the warranty', work(90, 'Сервисный инженер')),
-      node('end', 'endEvent', 'field', 'Машина принята в эксплуатацию', 'Machine in operation'),
+      node('end', 'endEvent', 'field', 'Машина принята в эксплуатацию', 'Machine in operation', { completes: true }),
       node('drawings', 'dataObject', 'eng', 'Согласованные чертежи', 'Approved drawings'),
       node('fatReport', 'dataObject', 'test', 'Протокол FAT', 'FAT report'),
       node('note', 'textAnnotation', 'sales', 'Конверсия КП 32 % — допущение, калибруется по CRM', 'Quote conversion 32% — assumption, calibrate with CRM'),
@@ -11529,7 +12069,7 @@ ${sourceBlock(['generators', 'annual2025', 'profile'], 'en')}`,
 Object.assign(__exports, { engineerToOrder });
 
 });
-__fm_define('app/library/weg/p5-transformer-project.js', function (__exports) {
+__fm_define('app/library/weg/asis/p5-transformer-project.js', function (__exports) {
 /**
  * 5. GTD project: a power transformer / substation package.
  *
@@ -11550,6 +12090,7 @@ const LANES = [
 const transformerProject = {
   id: 'weg-gtd',
   order: 5,
+  variant: 'as-is',
   name: { ru: '5. Проект силового трансформатора (GTD)', en: '5. Power transformer project (GTD)' },
   description: {
     ru: 'Тендер энергокомпании — расчёт — контракт — проектирование — изготовление активной части — высоковольтные испытания — монтаж на подстанции.',
@@ -11620,7 +12161,7 @@ ${sourceBlock(['transformers', 'annual2025', 'fy2025', 'astec'], 'en')}`,
       node('install', 'userTask', 'site', 'Монтаж на фундаменте, сборка вводов', 'Installation and bushing assembly', work(2400, 'Сервисный инженер', { resourceQty: 2 })),
       node('commission', 'userTask', 'site', 'Пусконаладка и испытания на площадке', 'Commissioning and site tests', work(1440, 'Сервисный инженер', { resourceQty: 2, cost: 38000 })),
       node('handover', 'userTask', 'site', 'Передать заказчику, закрыть гарантию по вводу', 'Hand over to the utility', work(240, 'Сервисный инженер')),
-      node('end', 'endEvent', 'site', 'Трансформатор в сети', 'Transformer energised'),
+      node('end', 'endEvent', 'site', 'Трансформатор в сети', 'Transformer energised', { completes: true }),
       node('protocol', 'dataObject', 'lab', 'Протоколы испытаний IEC 60076', 'IEC 60076 test reports'),
       node('asbuilt', 'dataObject', 'site', 'Исполнительная документация', 'As-built documentation'),
       node('note', 'textAnnotation', 'bid', 'GTD = 35,8 % выручки 2025 (публичный отчёт)', 'GTD = 35.8% of 2025 revenue (public report)'),
@@ -11664,7 +12205,7 @@ ${sourceBlock(['transformers', 'annual2025', 'fy2025', 'astec'], 'en')}`,
 Object.assign(__exports, { transformerProject });
 
 });
-__fm_define('app/library/weg/p6-service.js', function (__exports) {
+__fm_define('app/library/weg/asis/p6-service.js', function (__exports) {
 /**
  * 6. After-sales service and repair through the authorised network (ASTEC).
  */
@@ -11681,6 +12222,7 @@ const LANES = [
 const serviceProcess = {
   id: 'weg-service',
   order: 6,
+  variant: 'as-is',
   name: { ru: '6. Сервис и ремонт оборудования', en: '6. After-sales service and repair' },
   description: {
     ru: 'Обращение клиента — удалённая диагностика — определение гарантии — ремонт в авторизованном сервисе или на заводе — испытания — возврат.',
@@ -11728,7 +12270,7 @@ ${sourceBlock(['astec', 'production', 'numbers'], 'en')}`,
       node('remote', 'userTask', 'support', 'Удалённая диагностика по данным привода', 'Remote diagnosis from drive data', work(35, 'Техник')),
       node('gwRemote', 'exclusiveGateway', 'support', 'Решено удалённо?', 'Solved remotely?'),
       node('closeRemote', 'serviceTask', 'support', 'Закрыть обращение и выслать инструкцию', 'Close the case with instructions', work(10, 'Техник')),
-      node('endRemote', 'endEvent', 'support', 'Решено без выезда', 'Closed remotely'),
+      node('endRemote', 'endEvent', 'support', 'Решено без выезда', 'Closed remotely', { completes: true }),
       node('warranty', 'businessRuleTask', 'support', 'Определить гарантийный статус', 'Determine the warranty status', work(15, 'Техник')),
       node('gwWarranty', 'exclusiveGateway', 'support', 'Случай гарантийный?', 'Under warranty?'),
       node('assign', 'userTask', 'support', 'Назначить авторизованный сервис по региону', 'Assign the regional service partner', work(12, 'Техник')),
@@ -11747,7 +12289,7 @@ ${sourceBlock(['astec', 'production', 'numbers'], 'en')}`,
       node('deliver', 'serviceTask', 'log', 'Доставить и установить у клиента', 'Deliver and install at the customer', work(150, 'Логист', { cost: 520, waitTime: DAY * 2 })),
       node('report', 'serviceTask', 'astec', 'Оформить отчёт и обновить историю оборудования', 'Issue the report, update the asset history', work(30, 'Сервисный инженер')),
       node('feedback', 'sendTask', 'support', 'Запросить оценку качества сервиса', 'Ask for a service rating', work(6, 'Техник')),
-      node('end', 'endEvent', 'support', 'Обращение закрыто', 'Case closed'),
+      node('end', 'endEvent', 'support', 'Обращение закрыто', 'Case closed', { completes: true }),
       node('history', 'dataStore', 'astec', 'История обслуживания оборудования', 'Equipment service history'),
       node('note', 'textAnnotation', 'astec', 'Сеть ASTEC: 40+ аккредитованных партнёров только по трансформаторам (WEG)', 'ASTEC network: 40+ accredited transformer partners (WEG)'),
     ],
@@ -11788,7 +12330,7 @@ ${sourceBlock(['astec', 'production', 'numbers'], 'en')}`,
 Object.assign(__exports, { serviceProcess });
 
 });
-__fm_define('app/library/weg/p7-new-product.js', function (__exports) {
+__fm_define('app/library/weg/asis/p7-new-product.js', function (__exports) {
 /**
  * 7. New product development (stage-gate) for an efficiency-class motor.
  *
@@ -11810,6 +12352,7 @@ const LANES = [
 const newProduct = {
   id: 'weg-npd',
   order: 7,
+  variant: 'as-is',
   name: { ru: '7. Разработка нового продукта (stage-gate)', en: '7. New product development (stage-gate)' },
   description: {
     ru: 'Идея — бизнес-кейс — конструкция — прототип — испытания КПД по IEC 60034-2-1 — сертификация — подготовка производства — запуск.',
@@ -11876,7 +12419,7 @@ ${sourceBlock(['annual2025', 'fy2025', 'numbers'], 'en')}`,
       node('ppap', 'userTask', 'ops', 'Подтвердить процесс и качество (PPAP)', 'Confirm the process and quality (PPAP)', work(600, 'ОТК')),
       node('gwPilot', 'exclusiveGateway', 'ops', 'Пилот успешен?', 'Pilot successful?'),
       node('launch', 'userTask', 'market', 'Запустить продажи и обучить сеть', 'Launch sales and train the channel', work(1200, 'Аналитик', { cost: 85000 })),
-      node('end', 'endEvent', 'market', 'Продукт в серийном производстве', 'Product in serial production'),
+      node('end', 'endEvent', 'market', 'Продукт в серийном производстве', 'Product in serial production', { completes: true }),
       node('spec', 'dataObject', 'rnd', 'Техническое описание и расчёты', 'Design record and calculations'),
       node('certDoc', 'dataObject', 'cert', 'Сертификаты соответствия', 'Certificates of conformity'),
       node('note', 'textAnnotation', 'market', 'R&D 2025: R$ 1,4 млрд = 3,4 % выручки (публичный отчёт)', 'R&D 2025: R$ 1.4bn = 3.4% of revenue (public report)'),
@@ -11922,7 +12465,7 @@ ${sourceBlock(['annual2025', 'fy2025', 'numbers'], 'en')}`,
 Object.assign(__exports, { newProduct });
 
 });
-__fm_define('app/library/weg/p8-export-customs.js', function (__exports) {
+__fm_define('app/library/weg/asis/p8-export-customs.js', function (__exports) {
 /**
  * 8. Export shipment from Brazil and customs clearance (DU-E / Siscomex).
  */
@@ -11946,6 +12489,7 @@ const SHIPMENTS = Math.round(EXPORT_REVENUE / SHIPMENT_VALUE / 100) * 100; // �
 const exportProcess = {
   id: 'weg-export',
   order: 8,
+  variant: 'as-is',
   name: {
     ru: '8. Экспортная поставка и таможенное оформление',
     en: '8. Export shipment and customs clearance',
@@ -12048,7 +12592,7 @@ ${sourceBlock(['fy2025', 'profile', 'numbers', 'annual2025'], 'en')}`,
       node('deliver', 'serviceTask', 'dest', 'Доставить заказчику и получить подтверждение приёмки', 'Deliver to the customer and obtain the acceptance', work(120, 'Логист', { cost: 1700, waitTime: DAY * 2 })),
       node('payment', 'receiveTask', 'fin', 'Получить платёж по контракту', 'Receive the contract payment', work(25, 'Финансы', { waitTime: DAY * 12 })),
       node('fx', 'serviceTask', 'fin', 'Закрыть валютный контракт обмена и разнести выручку', 'Settle the FX contract and post the revenue', work(45, 'Финансы')),
-      node('end', 'endEvent', 'fin', 'Экспортная поставка закрыта', 'Export shipment closed'),
+      node('end', 'endEvent', 'fin', 'Экспортная поставка закрыта', 'Export shipment closed', { completes: true }),
       node('duDoc', 'dataObject', 'customs', 'DU-E (Siscomex)', 'DU-E (Siscomex)'),
       node('blDoc', 'dataObject', 'carrier', 'Bill of Lading', 'Bill of Lading'),
       node('regStore', 'dataStore', 'fin', 'Реестр экспортных операций и валютных контрактов', 'Register of export operations and FX contracts'),
@@ -12117,6 +12661,1310 @@ ${sourceBlock(['fy2025', 'profile', 'numbers', 'annual2025'], 'en')}`,
 Object.assign(__exports, { exportProcess });
 
 });
+__fm_define('app/library/weg/tobe/p1-order-to-cash.js', function (__exports) {
+/**
+ * 1 (TO-BE). Touchless order to cash: B2B portal / EDI, automatic credit
+ * scoring, available-to-promise from stock, early-payment discount.
+ */
+const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'customer', label: { ru: 'Клиент / дистрибьютор', en: 'Customer / distributor' } },
+  { id: 'portal', label: { ru: 'B2B-портал и ERP (автоматика)', en: 'B2B portal and ERP (automated)' } },
+  { id: 'sales', label: { ru: 'Отдел продаж (исключения)', en: 'Sales (exceptions only)' } },
+  { id: 'plan', label: { ru: 'Планирование и склад', en: 'Planning and warehouse' } },
+  { id: 'log', label: { ru: 'Логистика', en: 'Logistics' } },
+  { id: 'fin', label: { ru: 'Финансы', en: 'Finance' } },
+];
+
+const orderToCashToBe = {
+  id: 'weg-o2c-tobe',
+  order: 1,
+  variant: 'to-be',
+  baselineId: 'weg-o2c',
+  name: {
+    ru: '1. Обработка заказа на серийный двигатель — как будет',
+    en: '1. Order to cash — catalogue motors — to be',
+  },
+  description: {
+    ru: 'Заказ приходит структурированным из B2B-портала или EDI, проверка спецификации, кредита и наличия выполняется правилами, человек подключается только к исключениям; ранняя оплата со скидкой сокращает оборот дебиторки.',
+    en: 'The order arrives structured from the B2B portal or EDI, specification, credit and availability are checked by rules, people handle exceptions only, and an early-payment discount shortens the receivable cycle.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 760000,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Аналитик', 'Планировщик', 'Оператор', 'Логист', 'Финансы'),
+  },
+  documentation: {
+    ru: `Целевое состояние процесса обработки заказа на каталожный двигатель.
+
+Что меняется по сравнению с «как есть»:
+1. **Приём заказа.** Ручная регистрация в ERP и проверка артикулов заменены приёмом структурированного заказа из B2B-портала или по EDI: номенклатура, цены и условия уже сверены каталогом на входе. Остаётся автоматическая валидация, человек разбирает только отклонённые строки.
+2. **Кредит.** Вместо ручной проверки лимита — скоринг по правилам (история платежей, страховое покрытие, открытая дебиторка). Ручная проверка остаётся на 4 % заказов вместо 100 %.
+3. **Наличие.** Available-to-promise считается по остаткам и плану в момент заказа, клиент сразу видит дату отгрузки. Доля отгрузок со склада растёт с 78 до 92 % за счёт планирования по фактическому спросу портала.
+4. **Отгрузка.** NF-e, уведомление клиента и трек-номер выпускаются автоматически.
+5. **Деньги.** Добавлена развилка «ранняя оплата со скидкой 1,5 %»: часть клиентов платит за 7 дней вместо 30. Это прямая уступка в цене, она учтена как затрата, и видно, окупается ли она сокращением цикла.
+
+Что НЕ меняется: отсрочка платежа для большинства клиентов, физическая комплектация и упаковка, перевозка.
+
+Все параметры целевого состояния — **плановые величины (отраслевое допущение)**, а не отчётность: WEG не публикует ни текущих, ни целевых пооперационных нормативов. Цифры заданы так, чтобы показать механику улучшения и дать базу для калибровки по собственным данным.
+
+${dataNote('ru')}
+
+${sourceBlock(['numbers', 'production', 'annual2025'], 'ru')}`,
+    en: `Target state of the catalogue-motor order process.
+
+What changes against the as-is model: the order arrives structured from the B2B portal or by EDI instead of being keyed into ERP; credit is scored by rules with a manual review on 4% of orders instead of all of them; available-to-promise is computed at order entry and the share shipped from stock rises from 78% to 92%; the NF-e, the customer notification and the tracking number are issued automatically; an early-payment discount of 1.5% lets part of the customers pay in 7 days instead of 30.
+
+What does not change: payment terms for most customers, physical picking and packing, and the carrier leg.
+
+Every target parameter is an **assumption**, not disclosure: WEG publishes neither current nor target step-level norms. The figures show the mechanics of the improvement and are meant to be calibrated with your own data.
+
+${dataNote('en')}
+
+${sourceBlock(['numbers', 'production', 'annual2025'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Обработка заказа — как будет', en: 'Order to cash — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'customer', 'Заказ из B2B-портала или по EDI', 'Order from the B2B portal or by EDI', reported({})),
+      node('validate', 'businessRuleTask', 'portal', 'Автоматическая проверка спецификации и артикулов', 'Automatic specification and part-number check', auto(0.5, { cost: 0.4 })),
+      node('gwValid', 'exclusiveGateway', 'portal', 'Строки заказа корректны?', 'Order lines valid?'),
+      node('fix', 'userTask', 'sales', 'Разобрать отклонённые строки с клиентом', 'Clear the rejected lines with the customer', work(18, 'Менеджер по продажам')),
+      node('gwStd', 'exclusiveGateway', 'portal', 'Каталожная позиция?', 'Catalogue item?'),
+      node('toEto', 'sendTask', 'sales', 'Передать в процесс «машина на заказ»', 'Hand over to the engineer-to-order process', work(12, 'Менеджер по продажам')),
+      node('endEto', 'endEvent', 'sales', 'Заказ ушёл в ETO', 'Routed to engineer-to-order'),
+      node('score', 'businessRuleTask', 'portal', 'Кредитный скоринг по правилам', 'Rule-based credit scoring', auto(0.3, { cost: 0.6 })),
+      node('gwScore', 'exclusiveGateway', 'portal', 'Скоринг пройден?', 'Score passed?'),
+      node('review', 'userTask', 'fin', 'Ручная проверка лимита и страхового покрытия', 'Manual limit and insurance review', work(14, 'Аналитик')),
+      node('gwReview', 'exclusiveGateway', 'fin', 'Отгрузка разрешена?', 'Shipment approved?'),
+      node('cancel', 'endErrorEvent', 'fin', 'Заказ отменён по кредитному риску', 'Cancelled on credit risk'),
+      node('atp', 'serviceTask', 'portal', 'Available-to-promise: дата отгрузки клиенту сразу', 'Available-to-promise: shipping date shown at once', auto(0.4)),
+      node('gwStock', 'exclusiveGateway', 'plan', 'Есть на складе?', 'In stock?'),
+      node('mrp', 'serviceTask', 'plan', 'Поставить в производственный план по спросу портала', 'Schedule from portal demand', work(8, 'Планировщик')),
+      node('waitProd', 'intermediateTimerEvent', 'plan', 'Ожидание производственной партии', 'Waiting for the production batch', { waitTime: DAY * 3, dataSource: 'assumption' }),
+      node('pick', 'manualTask', 'plan', 'Скомплектовать по маршруту автоматизированного склада', 'Pick on the automated warehouse route', work(12, 'Оператор')),
+      node('pack', 'manualTask', 'plan', 'Упаковать и маркировать', 'Pack and label', work(10, 'Оператор')),
+      node('nfe', 'serviceTask', 'portal', 'Выпустить NF-e автоматически', 'Issue the NF-e automatically', auto(0.3, { cost: 3 })),
+      node('ship', 'userTask', 'log', 'Отгрузить перевозчику по сводной отгрузке', 'Hand over to the carrier in a consolidated load', work(14, 'Логист', { cost: 165 })),
+      node('notify', 'serviceTask', 'portal', 'Отправить клиенту трек-номер и статус', 'Push the tracking number and status to the customer', auto(0.2)),
+      node('invoice', 'serviceTask', 'portal', 'Выставить счёт и завести дебиторку', 'Raise the invoice and the receivable', auto(0.3)),
+      node('gwEarly', 'exclusiveGateway', 'fin', 'Клиент берёт раннюю оплату со скидкой?', 'Early payment with a discount?'),
+      node('early', 'intermediateTimerEvent', 'fin', 'Оплата за 7 дней со скидкой 1,5 %', 'Payment in 7 days at a 1.5% discount', { waitTime: DAY * 7, cost: 42, dataSource: 'assumption' }),
+      node('terms', 'intermediateTimerEvent', 'fin', 'Отсрочка платежа 30 дней', '30-day payment term', { waitTime: DAY * 30, dataSource: 'assumption' }),
+      node('gwCash', 'exclusiveGateway', 'fin', 'Оплата поступила в срок?', 'Paid on time?'),
+      node('remind', 'serviceTask', 'portal', 'Автоматические напоминания и блокировка новых отгрузок', 'Automatic reminders and a hold on new shipments', auto(1)),
+      node('gwRemind', 'exclusiveGateway', 'fin', 'Оплата после напоминания?', 'Paid after the reminder?'),
+      node('dunning', 'userTask', 'fin', 'Работа с просрочкой', 'Collections', work(28, 'Финансы', { waitTime: DAY * 10 })),
+      node('close', 'serviceTask', 'portal', 'Разнести оплату и закрыть заказ', 'Post the payment and close the order', auto(0.3)),
+      node('end', 'endEvent', 'fin', 'Деньги получены', 'Cash collected', { completes: true }),
+      node('rules', 'dataStore', 'portal', 'Правила скоринга и каталог условий', 'Scoring rules and the terms catalogue'),
+      node('docs', 'dataObject', 'portal', 'NF-e и товарные документы', 'NF-e and shipping documents'),
+      node('note', 'textAnnotation', 'portal', 'Автоматические шаги не занимают людей: в расчёте у них нет роли, только стоимость транзакции', 'Automated steps occupy nobody: they carry a transaction cost, not a role'),
+    ],
+    edges: [
+      flow('start', 'validate'),
+      flow('validate', 'gwValid'),
+      flow('gwValid', 'gwStd', { share: 94, ru: 'корректны', en: 'valid' }),
+      flow('gwValid', 'fix', { share: 6, ru: 'есть отклонения', en: 'rejected lines' }),
+      flow('fix', 'gwStd'),
+      flow('gwStd', 'score', { share: 97, ru: 'каталог', en: 'catalogue' }),
+      flow('gwStd', 'toEto', { share: 3, ru: 'на заказ', en: 'engineered' }),
+      flow('toEto', 'endEto'),
+      flow('score', 'gwScore'),
+      flow('gwScore', 'atp', { share: 96, ru: 'пройден', en: 'passed' }),
+      flow('gwScore', 'review', { share: 4, ru: 'на проверку', en: 'to review' }),
+      flow('review', 'gwReview'),
+      flow('gwReview', 'atp', { share: 72, ru: 'разрешено', en: 'approved' }),
+      flow('gwReview', 'cancel', { share: 28, ru: 'отказ', en: 'declined' }),
+      flow('atp', 'gwStock'),
+      flow('gwStock', 'pick', { share: 92, ru: 'со склада', en: 'from stock' }),
+      flow('gwStock', 'mrp', { share: 8, ru: 'в производство', en: 'to production' }),
+      flow('mrp', 'waitProd'),
+      flow('waitProd', 'pick'),
+      flow('pick', 'pack'),
+      flow('pack', 'nfe'),
+      flow('nfe', 'ship'),
+      flow('ship', 'notify'),
+      flow('notify', 'invoice'),
+      flow('invoice', 'gwEarly'),
+      flow('gwEarly', 'early', { share: 45, ru: 'ранняя оплата', en: 'early payment' }),
+      flow('gwEarly', 'terms', { share: 55, ru: 'обычная отсрочка', en: 'standard terms' }),
+      flow('early', 'close'),
+      flow('terms', 'gwCash'),
+      flow('gwCash', 'close', { share: 94, ru: 'оплачено', en: 'paid' }),
+      flow('gwCash', 'remind', { share: 6, ru: 'просрочка', en: 'overdue' }),
+      flow('remind', 'gwRemind'),
+      flow('gwRemind', 'close', { share: 64, ru: 'оплачено', en: 'paid' }),
+      flow('gwRemind', 'dunning', { share: 36, ru: 'не оплачено', en: 'still unpaid' }),
+      flow('dunning', 'close'),
+      flow('close', 'end'),
+      { source: 'score', target: 'rules', type: 'dataAssociation' },
+      { source: 'nfe', target: 'docs', type: 'dataAssociation' },
+      { source: 'validate', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { orderToCashToBe });
+
+});
+__fm_define('app/library/weg/tobe/p2-motor-manufacturing.js', function (__exports) {
+/**
+ * 2 (TO-BE). Motor line with vertical integration, in-line testing and
+ * statistical process control instead of end-of-line sorting.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'plan', label: { ru: 'Планирование производства', en: 'Production planning' } },
+  { id: 'stamp', label: { ru: 'Штамповка и пакетирование', en: 'Stamping and stacking' } },
+  { id: 'rotor', label: { ru: 'Литьё ротора и механообработка', en: 'Rotor casting and machining' } },
+  { id: 'wind', label: { ru: 'Автоматическая обмотка и изоляция', en: 'Automated winding and insulation' } },
+  { id: 'assy', label: { ru: 'Сборка', en: 'Assembly' } },
+  { id: 'test', label: { ru: 'Встроенные испытания (IEC 60034)', en: 'In-line testing (IEC 60034)' } },
+  { id: 'finish', label: { ru: 'Окраска и упаковка', en: 'Painting and packing' } },
+];
+
+const motorManufacturingToBe = {
+  id: 'weg-make-motor-tobe',
+  order: 2,
+  variant: 'to-be',
+  baselineId: 'weg-make-motor',
+  name: {
+    ru: '2. Производство асинхронного двигателя — как будет',
+    en: '2. Induction motor manufacturing — to be',
+  },
+  description: {
+    ru: 'Вертикальная интеграция по проводу и литью, автоматическая намотка, встроенный контроль изоляции вместо отдельного поста, статистический контроль процесса вместо сортировки на выходе, порошковая окраска без длительной полимеризации.',
+    en: 'Vertical integration on wire and casting, automated winding, in-line insulation testing instead of a separate station, statistical process control instead of end-of-line sorting, powder painting without a long cure.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: WEG.motorsPerYear,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Планировщик', 'Оператор', 'Намотчик', 'Сборщик', 'Техник-испытатель', 'ОТК'),
+  },
+  documentation: {
+    ru: `Целевое состояние маршрута одного двигателя по линии.
+
+Опирается на публично объявленное направление инвестиций WEG:
+• около R$ ${(WEG.investments.verticalizationBrl / 1e6).toFixed(0)} млн в вертикальную интеграцию в Мексике и Бразилии — собственные переделы вместо покупных;
+• R$ ${(WEG.investments.capacityBrl3y / 1e9).toFixed(1)} млрд в расширение мощностей;
+• базовый объём расчёта не меняется: ${(WEG.motorsPerYear / 1e6).toFixed(0)} млн двигателей в год, ${DERIVED.motorsPerDay.toLocaleString('ru-RU')} в день (публичная отчётность 2025).
+
+Что меняется по сравнению с «как есть»:
+1. **Намотка.** Ручная намотка катушек заменена автоматической на массовых типоразмерах: 6 мин → 3,2 мин, намотчик обслуживает несколько станков.
+2. **Контроль изоляции.** Импульсный тест встроен в линию сразу после укладки, а не отдельным постом: 1,2 → 0,5 мин, и дефект ловится до пропитки, поэтому доля перемоток падает с 3 до 1,2 %.
+3. **Пропитка.** УФ-полимеризация вместо печи: межоперационное ожидание 40 → 12 мин.
+4. **Выходной контроль.** Добавлен статистический контроль процесса по телеметрии линии — отклонение видно до испытаний, доля несоответствий по КПД падает с 2,5 до 1 %.
+5. **Окраска.** Порошковое покрытие вместо жидкого: ожидание 25 → 8 мин.
+6. **Материал.** Собственный обмоточный провод и алюминиевое литьё снижают материальную составляющую штамповки, литья и обмотки.
+
+Что НЕ меняется: требования IEC 60034, состав операций сборки, выборочные типовые испытания партии.
+
+Целевые нормативы времени — **отраслевые допущения**: WEG не публикует пооперационных нормативов. Их нужно заменить данными MES перед принятием решений.
+
+${dataNote('ru')}
+
+${sourceBlock(['verticalization', 'production', 'numbers'], 'ru')}`,
+    en: `Target state of a single motor's route through the line, anchored on WEG's publicly announced direction: about R$ ${(WEG.investments.verticalizationBrl / 1e6).toFixed(0)}m into vertical integration in Mexico and Brazil and R$ ${(WEG.investments.capacityBrl3y / 1e9).toFixed(1)}bn into capacity. The volume is unchanged: ${(WEG.motorsPerYear / 1e6).toFixed(0)} million motors a year.
+
+Changes: automated coil winding (6 → 3.2 min); the surge test moves in-line right after insertion (1.2 → 0.5 min) and catches the fault before impregnation, so rewinds drop from 3% to 1.2%; UV curing replaces the oven (40 → 12 min of queue); statistical process control on line telemetry cuts efficiency-class failures from 2.5% to 1%; powder coating replaces wet paint (25 → 8 min); own winding wire and aluminium casting reduce the material content.
+
+Unchanged: the IEC 60034 requirements, the assembly content and the batch type tests.
+
+The target times are **assumptions** - replace them with MES data before deciding anything.
+
+${dataNote('en')}
+
+${sourceBlock(['verticalization', 'production', 'numbers'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Производство двигателя — как будет', en: 'Motor manufacturing — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startTimerEvent', 'plan', 'Производственный заказ по плану MPS', 'Production order from the MPS', reported({})),
+      node('release', 'serviceTask', 'plan', 'Выпустить заказ автоматически по сигналу линии', 'Release the order automatically on the line signal', auto(0.4)),
+      node('split', 'parallelGateway', 'plan', 'Запустить ветки', 'Start the branches'),
+      node('stampStator', 'manualTask', 'stamp', 'Штамповать пластины статора и ротора', 'Stamp the stator and rotor laminations', work(0.5, 'Оператор', { cost: 17 })),
+      node('stack', 'serviceTask', 'stamp', 'Собрать и скрепить пакет статора на автомате', 'Stack and bond the core automatically', work(0.8, 'Оператор')),
+      node('cast', 'serviceTask', 'rotor', 'Литьё ротора из собственного алюминия', 'Rotor casting from in-house aluminium', work(1.3, 'Оператор', { cost: 21 })),
+      node('shaft', 'serviceTask', 'rotor', 'Обточить вал и напрессовать ротор', 'Turn the shaft and press on the rotor', work(2, 'Оператор')),
+      node('balance', 'serviceTask', 'rotor', 'Автоматическая балансировка', 'Automated balancing', work(0.7, 'Техник-испытатель')),
+      node('coil', 'serviceTask', 'wind', 'Намотать катушки на автоматической линии', 'Wind the coils on the automated line', work(3.2, 'Намотчик', { cost: 27 })),
+      node('insert', 'manualTask', 'wind', 'Уложить обмотку и изолировать пазы', 'Insert the winding and insulate the slots', work(2.8, 'Намотчик')),
+      node('surge', 'serviceTask', 'wind', 'Встроенный импульсный тест межвитковой изоляции', 'In-line surge test of the turn insulation', auto(0.5)),
+      node('gwWind', 'exclusiveGateway', 'wind', 'Обмотка годна?', 'Winding sound?'),
+      node('rewind', 'manualTask', 'wind', 'Перемотать до пропитки', 'Rewind before impregnation', work(8, 'Намотчик', { cost: 24 })),
+      node('impreg', 'serviceTask', 'wind', 'Пропитка с УФ-полимеризацией', 'Impregnation with UV curing', work(1.5, 'Оператор', { waitTime: 12 })),
+      node('join', 'parallelGateway', 'assy', 'Синхронизировать ветки', 'Synchronise the branches'),
+      node('assemble', 'manualTask', 'assy', 'Собрать двигатель (щиты, подшипники, клеммная коробка)', 'Assemble the motor (end shields, bearings, terminal box)', work(5.5, 'Сборщик', { cost: 42 })),
+      node('nameplate', 'serviceTask', 'assy', 'Нанести шильд и серийный номер лазером', 'Laser-mark the nameplate and serial number', auto(0.3)),
+      node('spc', 'businessRuleTask', 'test', 'Статистический контроль процесса по телеметрии линии', 'Statistical process control on line telemetry', auto(0.2)),
+      node('gwSpc', 'exclusiveGateway', 'test', 'Процесс в допуске?', 'Process within limits?'),
+      node('adjust', 'userTask', 'test', 'Подстроить параметры линии', 'Adjust the line parameters', work(14, 'Техник-испытатель')),
+      node('routine', 'userTask', 'test', 'Приёмо-сдаточные испытания по IEC 60034-1', 'Routine tests to IEC 60034-1', work(2.6, 'Техник-испытатель')),
+      node('gwTest', 'exclusiveGateway', 'test', 'Соответствует классу КПД?', 'Efficiency class met?'),
+      node('repair', 'userTask', 'test', 'Дефектовка и устранение', 'Fault finding and repair', work(20, 'Техник-испытатель', { cost: 58 })),
+      node('gwRepair', 'exclusiveGateway', 'test', 'Ремонт возможен?', 'Repairable?'),
+      node('scrap', 'endErrorEvent', 'test', 'Брак списан', 'Scrapped'),
+      node('sample', 'userTask', 'test', 'Выборочные типовые испытания партии', 'Batch type tests on a sample', work(0.3, 'ОТК')),
+      node('paint', 'serviceTask', 'finish', 'Порошковая окраска корпуса', 'Powder-coat the frame', work(1.4, 'Оператор', { waitTime: 8, cost: 10 })),
+      node('pack', 'manualTask', 'finish', 'Упаковать и передать на склад', 'Pack and move to the warehouse', work(1, 'Оператор', { cost: 8 })),
+      node('end', 'endEvent', 'finish', 'Двигатель на складе готовой продукции', 'Motor in finished goods', { completes: true }),
+      node('specData', 'dataObject', 'plan', 'Спецификация и маршрутная карта', 'Specification and routing'),
+      node('passport', 'dataStore', 'test', 'Цифровой паспорт двигателя (протоколы и телеметрия)', 'Digital motor passport (test records and telemetry)'),
+      node('note', 'textAnnotation', 'wind', 'Контроль изоляции перенесён до пропитки: дефект ловится, пока его ещё можно исправить', 'Insulation testing moved before impregnation: the fault is caught while it is still fixable'),
+    ],
+    edges: [
+      flow('start', 'release'),
+      flow('release', 'split'),
+      flow('split', 'stampStator'),
+      flow('split', 'coil'),
+      flow('stampStator', 'stack'),
+      flow('stack', 'cast'),
+      flow('cast', 'shaft'),
+      flow('shaft', 'balance'),
+      flow('balance', 'join'),
+      flow('coil', 'insert'),
+      flow('insert', 'surge'),
+      flow('surge', 'gwWind'),
+      flow('gwWind', 'impreg', { share: 98.8, ru: 'годна', en: 'sound' }),
+      flow('gwWind', 'rewind', { share: 1.2, ru: 'дефект', en: 'faulty' }),
+      flow('rewind', 'surge'),
+      flow('impreg', 'join'),
+      flow('join', 'assemble'),
+      flow('assemble', 'nameplate'),
+      flow('nameplate', 'spc'),
+      flow('spc', 'gwSpc'),
+      flow('gwSpc', 'routine', { share: 98, ru: 'в допуске', en: 'within limits' }),
+      flow('gwSpc', 'adjust', { share: 2, ru: 'дрейф', en: 'drifting' }),
+      flow('adjust', 'routine'),
+      flow('routine', 'gwTest'),
+      flow('gwTest', 'sample', { share: 99, ru: 'годен', en: 'pass' }),
+      flow('gwTest', 'repair', { share: 1, ru: 'не соответствует', en: 'fail' }),
+      flow('repair', 'gwRepair'),
+      flow('gwRepair', 'routine', { share: 91, ru: 'исправим', en: 'repairable' }),
+      flow('gwRepair', 'scrap', { share: 9, ru: 'брак', en: 'scrap' }),
+      flow('sample', 'paint'),
+      flow('paint', 'pack'),
+      flow('pack', 'end'),
+      { source: 'release', target: 'specData', type: 'dataAssociation' },
+      { source: 'routine', target: 'passport', type: 'dataAssociation' },
+      { source: 'surge', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { motorManufacturingToBe });
+
+});
+__fm_define('app/library/weg/tobe/p3-procurement.js', function (__exports) {
+/**
+ * 3 (TO-BE). Sourcing on framework agreements, a supplier portal, consignment
+ * for C-class items and a rule-driven hedge.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'mrp', label: { ru: 'Планирование материалов', en: 'Material planning' } },
+  { id: 'buy', label: { ru: 'Закупки', en: 'Procurement' } },
+  { id: 'portal', label: { ru: 'Портал поставщиков (автоматика)', en: 'Supplier portal (automated)' } },
+  { id: 'treasury', label: { ru: 'Казначейство', en: 'Treasury' } },
+  { id: 'qa', label: { ru: 'Входной контроль', en: 'Incoming quality' } },
+  { id: 'wh', label: { ru: 'Склад и учёт', en: 'Warehouse and accounting' } },
+];
+
+const procurementToBe = {
+  id: 'weg-procurement-tobe',
+  order: 3,
+  variant: 'to-be',
+  baselineId: 'weg-procurement',
+  name: {
+    ru: '3. Закупка сырья и хеджирование — как будет',
+    en: '3. Raw material sourcing and hedging — to be',
+  },
+  description: {
+    ru: 'Рамочные контракты покрывают почти всю номенклатуру, класс C идёт по консигнации без заказа, новые позиции разыгрываются электронным аукционом, хедж ставится правилом, входной контроль выборочный по электронному сертификату, сверка и оплата автоматические.',
+    en: 'Framework agreements cover nearly the whole catalogue, C-class items run on consignment without a purchase order, new items go through an e-auction, the hedge is placed by rule, incoming inspection is sampled against an electronic certificate, and matching and payment are automatic.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 48000,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Планировщик', 'Закупщик', 'Казначейство', 'ОТК', 'Логист', 'Финансы'),
+  },
+  documentation: {
+    ru: `Целевое состояние снабжения сырьём и комплектующими.
+
+Что меняется по сравнению с «как есть»:
+1. **Покрытие контрактами.** Доля позиций под рамочным контрактом растёт с 72 до 90 %: тендер нужен реже, и он проходит электронным аукционом вместо переписки с котировками (25 → 12 мин работы, ожидание 1 день вместо 3).
+2. **Класс C.** Крепёж, расходники и упаковка переводятся на консигнацию (VMI): поставщик пополняет склад по сигналу, заказ и приёмка по каждой партии не оформляются вовсе — это отдельная короткая ветка.
+3. **Квалификация поставщика.** Проверка выполняется один раз при входе в реестр, а не при каждом новом заказе: доля заказов с полным аудитом падает с 12 до 4 %.
+4. **Хедж.** Решение о хеджировании принимается правилом по доле биржевой составляющей и горизонту, казначейство подтверждает пакетом, а не по каждой позиции.
+5. **Входной контроль.** Электронный сертификат качества приходит в портале до прибытия груза, физический контроль становится выборочным (30 % партий вместо 100 %).
+6. **Сверка и оплата.** Трёхсторонняя сверка и платёж выполняются автоматически при совпадении заказа, приёмки и счёта.
+
+Что НЕ меняется: срок поставки от поставщика, рекламационная процедура, платёжные условия контракта.
+
+Хедж остаётся ключевым для маржи: EBITDA-маржа ${DERIVED.ebitdaMargin} % при выручке R$ ${(WEG.revenue / 1e9).toFixed(1)} млрд (публичная отчётность 2025) чувствительна к меди и алюминию. Целевые нормативы времени — **отраслевые допущения**.
+
+${dataNote('ru')}
+
+${sourceBlock(['fy2025', 'verticalization', 'numbers'], 'ru')}`,
+    en: `Target state of raw material sourcing.
+
+Changes: framework coverage rises from 72% to 90% and the remaining tenders run as an e-auction (25 → 12 min of work, one day of waiting instead of three); C-class items move to consignment, replenished on a signal with no purchase order or receipt per batch; supplier qualification happens once on entry into the register, so full audits drop from 12% to 4% of orders; the hedge decision is made by rule and confirmed in a batch; the electronic quality certificate arrives in the portal before the goods, so physical inspection is sampled on 30% of batches; three-way matching and payment run automatically when order, receipt and invoice agree.
+
+Unchanged: the supplier's lead time, the claim procedure and the contractual payment terms.
+
+Hedging stays central to the margin: a ${DERIVED.ebitdaMargin}% EBITDA margin on R$ ${(WEG.revenue / 1e9).toFixed(1)}bn of revenue is sensitive to copper and aluminium. The target times are **assumptions**.
+
+${dataNote('en')}
+
+${sourceBlock(['fy2025', 'verticalization', 'numbers'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Закупка сырья — как будет', en: 'Sourcing and hedging — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startTimerEvent', 'mrp', 'Ежедневный прогон MRP', 'Daily MRP run', reported({})),
+      node('demand', 'serviceTask', 'mrp', 'Рассчитать чистую потребность автоматически', 'Compute the net requirement automatically', auto(0.5)),
+      node('gwClass', 'exclusiveGateway', 'mrp', 'Класс позиции?', 'Item class?'),
+      node('vmi', 'sendTask', 'portal', 'Сигнал пополнения поставщику по консигнации', 'Replenishment signal to the consignment supplier', auto(0.3)),
+      node('vmiFill', 'intermediateTimerEvent', 'wh', 'Поставщик пополняет склад', 'Supplier refills the stock', { waitTime: DAY * 3, dataSource: 'assumption' }),
+      node('vmiUse', 'serviceTask', 'wh', 'Списать по факту потребления', 'Consume from the consignment stock', auto(0.4)),
+      node('endVmi', 'endEvent', 'wh', 'Класс C доступен производству', 'C-class item available', { completes: true }),
+      node('gwContract', 'exclusiveGateway', 'mrp', 'Позиция покрыта рамочным контрактом?', 'Covered by a framework agreement?'),
+      node('calloff', 'serviceTask', 'portal', 'Отзыв по контракту формируется автоматически', 'Call-off generated automatically', auto(0.5)),
+      node('auction', 'userTask', 'buy', 'Провести электронный аукцион в портале', 'Run the e-auction in the portal', work(12, 'Закупщик', { waitTime: DAY })),
+      node('compare', 'businessRuleTask', 'portal', 'Сравнить предложения по правилам (цена, срок, риск)', 'Score the bids by rule (price, lead time, risk)', auto(0.6)),
+      node('gwBudget', 'exclusiveGateway', 'buy', 'Цена в рамках бюджета?', 'Price within budget?'),
+      node('escalate', 'userTask', 'buy', 'Согласовать отклонение по электронному маршруту', 'Approve the deviation on the electronic route', work(12, 'Закупщик', { waitTime: 240 })),
+      node('gwRegister', 'exclusiveGateway', 'buy', 'Поставщик в реестре квалифицированных?', 'Supplier in the qualified register?'),
+      node('audit', 'userTask', 'qa', 'Квалифицировать поставщика и внести в реестр', 'Qualify the supplier and add to the register', work(180, 'ОТК', { cost: 3200 })),
+      node('hedgeRule', 'businessRuleTask', 'treasury', 'Правило хеджирования: доля биржевой составляющей и горизонт', 'Hedging rule: exchange-linked share and horizon', auto(0.3)),
+      node('gwHedge', 'exclusiveGateway', 'treasury', 'Нужен хедж?', 'Hedge needed?'),
+      node('hedge', 'serviceTask', 'treasury', 'Захеджировать пакетом за день', 'Hedge in the daily batch', work(6, 'Казначейство', { cost: 380 })),
+      node('po', 'serviceTask', 'portal', 'Разместить заказ в портале поставщика', 'Place the order in the supplier portal', auto(0.4)),
+      node('confirm', 'receiveTask', 'portal', 'Автоматическое подтверждение поставщика', 'Automatic supplier confirmation', auto(0.3, { waitTime: 120 })),
+      node('leadTime', 'intermediateTimerEvent', 'buy', 'Срок поставки по контракту', 'Contractual lead time', { waitTime: WEEK * 2, dataSource: 'assumption' }),
+      node('asn', 'serviceTask', 'portal', 'Принять уведомление об отгрузке и сертификат', 'Receive the despatch advice and the certificate', auto(0.3)),
+      node('receive', 'manualTask', 'wh', 'Принять груз сканированием по ASN', 'Receive the goods by scanning against the ASN', work(12, 'Логист')),
+      node('gwSample', 'exclusiveGateway', 'qa', 'Партия попала в выборку контроля?', 'Batch selected for inspection?'),
+      node('inspect', 'userTask', 'qa', 'Входной контроль выборочной партии', 'Incoming inspection of the sampled batch', work(38, 'ОТК')),
+      node('gwQuality', 'exclusiveGateway', 'qa', 'Соответствует спецификации?', 'Conforms to the specification?'),
+      node('claim', 'sendTask', 'qa', 'Оформить рекламацию в портале', 'Raise the claim in the portal', work(30, 'ОТК', { waitTime: DAY * 3 })),
+      node('gwClaim', 'exclusiveGateway', 'qa', 'Замена поставлена?', 'Replacement delivered?'),
+      node('reject', 'endErrorEvent', 'qa', 'Поставка отклонена', 'Delivery rejected'),
+      node('stock', 'serviceTask', 'wh', 'Оприходовать автоматически', 'Post to stock automatically', auto(0.3)),
+      node('match', 'businessRuleTask', 'portal', 'Автоматическая трёхсторонняя сверка', 'Automatic three-way match', auto(0.4)),
+      node('gwMatch', 'exclusiveGateway', 'wh', 'Расхождений нет?', 'No discrepancy?'),
+      node('resolve', 'userTask', 'wh', 'Разобрать расхождение с поставщиком', 'Clear the discrepancy with the supplier', work(25, 'Финансы')),
+      node('pay', 'serviceTask', 'wh', 'Оплатить в срок контракта', 'Pay on the contractual date', auto(0.3, { waitTime: DAY * 30 })),
+      node('end', 'endEvent', 'wh', 'Материал доступен производству', 'Material available to production', { completes: true }),
+      node('contractData', 'dataStore', 'portal', 'Рамочные контракты, реестр поставщиков, цены', 'Framework agreements, supplier register, prices'),
+      node('certData', 'dataObject', 'qa', 'Электронный сертификат качества партии', 'Electronic batch quality certificate'),
+      node('note', 'textAnnotation', 'treasury', 'Хедж защищает EBITDA-маржу 21,5 % (публичная отчётность 2025)', 'Hedging protects the 21.5% EBITDA margin (2025 disclosure)'),
+    ],
+    edges: [
+      flow('start', 'demand'),
+      flow('demand', 'gwClass'),
+      flow('gwClass', 'vmi', { share: 34, ru: 'класс C (консигнация)', en: 'C-class (consignment)' }),
+      flow('gwClass', 'gwContract', { share: 66, ru: 'класс A/B', en: 'A/B class' }),
+      flow('vmi', 'vmiFill'),
+      flow('vmiFill', 'vmiUse'),
+      flow('vmiUse', 'endVmi'),
+      flow('gwContract', 'calloff', { share: 90, ru: 'покрыта', en: 'covered' }),
+      flow('gwContract', 'auction', { share: 10, ru: 'нужен тендер', en: 'tender needed' }),
+      flow('auction', 'compare'),
+      flow('compare', 'gwBudget'),
+      flow('gwBudget', 'gwRegister', { share: 86, ru: 'в бюджете', en: 'within budget' }),
+      flow('gwBudget', 'escalate', { share: 14, ru: 'отклонение', en: 'deviation' }),
+      flow('escalate', 'gwRegister'),
+      flow('gwRegister', 'hedgeRule', { share: 96, ru: 'в реестре', en: 'registered' }),
+      flow('gwRegister', 'audit', { share: 4, ru: 'новый', en: 'new' }),
+      flow('audit', 'hedgeRule'),
+      flow('calloff', 'hedgeRule'),
+      flow('hedgeRule', 'gwHedge'),
+      flow('gwHedge', 'hedge', { share: 46, ru: 'да', en: 'yes' }),
+      flow('gwHedge', 'po', { share: 54, ru: 'нет', en: 'no' }),
+      flow('hedge', 'po'),
+      flow('po', 'confirm'),
+      flow('confirm', 'leadTime'),
+      flow('leadTime', 'asn'),
+      flow('asn', 'receive'),
+      flow('receive', 'gwSample'),
+      flow('gwSample', 'inspect', { share: 30, ru: 'в выборке', en: 'sampled' }),
+      flow('gwSample', 'stock', { share: 70, ru: 'по сертификату', en: 'on certificate' }),
+      flow('inspect', 'gwQuality'),
+      flow('gwQuality', 'stock', { share: 97, ru: 'соответствует', en: 'conforms' }),
+      flow('gwQuality', 'claim', { share: 3, ru: 'отклонение', en: 'non-conforming' }),
+      flow('claim', 'gwClaim'),
+      flow('gwClaim', 'inspect', { share: 74, ru: 'замена пришла', en: 'replaced' }),
+      flow('gwClaim', 'reject', { share: 26, ru: 'отказ', en: 'rejected' }),
+      flow('stock', 'match'),
+      flow('match', 'gwMatch'),
+      flow('gwMatch', 'pay', { share: 93, ru: 'совпало', en: 'matched' }),
+      flow('gwMatch', 'resolve', { share: 7, ru: 'расхождение', en: 'discrepancy' }),
+      flow('resolve', 'pay'),
+      flow('pay', 'end'),
+      { source: 'calloff', target: 'contractData', type: 'dataAssociation' },
+      { source: 'asn', target: 'certData', type: 'dataAssociation' },
+      { source: 'hedge', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { procurementToBe });
+
+});
+__fm_define('app/library/weg/tobe/p4-engineer-to-order.js', function (__exports) {
+/**
+ * 4 (TO-BE). Configure-to-order: a product configurator with a library of
+ * validated executions, modular design, a digital twin and a virtual FAT.
+ */
+const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'customer', label: { ru: 'Заказчик', en: 'Customer' } },
+  { id: 'sales', label: { ru: 'Продажи проектов', en: 'Project sales' } },
+  { id: 'cfg', label: { ru: 'Конфигуратор и библиотека решений', en: 'Configurator and solution library' } },
+  { id: 'eng', label: { ru: 'Инжиниринг', en: 'Engineering' } },
+  { id: 'plan', label: { ru: 'Планирование и снабжение', en: 'Planning and supply' } },
+  { id: 'prod', label: { ru: 'Производство', en: 'Production' } },
+  { id: 'test', label: { ru: 'Испытательный центр', en: 'Test centre' } },
+  { id: 'field', label: { ru: 'Шеф-монтаж', en: 'Commissioning' } },
+];
+
+const engineerToOrderToBe = {
+  id: 'weg-eto-tobe',
+  order: 4,
+  variant: 'to-be',
+  baselineId: 'weg-eto',
+  name: {
+    ru: '4. Крупная машина на заказ (ETO) — как будет',
+    en: '4. Engineer-to-order machine — to be',
+  },
+  description: {
+    ru: 'Конфигуратор с библиотекой проверенных исполнений закрывает большинство запросов без расчёта с нуля, проектирование модульное, закупка длинных позиций идёт параллельно проектированию, цифровой двойник заменяет часть испытаний, FAT проводится удалённо.',
+    en: 'A configurator with a library of validated executions covers most enquiries without designing from scratch, engineering is modular, long-lead procurement runs in parallel with design, a digital twin replaces part of the testing, and the FAT is witnessed remotely.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 2600,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Инженер-конструктор', 'Ведущий инженер', 'Планировщик', 'Сборщик', 'Техник-испытатель', 'Сервисный инженер'),
+  },
+  documentation: {
+    ru: `Целевое состояние процесса «машина на заказ» — переход от engineer-to-order к configure-to-order там, где это возможно.
+
+Что меняется по сравнению с «как есть»:
+1. **Коммерческая проработка.** Конфигуратор с библиотекой ранее выполненных исполнений закрывает 68 % запросов: расчёт характеристик и себестоимости считается правилами за минуты, а не инженером за 7 часов. Полный инженерный расчёт остаётся для действительно уникальных машин.
+2. **Срок ответа.** Коммерческое предложение уходит в тот же день, а не через неделю.
+
+   Конверсия в модели намеренно оставлена прежней — 32 %. Ответ в тот же день почти наверняка поднимает выигрыш, но тогда стоимость «на один запрос» выросла бы просто потому, что больше заказов доходит до производства, и сравнение перестало бы показывать эффективность процесса. Выигрыш по конверсии — это дополнительная выручка сверх того, что видно в таблице, а не то, что здесь измеряется.
+3. **Проектирование.** Модульная конструкция из проверенных узлов: 2400 → 1200 мин, доля замечаний заказчика по чертежам падает с 28 до 14 %, потому что он видит 3D-модель в конфигураторе на этапе предложения.
+4. **Параллельность.** Заказ длинных позиций запускается сразу после договора, параллельно рабочему проектированию, а не после него. Это главный выигрыш по сроку.
+5. **Испытания.** Цифровой двойник прогоняет режимы до сборки, поэтому доля непринятых FAT падает с 8 до 3 %. Сам FAT проводится удалённо с трансляцией — заказчику не нужно ехать, ожидание сокращается.
+6. **Пусконаладка.** Предварительная настройка на стенде по цифровому двойнику сокращает работу на площадке.
+
+Что НЕ меняется: сроки поставки длинных позиций от поставщиков, физическое изготовление и сборка, перевозка, подписание акта.
+
+Доли и нормативы целевого состояния — **отраслевые допущения**, их нужно калибровать по CRM и ERP.
+
+${dataNote('ru')}
+
+${sourceBlock(['profile', 'numbers', 'annual2025'], 'ru')}`,
+    en: `Target state of the engineer-to-order process - a move to configure-to-order where it is possible.
+
+Changes: a configurator with a library of previously built executions covers 68% of enquiries, so sizing and costing take minutes by rule instead of seven engineer-hours; the quotation goes out the same day (the win rate is deliberately left at 32% so the comparison isolates process efficiency - a conversion gain would raise the cost per enquiry simply because more orders reach production, and it is upside on top of the table rather than what the table measures); modular design on validated sub-assemblies halves detailed engineering and cuts customer drawing comments from 28% to 14%, because the customer already saw the 3D model at quotation; long-lead procurement starts right after the contract, in parallel with detailed design, which is the main lead-time gain; a digital twin runs the duty points before assembly, so failed FATs drop from 8% to 3%, and the FAT itself is witnessed remotely; pre-setting on the test bench from the twin shortens site work.
+
+Unchanged: supplier lead times for long-lead items, physical manufacture and assembly, transport and the handover.
+
+The target shares and norms are **assumptions** to calibrate against your CRM and ERP.
+
+${dataNote('en')}
+
+${sourceBlock(['profile', 'numbers', 'annual2025'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Машина на заказ — как будет', en: 'Engineer-to-order — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'customer', 'Получен запрос (RFQ)', 'Request for quotation received', reported({})),
+      node('qualify', 'userTask', 'sales', 'Квалифицировать запрос и заказчика', 'Qualify the enquiry and the customer', work(30, 'Менеджер по продажам')),
+      node('configure', 'serviceTask', 'cfg', 'Подобрать исполнение в конфигураторе', 'Configure the execution', auto(4)),
+      node('gwFit', 'exclusiveGateway', 'cfg', 'Исполнение есть в библиотеке?', 'Execution in the library?'),
+      node('clarify', 'userTask', 'eng', 'Уточнить техническое задание', 'Clarify the specification', work(140, 'Инженер-конструктор', { waitTime: DAY })),
+      node('concept', 'userTask', 'eng', 'Рассчитать уникальное исполнение', 'Size a bespoke execution', work(360, 'Ведущий инженер')),
+      node('cost', 'businessRuleTask', 'cfg', 'Рассчитать себестоимость и цену по правилам', 'Cost and price by rule', auto(2)),
+      node('gwDiscount', 'exclusiveGateway', 'sales', 'Скидка выше полномочий?', 'Discount above the mandate?'),
+      node('approve', 'userTask', 'sales', 'Согласовать условия по электронному маршруту', 'Approve the terms on the electronic route', work(20, 'Менеджер по продажам', { waitTime: 240 })),
+      node('quote', 'sendTask', 'sales', 'Отправить КП с 3D-моделью в тот же день', 'Send the quotation with the 3D model the same day', work(15, 'Менеджер по продажам')),
+      node('waitDecision', 'intermediateTimerEvent', 'customer', 'Ожидание решения заказчика', 'Waiting for the customer decision', { waitTime: WEEK * 3, dataSource: 'assumption' }),
+      node('gwWin', 'exclusiveGateway', 'sales', 'Заказ выигран?', 'Order won?'),
+      node('lost', 'endEvent', 'sales', 'Проиграно конкуренту', 'Lost to a competitor'),
+      node('contract', 'userTask', 'sales', 'Заключить договор и получить аванс', 'Sign the contract and collect the advance', work(60, 'Менеджер по продажам', { waitTime: DAY * 3 })),
+      node('pgSplit', 'parallelGateway', 'plan', 'Проектирование и закупка параллельно', 'Design and procurement in parallel'),
+      node('bom', 'serviceTask', 'plan', 'Выгрузить спецификацию длинных позиций из конфигуратора', 'Export the long-lead bill of material from the configurator', auto(3)),
+      node('order', 'serviceTask', 'plan', 'Разместить заказы на длинные позиции', 'Place the long-lead orders', work(45, 'Планировщик')),
+      node('longlead', 'intermediateTimerEvent', 'plan', 'Поставка длинных позиций', 'Long-lead delivery', { waitTime: WEEK * 10, dataSource: 'assumption' }),
+      node('design', 'userTask', 'eng', 'Рабочее проектирование из проверенных модулей', 'Detailed design from validated modules', work(1200, 'Инженер-конструктор')),
+      node('twin', 'serviceTask', 'eng', 'Прогнать режимы на цифровом двойнике', 'Run the duty points on the digital twin', work(240, 'Ведущий инженер', { cost: 9000 })),
+      node('review', 'sendTask', 'eng', 'Согласовать чертежи с заказчиком в портале', 'Review the drawings with the customer in the portal', work(30, 'Инженер-конструктор', { waitTime: DAY * 3 })),
+      node('gwReview', 'exclusiveGateway', 'eng', 'Есть замечания?', 'Any comments?'),
+      node('rework', 'userTask', 'eng', 'Внести изменения в проект', 'Update the design', work(240, 'Инженер-конструктор')),
+      node('pgJoin', 'parallelGateway', 'prod', 'Материал и документация готовы', 'Material and documentation ready'),
+      node('manufacture', 'manualTask', 'prod', 'Изготовить статор, ротор, корпус', 'Manufacture the stator, rotor and frame', work(4200, 'Сборщик', { resourceQty: 4, cost: 38000 })),
+      node('assemble', 'manualTask', 'prod', 'Собрать машину', 'Assemble the machine', work(1500, 'Сборщик', { resourceQty: 3 })),
+      node('routine', 'userTask', 'test', 'Приёмо-сдаточные испытания', 'Routine tests', work(400, 'Техник-испытатель')),
+      node('fat', 'userTask', 'test', 'Удалённый FAT с трансляцией заказчику', 'Remote FAT streamed to the customer', work(360, 'Техник-испытатель', { cost: 3200 })),
+      node('gwFat', 'exclusiveGateway', 'test', 'FAT принят?', 'FAT accepted?'),
+      node('fix', 'userTask', 'prod', 'Устранить замечания FAT', 'Clear the FAT findings', work(720, 'Сборщик', { resourceQty: 2 })),
+      node('preset', 'serviceTask', 'test', 'Предварительно настроить привод по двойнику', 'Pre-set the drive from the twin', work(120, 'Техник-испытатель')),
+      node('pack', 'manualTask', 'plan', 'Консервация и упаковка для перевозки', 'Preservation and transport packing', work(360, 'Сборщик', { cost: 6200 })),
+      node('ship', 'serviceTask', 'plan', 'Отгрузить заказчику', 'Ship to the customer', work(90, 'Планировщик', { waitTime: DAY * 12, cost: 23000 })),
+      node('commission', 'userTask', 'field', 'Шеф-монтаж и пусконаладка', 'Supervision and commissioning', work(1200, 'Сервисный инженер', { cost: 9800 })),
+      node('handover', 'userTask', 'field', 'Подписать акт и открыть гарантию', 'Sign the acceptance and open the warranty', work(60, 'Сервисный инженер')),
+      node('end', 'endEvent', 'field', 'Машина принята в эксплуатацию', 'Machine accepted into service', { completes: true }),
+      node('library', 'dataStore', 'cfg', 'Библиотека исполнений и модулей', 'Library of executions and modules'),
+      node('drawings', 'dataObject', 'eng', 'Согласованные чертежи и цифровой двойник', 'Approved drawings and the digital twin'),
+      node('note', 'textAnnotation', 'plan', 'Главный выигрыш по сроку — закупка длинных позиций параллельно проектированию', 'The main lead-time gain: long-lead procurement runs in parallel with design'),
+    ],
+    edges: [
+      flow('start', 'qualify'),
+      flow('qualify', 'configure'),
+      flow('configure', 'gwFit'),
+      flow('gwFit', 'cost', { share: 68, ru: 'есть в библиотеке', en: 'in the library' }),
+      flow('gwFit', 'clarify', { share: 32, ru: 'уникальная машина', en: 'bespoke machine' }),
+      flow('clarify', 'concept'),
+      flow('concept', 'cost'),
+      flow('cost', 'gwDiscount'),
+      flow('gwDiscount', 'approve', { share: 31, ru: 'да', en: 'yes' }),
+      flow('gwDiscount', 'quote', { share: 69, ru: 'нет', en: 'no' }),
+      flow('approve', 'quote'),
+      flow('quote', 'waitDecision'),
+      flow('waitDecision', 'gwWin'),
+      flow('gwWin', 'contract', { share: 32, ru: 'выигран', en: 'won' }),
+      flow('gwWin', 'lost', { share: 68, ru: 'проигран', en: 'lost' }),
+      flow('contract', 'pgSplit'),
+      flow('pgSplit', 'bom'),
+      flow('pgSplit', 'design'),
+      flow('bom', 'order'),
+      flow('order', 'longlead'),
+      flow('longlead', 'pgJoin'),
+      flow('design', 'twin'),
+      flow('twin', 'review'),
+      flow('review', 'gwReview'),
+      flow('gwReview', 'rework', { share: 14, ru: 'есть', en: 'yes' }),
+      flow('gwReview', 'pgJoin', { share: 86, ru: 'нет', en: 'no' }),
+      flow('rework', 'review'),
+      flow('pgJoin', 'manufacture'),
+      flow('manufacture', 'assemble'),
+      flow('assemble', 'routine'),
+      flow('routine', 'fat'),
+      flow('fat', 'gwFat'),
+      flow('gwFat', 'preset', { share: 97, ru: 'принят', en: 'accepted' }),
+      flow('gwFat', 'fix', { share: 3, ru: 'замечания', en: 'findings' }),
+      flow('fix', 'fat'),
+      flow('preset', 'pack'),
+      flow('pack', 'ship'),
+      flow('ship', 'commission'),
+      flow('commission', 'handover'),
+      flow('handover', 'end'),
+      { source: 'configure', target: 'library', type: 'dataAssociation' },
+      { source: 'twin', target: 'drawings', type: 'dataAssociation' },
+      { source: 'pgSplit', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { engineerToOrderToBe });
+
+});
+__fm_define('app/library/weg/tobe/p5-transformer-project.js', function (__exports) {
+/**
+ * 5 (TO-BE). Transformer project on standard platforms, with concurrent design
+ * and procurement, expanded capacity and a remote type test.
+ */
+const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'utility', label: { ru: 'Заказчик (энергокомпания)', en: 'Customer (utility)' } },
+  { id: 'bid', label: { ru: 'Тендерный отдел', en: 'Bid office' } },
+  { id: 'eng', label: { ru: 'Инжиниринг GTD', en: 'GTD engineering' } },
+  { id: 'plan', label: { ru: 'Снабжение', en: 'Supply' } },
+  { id: 'prod', label: { ru: 'Производство трансформаторов', en: 'Transformer production' } },
+  { id: 'lab', label: { ru: 'Высоковольтная лаборатория', en: 'High-voltage laboratory' } },
+  { id: 'site', label: { ru: 'Монтаж и пусконаладка', en: 'Installation and commissioning' } },
+];
+
+const transformerProjectToBe = {
+  id: 'weg-gtd-tobe',
+  order: 5,
+  variant: 'to-be',
+  baselineId: 'weg-gtd',
+  name: {
+    ru: '5. Проект силового трансформатора (GTD) — как будет',
+    en: '5. Power transformer project (GTD) — to be',
+  },
+  description: {
+    ru: 'Платформенные типоразмеры закрывают большинство тендеров, расчёт активной части и смета считаются из платформы, закупка длинных позиций идёт параллельно рабочему проекту, типовые испытания платформы не повторяются на каждом экземпляре, пусконаладка поддерживается удалённо.',
+    en: 'Standard platforms cover most tenders, the active-part calculation and the cost come from the platform, long-lead procurement runs in parallel with detailed design, platform type tests are not repeated on every unit, and commissioning is supported remotely.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 1800,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Ведущий инженер', 'Инженер-конструктор', 'Планировщик', 'Сборщик', 'Техник-испытатель', 'Сервисный инженер'),
+  },
+  documentation: {
+    ru: `Целевое состояние проекта силового трансформатора.
+
+Опирается на публично объявленные инвестиции: WEG вкладывает **R$ ${(WEG.investments.transformersBrl / 1e9).toFixed(1)} млрд в расширение мощностей по трансформаторам**. Сегмент GTD — ${(WEG.segments.gtd * 100).toFixed(1)} % выручки 2025 года (публичная отчётность).
+
+Что меняется по сравнению с «как есть»:
+1. **Платформы.** Библиотека типоразмеров закрывает 64 % тендеров: предварительный расчёт активной части берётся из платформы (720 → 180 мин), смета считается правилами. Уникальный расчёт остаётся для нестандартных требований сети.
+2. **Решение об участии.** Платформенная себестоимость известна заранее, поэтому отказ от заведомо убыточных тендеров происходит раньше и дешевле: доля участия снижается с 58 до 52 %, и расходы на подготовку заявки не тратятся впустую.
+
+   Доля побед в модели оставлена прежней — 25 %. Играя там, где компания конкурентна, выигрывать логично чаще, но рост конверсии поднял бы стоимость «на один тендер» просто потому, что больше проектов доходит до производства. Это дополнительная выручка сверх таблицы, а не то, что таблица измеряет.
+3. **Параллельность.** Заказ сердечника, провода и масла запускается сразу после контракта по платформенной спецификации, не дожидаясь окончания рабочего проекта. Это главный выигрыш по сроку.
+4. **Производство.** Расширенные мощности убирают очередь между переделами: сушка и заливка начинаются по готовности, а не по слоту.
+5. **Испытания.** Типовые испытания выполнены для платформы один раз; на экземпляре остаются приёмо-сдаточные плюс сокращённая программа с удалённым участием заказчика. Доля полной программы типовых испытаний падает с 100 до 36 % (только нестандартные исполнения).
+6. **Площадка.** Удалённая поддержка пусконаладки из инжинирингового центра сокращает работу бригады на подстанции.
+
+Что НЕ меняется: требования IEC 60076, сроки рассмотрения заявок заказчиком, перевозка негабарита, монтаж на фундаменте.
+
+Целевые нормативы — **отраслевые допущения**. Доли побед в тендерах нужно калибровать по собственной тендерной статистике.
+
+${dataNote('ru')}
+
+${sourceBlock(['transformers', 'fy2025', 'profile'], 'ru')}`,
+    en: `Target state of a power transformer project, anchored on the publicly announced **R$ ${(WEG.investments.transformersBrl / 1e9).toFixed(1)}bn investment in transformer capacity**. GTD is ${(WEG.segments.gtd * 100).toFixed(1)}% of 2025 revenue.
+
+Changes: a platform library covers 64% of tenders, so the preliminary active-part calculation comes from the platform (720 → 180 min) and the cost is computed by rule; knowing the platform cost early means walking away from unwinnable tenders sooner, so participation falls from 58% to 52% and bid preparation is not spent in vain (the win rate is deliberately left at 25%: a conversion gain would raise the cost per tender simply because more projects reach production, and it is upside on top of the table); core, wire and oil are ordered straight after the contract from the platform bill of material instead of after detailed design, which is the main lead-time gain; the expanded capacity removes the queue between operations; platform type tests are done once, so a full type-test programme remains on 36% of units (non-standard executions only) with the customer witnessing remotely; remote engineering support shortens the crew's work on site.
+
+Unchanged: IEC 60076, the customer's bid evaluation period, oversize transport and foundation installation.
+
+The target norms are **assumptions**; calibrate the win rates against your own tender statistics.
+
+${dataNote('en')}
+
+${sourceBlock(['transformers', 'fy2025', 'profile'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Проект трансформатора — как будет', en: 'Transformer project — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'utility', 'Опубликован тендер', 'Tender published', reported({})),
+      node('screen', 'userTask', 'bid', 'Оценить условия и требования тендера', 'Assess the tender terms', work(90, 'Менеджер по продажам')),
+      node('gwPlatform', 'exclusiveGateway', 'bid', 'Подходит платформенный типоразмер?', 'Covered by a platform rating?'),
+      node('platform', 'serviceTask', 'eng', 'Взять расчёт активной части из платформы', 'Take the active-part design from the platform', auto(8)),
+      node('techSpec', 'userTask', 'eng', 'Разобрать нестандартное техническое задание', 'Work through the non-standard specification', work(360, 'Ведущий инженер')),
+      node('design1', 'userTask', 'eng', 'Предварительный расчёт активной части', 'Preliminary active-part calculation', work(540, 'Инженер-конструктор')),
+      node('cost', 'businessRuleTask', 'bid', 'Рассчитать себестоимость и риски по правилам', 'Cost and risk by rule', auto(6)),
+      node('gwGo', 'exclusiveGateway', 'bid', 'Участвуем?', 'Do we bid?'),
+      node('noBid', 'endEvent', 'bid', 'Отказ от участия', 'No bid'),
+      node('submit', 'sendTask', 'bid', 'Подать заявку и банковскую гарантию', 'Submit the bid and the bank guarantee', work(120, 'Менеджер по продажам', { cost: 9500 })),
+      node('waitBid', 'intermediateTimerEvent', 'utility', 'Рассмотрение заявок', 'Bid evaluation', { waitTime: WEEK * 9, dataSource: 'assumption' }),
+      node('gwWin', 'exclusiveGateway', 'bid', 'Тендер выигран?', 'Tender won?'),
+      node('lost', 'endEvent', 'bid', 'Тендер проигран', 'Tender lost'),
+      node('contract', 'userTask', 'bid', 'Подписать контракт и график', 'Sign the contract and the schedule', work(180, 'Менеджер по продажам', { waitTime: DAY * 6 })),
+      node('pgSplit', 'parallelGateway', 'plan', 'Проект и закупка параллельно', 'Design and procurement in parallel'),
+      node('order', 'serviceTask', 'plan', 'Заказать сердечник, провод и масло по платформе', 'Order core, wire and oil from the platform BOM', work(90, 'Планировщик')),
+      node('longlead', 'intermediateTimerEvent', 'plan', 'Поставка длинных позиций', 'Long-lead delivery', { waitTime: WEEK * 8, dataSource: 'assumption' }),
+      node('design2', 'userTask', 'eng', 'Рабочий проект и согласование с заказчиком', 'Detailed design and customer approval', work(1680, 'Инженер-конструктор', { waitTime: DAY * 5 })),
+      node('pgJoin', 'parallelGateway', 'prod', 'Материал и проект готовы', 'Material and design ready'),
+      node('core', 'manualTask', 'prod', 'Собрать магнитопровод', 'Build the core', work(2100, 'Сборщик', { resourceQty: 3, cost: 172000 })),
+      node('windings', 'manualTask', 'prod', 'Намотать обмотки ВН и НН', 'Wind the HV and LV coils', work(3000, 'Сборщик', { resourceQty: 4, cost: 248000 })),
+      node('dryout', 'serviceTask', 'prod', 'Сушка активной части в вакууме', 'Vacuum dry-out of the active part', work(240, 'Сборщик', { waitTime: 480 })),
+      node('tank', 'manualTask', 'prod', 'Установить в бак и залить масло', 'Tank up and fill with oil', work(1200, 'Сборщик', { resourceQty: 3 })),
+      node('routine', 'userTask', 'lab', 'Приёмо-сдаточные испытания (IEC 60076)', 'Routine tests (IEC 60076)', work(600, 'Техник-испытатель')),
+      node('gwTest', 'exclusiveGateway', 'lab', 'Испытания пройдены?', 'Tests passed?'),
+      node('fixDefect', 'userTask', 'prod', 'Вскрыть и устранить дефект', 'Open up and fix the defect', work(2400, 'Сборщик', { resourceQty: 3, cost: 54000 })),
+      node('gwType', 'exclusiveGateway', 'lab', 'Нужна полная программа типовых испытаний?', 'Full type-test programme needed?'),
+      node('typeTest', 'userTask', 'lab', 'Типовые испытания с удалённым участием заказчика', 'Type tests witnessed remotely', work(720, 'Техник-испытатель', { cost: 31000 })),
+      node('shortTest', 'userTask', 'lab', 'Сокращённая программа по протоколам платформы', 'Short programme against the platform records', work(180, 'Техник-испытатель', { cost: 6000 })),
+      node('ship', 'serviceTask', 'site', 'Перевозка на подстанцию', 'Transport to the substation', work(180, 'Планировщик', { waitTime: DAY * 8, cost: 120000 })),
+      node('install', 'userTask', 'site', 'Монтаж на фундаменте, сборка вводов', 'Install on the foundation, fit the bushings', work(2100, 'Сервисный инженер', { resourceQty: 2 })),
+      node('commission', 'userTask', 'site', 'Пусконаладка с удалённой поддержкой инжиниринга', 'Commissioning with remote engineering support', work(960, 'Сервисный инженер', { resourceQty: 2, cost: 28000 })),
+      node('handover', 'serviceTask', 'site', 'Передать цифровую исполнительную документацию', 'Hand over the digital as-built documentation', work(60, 'Сервисный инженер')),
+      node('end', 'endEvent', 'site', 'Трансформатор в сети', 'Transformer energised', { completes: true }),
+      node('platformData', 'dataStore', 'eng', 'Библиотека платформ и протоколы типовых испытаний', 'Platform library and type-test records'),
+      node('asbuilt', 'dataObject', 'site', 'Цифровая исполнительная документация', 'Digital as-built documentation'),
+      node('note', 'textAnnotation', 'bid', 'GTD = 35,8 % выручки 2025; расширение мощностей — R$ 1,2 млрд (публичная отчётность)', 'GTD = 35.8% of 2025 revenue; R$ 1.2bn capacity expansion (public disclosure)'),
+    ],
+    edges: [
+      flow('start', 'screen'),
+      flow('screen', 'gwPlatform'),
+      flow('gwPlatform', 'platform', { share: 64, ru: 'платформа подходит', en: 'platform fits' }),
+      flow('gwPlatform', 'techSpec', { share: 36, ru: 'нестандарт', en: 'non-standard' }),
+      flow('techSpec', 'design1'),
+      flow('design1', 'cost'),
+      flow('platform', 'cost'),
+      flow('cost', 'gwGo'),
+      flow('gwGo', 'submit', { share: 52, ru: 'участвуем', en: 'bid' }),
+      flow('gwGo', 'noBid', { share: 48, ru: 'отказ', en: 'no bid' }),
+      flow('submit', 'waitBid'),
+      flow('waitBid', 'gwWin'),
+      flow('gwWin', 'contract', { share: 25, ru: 'выигран', en: 'won' }),
+      flow('gwWin', 'lost', { share: 75, ru: 'проигран', en: 'lost' }),
+      flow('contract', 'pgSplit'),
+      flow('pgSplit', 'order'),
+      flow('pgSplit', 'design2'),
+      flow('order', 'longlead'),
+      flow('longlead', 'pgJoin'),
+      flow('design2', 'pgJoin'),
+      flow('pgJoin', 'core'),
+      flow('core', 'windings'),
+      flow('windings', 'dryout'),
+      flow('dryout', 'tank'),
+      flow('tank', 'routine'),
+      flow('routine', 'gwTest'),
+      flow('gwTest', 'gwType', { share: 96, ru: 'пройдены', en: 'passed' }),
+      flow('gwTest', 'fixDefect', { share: 4, ru: 'дефект', en: 'defect' }),
+      flow('fixDefect', 'routine'),
+      flow('gwType', 'typeTest', { share: 36, ru: 'нестандартное исполнение', en: 'non-standard unit' }),
+      flow('gwType', 'shortTest', { share: 64, ru: 'платформа испытана', en: 'platform already tested' }),
+      flow('typeTest', 'ship'),
+      flow('shortTest', 'ship'),
+      flow('ship', 'install'),
+      flow('install', 'commission'),
+      flow('commission', 'handover'),
+      flow('handover', 'end'),
+      { source: 'platform', target: 'platformData', type: 'dataAssociation' },
+      { source: 'handover', target: 'asbuilt', type: 'dataAssociation' },
+      { source: 'screen', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { transformerProjectToBe });
+
+});
+__fm_define('app/library/weg/tobe/p6-service.js', function (__exports) {
+/**
+ * 6 (TO-BE). Predictive service: condition monitoring triggers the work before
+ * the failure, parts are staged from the forecast, most cases close remotely.
+ */
+const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'fleet', label: { ru: 'Мониторинг парка оборудования', en: 'Equipment fleet monitoring' } },
+  { id: 'customer', label: { ru: 'Клиент', en: 'Customer' } },
+  { id: 'support', label: { ru: 'Техническая поддержка', en: 'Technical support' } },
+  { id: 'astec', label: { ru: 'Авторизованный сервис (ASTEC)', en: 'Authorised service (ASTEC)' } },
+  { id: 'plant', label: { ru: 'Завод-изготовитель', en: 'Manufacturing plant' } },
+  { id: 'log', label: { ru: 'Логистика и запчасти', en: 'Logistics and spare parts' } },
+];
+
+const serviceProcessToBe = {
+  id: 'weg-service-tobe',
+  order: 6,
+  variant: 'to-be',
+  baselineId: 'weg-service',
+  name: {
+    ru: '6. Сервис и ремонт оборудования — как будет',
+    en: '6. After-sales service and repair — to be',
+  },
+  description: {
+    ru: 'Мониторинг состояния запускает работу до отказа, диагноз ставится по телеметрии, большинство случаев закрывается удалённо, запчасти подбираются по прогнозу заранее, смета согласуется в портале, ремонт планируется в окно остановки клиента.',
+    en: 'Condition monitoring starts the work before the failure, the diagnosis comes from telemetry, most cases close remotely, parts are staged from the forecast, the quotation is approved in the portal, and the repair is planned into the customer’s shutdown window.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 145000,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Техник', 'Сервисный инженер', 'Инженер', 'Логист', 'ОТК'),
+  },
+  documentation: {
+    ru: `Целевое состояние послепродажного обслуживания — переход от реактивного ремонта к обслуживанию по состоянию.
+
+Опирается на то, что WEG уже делает публично: сеть авторизованного сервиса ASTEC (более ${WEG.serviceNetworkBrazilTransformers} аккредитованных партнёров только по трансформаторам в Бразилии) и собственные цифровые решения для мониторинга приводов и двигателей. Объём расчёта не меняется: 145 000 обращений в год.
+
+Что меняется по сравнению с «как есть»:
+1. **Источник события.** 62 % работ инициирует система мониторинга по отклонению вибрации, температуры и тока, а не звонок клиента после отказа. Это меняет экономику: плановая работа дешевле аварийной и не останавливает производство заказчика.
+
+   Важно: отклонение в мониторинге — ещё не отказ. В 45 % случаев достаточно удалённо скорректировать режим или регламент смазки, и до вывоза оборудования дело не доходит. Суммарно доля случаев, доходящих до физического ремонта, падает с 65 до ≈50 % — именно отсюда берётся экономия, а не из скорости ремонта.
+2. **Диагностика.** Телеметрия уже есть на момент обращения, поэтому удалённо закрывается 58 % случаев вместо 35 %, а удалённая диагностика занимает 18 мин вместо 35.
+3. **Гарантия.** Статус определяется автоматически по цифровому паспорту оборудования, а не вручную.
+4. **Запчасти.** Прогноз отказов позволяет держать нужные позиции в региональном складе: ожидание запчастей падает с 4 дней до 1.
+5. **Смета.** Согласование идёт в портале клиента с готовой калькуляцией: ожидание 3 дня → 1 день, доля отказов падает с 22 до 14 %, потому что клиент видит обоснование и стоимость простоя.
+6. **Окно работ.** Плановые случаи выполняются в согласованную остановку, поэтому вывоз и возврат не создают аварийного простоя.
+7. **Повторные ремонты.** Диагноз по телеметрии точнее, доля повторов падает с 7 до 3 %.
+
+Что НЕ меняется: физический ремонт и капитальный ремонт на заводе, испытания после ремонта, доставка.
+
+Доли (62 % предиктивных, 58 % удалённых) — **отраслевые допущения**, их следует заменить статистикой собственной платформы мониторинга и CRM.
+
+${dataNote('ru')}
+
+${sourceBlock(['astec', 'production', 'numbers'], 'ru')}`,
+    en: `Target state of after-sales service - a move from reactive repair to condition-based work.
+
+It builds on what WEG already runs publicly: the ASTEC authorised network (more than ${WEG.serviceNetworkBrazilTransformers} accredited transformer partners in Brazil alone) and its own digital monitoring for drives and motors. The volume is unchanged at 145,000 requests a year.
+
+Changes: 62% of the work is triggered by monitoring on a vibration, temperature or current deviation rather than by a call after the failure, and a deviation is not yet a failure - in 45% of those cases a remote correction of the duty point or the lubrication plan is enough, so the share of events that reach a physical repair falls from 65% to about 50%, which is where the saving actually comes from; telemetry is already present, so 58% of cases close remotely instead of 35% and remote diagnosis takes 18 min instead of 35; warranty status is derived automatically from the digital equipment passport; failure forecasting keeps the right parts in the regional store, cutting the parts wait from four days to one; the quotation is approved in the customer portal (three days of waiting down to one, declines down from 22% to 14%); planned cases run inside an agreed shutdown window; a telemetry-based diagnosis is more accurate, so repeat repairs fall from 7% to 3%.
+
+Unchanged: the physical repair and the factory overhaul, post-repair testing and delivery.
+
+The shares (62% predictive, 58% remote) are **assumptions** - replace them with your own monitoring and CRM statistics.
+
+${dataNote('en')}
+
+${sourceBlock(['astec', 'production', 'numbers'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Сервис по состоянию — как будет', en: 'Condition-based service — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startConditionalEvent', 'fleet', 'Событие обслуживания: отклонение в мониторинге или обращение клиента', 'Service event: a monitoring deviation or a customer request', reported({})),
+      node('gwSource', 'exclusiveGateway', 'fleet', 'Источник события?', 'Event source?'),
+      node('predict', 'businessRuleTask', 'fleet', 'Оценить остаточный ресурс по телеметрии', 'Estimate the remaining life from telemetry', auto(2)),
+      node('gwAction', 'exclusiveGateway', 'fleet', 'Нужен физический ремонт?', 'Physical repair needed?'),
+      node('adjust', 'userTask', 'support', 'Скорректировать режим или регламент смазки удалённо', 'Correct the duty point or the lubrication plan remotely', work(20, 'Техник')),
+      node('plan', 'userTask', 'support', 'Согласовать окно планового обслуживания', 'Agree the planned maintenance window', work(12, 'Техник', { waitTime: DAY * 2 })),
+      node('register', 'serviceTask', 'support', 'Зарегистрировать обращение автоматически', 'Log the request automatically', auto(0.5)),
+      node('remote', 'userTask', 'support', 'Удалённая диагностика по телеметрии', 'Remote diagnosis from telemetry', work(18, 'Техник')),
+      node('gwRemote', 'exclusiveGateway', 'support', 'Решено удалённо?', 'Solved remotely?'),
+      node('closeRemote', 'serviceTask', 'support', 'Закрыть обращение и выслать инструкцию', 'Close the case with instructions', work(6, 'Техник')),
+      node('endRemote', 'endEvent', 'support', 'Решено без выезда', 'Closed remotely', { completes: true }),
+      node('warranty', 'businessRuleTask', 'support', 'Определить гарантийный статус по цифровому паспорту', 'Derive the warranty status from the digital passport', auto(0.4)),
+      node('assign', 'serviceTask', 'support', 'Назначить сервис по региону и загрузке', 'Assign the partner by region and workload', auto(0.5)),
+      node('stage', 'serviceTask', 'log', 'Подготовить запчасти по прогнозу отказа', 'Stage the parts from the failure forecast', work(20, 'Логист', { cost: 1480, waitTime: DAY })),
+      node('pickup', 'serviceTask', 'log', 'Забрать оборудование в согласованное окно', 'Collect the equipment in the agreed window', work(45, 'Логист', { cost: 390, waitTime: DAY })),
+      node('inspect', 'userTask', 'astec', 'Дефектовка с подсказкой по телеметрии', 'Tear-down guided by the telemetry', work(110, 'Сервисный инженер')),
+      node('quote', 'sendTask', 'astec', 'Выставить смету в портале клиента', 'Publish the quotation in the customer portal', work(15, 'Сервисный инженер', { waitTime: DAY })),
+      node('gwAccept', 'exclusiveGateway', 'astec', 'Смета согласована?', 'Quotation accepted?'),
+      node('return', 'serviceTask', 'log', 'Вернуть без ремонта', 'Return without repair', work(40, 'Логист', { cost: 360 })),
+      node('endDecline', 'endEvent', 'log', 'Клиент отказался от ремонта', 'Customer declined'),
+      node('gwScope', 'exclusiveGateway', 'astec', 'Ремонт на месте или на заводе?', 'Local repair or factory?'),
+      node('repairLocal', 'manualTask', 'astec', 'Выполнить ремонт в сервисном центре', 'Repair in the service centre', work(480, 'Сервисный инженер', { cost: 2150 })),
+      node('repairPlant', 'manualTask', 'plant', 'Капитальный ремонт на заводе', 'Full overhaul at the plant', work(2100, 'Инженер', { resourceQty: 2, cost: 12000, waitTime: DAY * 6 })),
+      node('test', 'userTask', 'astec', 'Испытать и снять характеристики', 'Test and record the performance', work(90, 'ОТК')),
+      node('gwTest', 'exclusiveGateway', 'astec', 'Испытания пройдены?', 'Tests passed?'),
+      node('deliver', 'serviceTask', 'log', 'Доставить и установить в окно остановки', 'Deliver and install in the shutdown window', work(120, 'Логист', { cost: 480, waitTime: DAY })),
+      node('baseline', 'serviceTask', 'fleet', 'Снять новую базовую линию мониторинга', 'Capture a new monitoring baseline', work(25, 'Сервисный инженер')),
+      node('report', 'serviceTask', 'astec', 'Обновить цифровой паспорт оборудования', 'Update the digital equipment passport', auto(0.5)),
+      node('feedback', 'sendTask', 'support', 'Запросить оценку качества сервиса', 'Ask for a service rating', auto(0.3)),
+      node('end', 'endEvent', 'support', 'Обращение закрыто', 'Case closed', { completes: true }),
+      node('history', 'dataStore', 'fleet', 'Цифровой паспорт и история обслуживания', 'Digital passport and service history'),
+      node('note', 'textAnnotation', 'fleet', 'Плановая работа по состоянию дешевле аварийной и не останавливает производство заказчика', 'Condition-based work is cheaper than a breakdown and does not stop the customer'),
+    ],
+    edges: [
+      flow('start', 'gwSource'),
+      flow('gwSource', 'predict', { share: 62, ru: 'мониторинг', en: 'monitoring' }),
+      flow('gwSource', 'register', { share: 38, ru: 'обращение клиента', en: 'customer request' }),
+      flow('predict', 'gwAction'),
+      flow('gwAction', 'adjust', { share: 45, ru: 'хватит настройки', en: 'a setting change is enough' }),
+      flow('gwAction', 'plan', { share: 55, ru: 'нужен ремонт', en: 'repair needed' }),
+      flow('adjust', 'closeRemote'),
+      flow('plan', 'warranty'),
+      flow('register', 'remote'),
+      flow('remote', 'gwRemote'),
+      flow('gwRemote', 'closeRemote', { share: 58, ru: 'да', en: 'yes' }),
+      flow('gwRemote', 'warranty', { share: 42, ru: 'нужен ремонт', en: 'repair needed' }),
+      flow('closeRemote', 'endRemote'),
+      flow('warranty', 'assign'),
+      flow('assign', 'stage'),
+      flow('stage', 'pickup'),
+      flow('pickup', 'inspect'),
+      flow('inspect', 'quote'),
+      flow('quote', 'gwAccept'),
+      flow('gwAccept', 'gwScope', { share: 86, ru: 'согласована', en: 'accepted' }),
+      flow('gwAccept', 'return', { share: 14, ru: 'отказ', en: 'declined' }),
+      flow('return', 'endDecline'),
+      flow('gwScope', 'repairLocal', { share: 84, ru: 'на месте', en: 'local' }),
+      flow('gwScope', 'repairPlant', { share: 16, ru: 'на заводе', en: 'factory' }),
+      flow('repairLocal', 'test'),
+      flow('repairPlant', 'test'),
+      flow('test', 'gwTest'),
+      flow('gwTest', 'deliver', { share: 97, ru: 'годен', en: 'pass' }),
+      flow('gwTest', 'repairLocal', { share: 3, ru: 'повторный ремонт', en: 'rework' }),
+      flow('deliver', 'baseline'),
+      flow('baseline', 'report'),
+      flow('report', 'feedback'),
+      flow('feedback', 'end'),
+      { source: 'report', target: 'history', type: 'dataAssociation' },
+      { source: 'predict', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { serviceProcessToBe });
+
+});
+__fm_define('app/library/weg/tobe/p7-new-product.js', function (__exports) {
+/**
+ * 7 (TO-BE). Stage-gate development on a modular platform, with simulation-led
+ * design, additive tooling for the pilot and certification run in parallel.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'market', label: { ru: 'Маркетинг и продукт', en: 'Marketing and product' } },
+  { id: 'rnd', label: { ru: 'R&D — расчёт и конструкция', en: 'R&D — calculation and design' } },
+  { id: 'proto', label: { ru: 'Опытное производство', en: 'Prototype shop' } },
+  { id: 'lab', label: { ru: 'Испытательная лаборатория', en: 'Test laboratory' } },
+  { id: 'cert', label: { ru: 'Сертификация', en: 'Certification' } },
+  { id: 'ops', label: { ru: 'Подготовка производства', en: 'Manufacturing engineering' } },
+];
+
+const newProductToBe = {
+  id: 'weg-npd-tobe',
+  order: 7,
+  variant: 'to-be',
+  baselineId: 'weg-npd',
+  name: {
+    ru: '7. Разработка нового продукта (stage-gate) — как будет',
+    en: '7. New product development (stage-gate) — to be',
+  },
+  description: {
+    ru: 'Продукт собирается из модульной платформы, численная оптимизация доводит конструкцию до класса КПД до изготовления образца, сертификация запускается параллельно испытаниям, оснастка для пилота печатается, пилот подтверждается статистикой процесса.',
+    en: 'The product is assembled from a modular platform, numerical optimisation takes the design to its efficiency class before any hardware, certification starts in parallel with testing, pilot tooling is printed, and the pilot is confirmed by process statistics.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: 320,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Аналитик', 'Ведущий инженер', 'Инженер-конструктор', 'Оператор', 'Техник-испытатель', 'ОТК', 'Планировщик'),
+  },
+  documentation: {
+    ru: `Целевое состояние разработки нового продукта.
+
+Контекст: WEG тратит на R&D **R$ ${(WEG.rndSpend / 1e9).toFixed(1)} млрд — ${DERIVED.rndShare} % выручки 2025 года** (публичная отчётность). Объём расчёта не меняется: 320 проектов в год.
+
+Что меняется по сравнению с «как есть»:
+1. **Ворота 1.** Оценка рынка опирается на данные о продажах и сервисе уже установленного парка, а не на отдельное исследование: 960 → 420 мин. Доля проходящих ворота оставлена прежней — 45 %: смысл хорошего отсева не в том, чтобы пропускать больше, а в том, чтобы закрывать неудачные проекты раньше и дешевле.
+2. **Конструкция.** Концепция собирается из модулей платформы (1920 → 900 мин). Численная оптимизация прогоняет сотни вариантов активной части до изготовления образца, поэтому доля переработок после ворот 2 падает с 22 до 10 %.
+3. **Класс КПД.** Главная развилка «класс достигнут?» решается расчётом, а не испытанием: доля доводок после испытаний падает с 30 до 12 %. Это самый дорогой цикл в исходном процессе.
+4. **Образец.** Аддитивная оснастка и печать пресс-форм для опытной партии: 2880 → 1680 мин, стоимость образца ниже.
+5. **Сертификация.** Подготовка документов и подача запускаются параллельно испытаниям, а не после них; лаборатория WEG аккредитована по части программы, поэтому ожидание органа сокращается.
+6. **Оснастка серии.** Параллельно испытаниям бронируется слот у изготовителя оснастки — это дёшево (R$ 12 тыс.) и ничем не рискует. Сам заказ на R$ 340 тыс. размещается, как и раньше, только после ворот 3: тратить деньги на оснастку до сертификации нельзя, иначе 6 % закрытых на воротах проектов уносят её стоимость с собой. Выигрыш — не в раннем платеже, а в том, что срок изготовления сокращается с 8 до 5 недель, потому что очередь уже занята.
+7. **Пилот.** Подтверждение процесса опирается на статистику линии (PPAP на данных), доля неуспешных пилотов падает с 15 до 7 %.
+
+Что НЕ меняется: требования IEC 60034-2-1, независимость органов сертификации, ресурсные испытания подшипниковых узлов (физику не ускорить), срок изготовления серийной оснастки поставщиком.
+
+Целевые нормативы и доли — **отраслевые допущения**, их нужно калибровать по собственной статистике проектов.
+
+${dataNote('ru')}
+
+${sourceBlock(['annual2025', 'numbers', 'profile'], 'ru')}`,
+    en: `Target state of new product development. Context: WEG spends **R$ ${(WEG.rndSpend / 1e9).toFixed(1)}bn on R&D, ${DERIVED.rndShare}% of 2025 revenue**. The volume is unchanged at 320 projects a year.
+
+Changes: the market case is built from installed-base sales and service data rather than a separate study (960 → 420 min), with the gate-1 pass rate deliberately left at 45% - better screening means killing the wrong projects sooner and cheaper, not letting more of them through; the concept is assembled from platform modules (1920 → 900 min) and numerical optimisation runs hundreds of active-part variants before any hardware, so redesigns after gate 2 drop from 22% to 10%; the efficiency-class decision is settled by calculation rather than by test, so post-test tuning falls from 30% to 12% - the most expensive loop in the as-is process; additive tooling shortens the prototype (2880 → 1680 min); certification is prepared and filed in parallel with testing; the tooling slot is reserved in parallel with testing for a cheap R$ 12k while the R$ 340k order still waits for gate 3 - committing earlier would make the 6% of projects killed at the gate carry the tooling cost with them - and the gain is the shorter build (8 → 5 weeks) because the queue is already held; the pilot is confirmed by line statistics, so failed pilots drop from 15% to 7%.
+
+Unchanged: IEC 60034-2-1, the independence of the certification bodies, bearing life testing (physics does not accelerate) and the tooling supplier's lead time.
+
+The target norms and shares are **assumptions** to calibrate against your own project statistics.
+
+${dataNote('en')}
+
+${sourceBlock(['annual2025', 'numbers', 'profile'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Разработка продукта — как будет', en: 'New product development — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startEvent', 'market', 'Идея или запрос рынка', 'Idea or market request', reported({})),
+      node('screen', 'userTask', 'market', 'Оценить рынок по данным продаж и сервиса парка', 'Size the market from installed-base sales and service data', work(420, 'Аналитик')),
+      node('business', 'businessRuleTask', 'market', 'Собрать бизнес-кейс и NPV по модели', 'Build the business case and NPV from the model', work(300, 'Аналитик')),
+      node('gate1', 'exclusiveGateway', 'market', 'Ворота 1: идея принята?', 'Gate 1: idea approved?'),
+      node('stop1', 'endEvent', 'market', 'Проект закрыт на воротах', 'Closed at a gate'),
+      node('concept', 'userTask', 'rnd', 'Собрать концепцию из модулей платформы', 'Assemble the concept from platform modules', work(900, 'Ведущий инженер')),
+      node('optimise', 'serviceTask', 'rnd', 'Численная оптимизация активной части (сотни вариантов)', 'Numerical optimisation of the active part (hundreds of variants)', work(600, 'Инженер-конструктор', { cost: 21000 })),
+      node('gwClass', 'exclusiveGateway', 'rnd', 'Класс энергоэффективности достигнут расчётом?', 'Efficiency class reached by calculation?'),
+      node('tune', 'userTask', 'rnd', 'Доработать активную часть', 'Refine the active part', work(600, 'Ведущий инженер', { cost: 16000 })),
+      node('gate2', 'exclusiveGateway', 'rnd', 'Ворота 2: конструкция утверждена?', 'Gate 2: design approved?'),
+      node('redesign', 'userTask', 'rnd', 'Переработать конструкцию', 'Rework the design', work(720, 'Инженер-конструктор')),
+      node('pgSplit', 'parallelGateway', 'rnd', 'Образец, сертификация и оснастка параллельно', 'Prototype, certification and tooling in parallel'),
+      node('proto', 'manualTask', 'proto', 'Изготовить образец с печатной оснасткой', 'Build the prototype with additive tooling', work(1680, 'Оператор', { resourceQty: 2, cost: 98000 })),
+      node('splitTest', 'parallelGateway', 'lab', 'Запустить испытания параллельно', 'Start the tests in parallel'),
+      node('efficiency', 'userTask', 'lab', 'Испытания КПД по IEC 60034-2-1', 'Efficiency tests to IEC 60034-2-1', work(960, 'Техник-испытатель', { cost: 22000 })),
+      node('thermal', 'userTask', 'lab', 'Тепловые и вибрационные испытания', 'Thermal and vibration tests', work(600, 'Техник-испытатель')),
+      node('life', 'userTask', 'lab', 'Ресурсные испытания подшипниковых узлов', 'Bearing life tests', work(720, 'Техник-испытатель', { waitTime: WEEK * 4 })),
+      node('joinTest', 'parallelGateway', 'lab', 'Свести результаты испытаний', 'Consolidate the test results'),
+      node('gwConfirm', 'exclusiveGateway', 'lab', 'Расчёт подтверждён испытаниями?', 'Calculation confirmed by test?'),
+      node('correct', 'userTask', 'rnd', 'Скорректировать модель и конструкцию', 'Correct the model and the design', work(840, 'Ведущий инженер', { cost: 24000 })),
+      node('certPrep', 'userTask', 'cert', 'Подготовить досье и подать заявку заранее', 'Prepare the dossier and file early', work(300, 'ОТК', { cost: 12000 })),
+      node('cert', 'sendTask', 'cert', 'Сертификация (INMETRO, UL, CE)', 'Certification (INMETRO, UL, CE)', work(360, 'ОТК', { waitTime: WEEK * 5, cost: 83000 })),
+      node('reserve', 'userTask', 'ops', 'Зарезервировать слот у изготовителя оснастки', 'Reserve the slot with the tooling supplier', work(240, 'Планировщик', { cost: 12000 })),
+      node('tooling', 'userTask', 'ops', 'Заказать серийную оснастку по забронированному слоту', 'Order the series tooling against the reserved slot', work(2100, 'Планировщик', { waitTime: WEEK * 5, cost: 340000 })),
+      node('pgJoin', 'parallelGateway', 'ops', 'Образец, сертификат и слот оснастки готовы', 'Prototype, certificate and tooling slot ready'),
+      node('gate3', 'exclusiveGateway', 'ops', 'Ворота 3: к производству готов?', 'Gate 3: ready for production?'),
+      node('pilot', 'manualTask', 'ops', 'Выпустить пилотную партию', 'Run the pilot batch', work(1800, 'Оператор', { resourceQty: 3, cost: 96000 })),
+      node('ppap', 'businessRuleTask', 'ops', 'Подтвердить процесс статистикой линии (PPAP на данных)', 'Confirm the process on line statistics (data-driven PPAP)', work(240, 'ОТК')),
+      node('gwPilot', 'exclusiveGateway', 'ops', 'Пилот успешен?', 'Pilot successful?'),
+      node('launch', 'userTask', 'market', 'Запустить продажи и обучить сеть', 'Launch sales and train the network', work(900, 'Аналитик', { cost: 72000 })),
+      node('end', 'endEvent', 'market', 'Продукт в серийном производстве', 'Product in series production', { completes: true }),
+      node('platform', 'dataStore', 'rnd', 'Платформа модулей', 'Module platform'),
+      node('certDoc', 'dataObject', 'cert', 'Сертификаты соответствия', 'Certificates of conformity'),
+      node('note', 'textAnnotation', 'rnd', 'Класс КПД решается расчётом до железа — здесь исчезает самый дорогой цикл доводки', 'The efficiency class is settled by calculation before any hardware - that is where the costliest loop disappears'),
+    ],
+    edges: [
+      flow('start', 'screen'),
+      flow('screen', 'business'),
+      flow('business', 'gate1'),
+      flow('gate1', 'concept', { share: 45, ru: 'принята', en: 'approved' }),
+      flow('gate1', 'stop1', { share: 55, ru: 'закрыта', en: 'closed' }),
+      flow('concept', 'optimise'),
+      flow('optimise', 'gwClass'),
+      flow('gwClass', 'gate2', { share: 88, ru: 'достигнут', en: 'reached' }),
+      flow('gwClass', 'tune', { share: 12, ru: 'не достигнут', en: 'not reached' }),
+      flow('tune', 'optimise'),
+      flow('gate2', 'pgSplit', { share: 90, ru: 'утверждена', en: 'approved' }),
+      flow('gate2', 'redesign', { share: 10, ru: 'на доработку', en: 'rework' }),
+      flow('redesign', 'optimise'),
+      flow('pgSplit', 'proto'),
+      flow('pgSplit', 'certPrep'),
+      flow('pgSplit', 'reserve'),
+      flow('proto', 'splitTest'),
+      flow('splitTest', 'efficiency'),
+      flow('splitTest', 'thermal'),
+      flow('splitTest', 'life'),
+      flow('efficiency', 'joinTest'),
+      flow('thermal', 'joinTest'),
+      flow('life', 'joinTest'),
+      flow('joinTest', 'gwConfirm'),
+      flow('gwConfirm', 'pgJoin', { share: 88, ru: 'подтверждён', en: 'confirmed' }),
+      flow('gwConfirm', 'correct', { share: 12, ru: 'расхождение', en: 'deviation' }),
+      flow('correct', 'splitTest'),
+      flow('certPrep', 'cert'),
+      flow('cert', 'pgJoin'),
+      flow('reserve', 'pgJoin'),
+      flow('pgJoin', 'gate3'),
+      flow('gate3', 'tooling', { share: 94, ru: 'готов', en: 'ready' }),
+      flow('gate3', 'stop1', { share: 6, ru: 'закрыт', en: 'closed' }),
+      flow('tooling', 'pilot'),
+      flow('pilot', 'ppap'),
+      flow('ppap', 'gwPilot'),
+      flow('gwPilot', 'launch', { share: 93, ru: 'успешен', en: 'successful' }),
+      flow('gwPilot', 'pilot', { share: 7, ru: 'повтор', en: 'repeat' }),
+      flow('launch', 'end'),
+      { source: 'concept', target: 'platform', type: 'dataAssociation' },
+      { source: 'cert', target: 'certDoc', type: 'dataAssociation' },
+      { source: 'gwClass', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { newProductToBe });
+
+});
+__fm_define('app/library/weg/tobe/p8-export-customs.js', function (__exports) {
+/**
+ * 8 (TO-BE). Export under an authorised economic operator status (OEA), with a
+ * pre-filed DU-E, an ERP-generated document set and an electronic bill of lading.
+ */
+const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const LANES = [
+  { id: 'client', label: { ru: 'Зарубежный заказчик', en: 'Overseas customer' } },
+  { id: 'sales', label: { ru: 'Экспортные продажи', en: 'Export sales' } },
+  { id: 'fin', label: { ru: 'Финансы и казначейство', en: 'Finance and treasury' } },
+  { id: 'plant', label: { ru: 'Завод и упаковка', en: 'Plant and packing' } },
+  { id: 'customs', label: { ru: 'Таможенное оформление (статус OEA)', en: 'Customs (AEO status)' } },
+  { id: 'carrier', label: { ru: 'Перевозчик и порт', en: 'Carrier and port' } },
+  { id: 'dest', label: { ru: 'Компания WEG в стране назначения', en: 'WEG company at destination' } },
+];
+
+const SHIPMENTS = 26000;
+
+const exportProcessToBe = {
+  id: 'weg-export-tobe',
+  order: 8,
+  variant: 'to-be',
+  baselineId: 'weg-export',
+  name: {
+    ru: '8. Экспортная поставка и таможенное оформление — как будет',
+    en: '8. Export shipment and customs clearance — to be',
+  },
+  description: {
+    ru: 'Комплаенс и условия оплаты проверяются правилами на входе, документы формируются из ERP одним пакетом, DU-E подаётся предварительно до прибытия в порт, статус OEA даёт зелёный канал почти всегда, коносамент электронный, выручка закрывается автоматически.',
+    en: 'Compliance and payment terms are checked by rule at entry, the document set is generated from ERP in one go, the DU-E is pre-filed before the cargo reaches the port, the AEO status gives the green channel almost always, the bill of lading is electronic, and the proceeds settle automatically.',
+  },
+  analysis: {
+    currency: 'R$',
+    volumePerYear: SHIPMENTS,
+    hoursPerFte: 1800,
+    workingDays: WEG.workingDays,
+    roles: roles('Менеджер по продажам', 'Аналитик', 'Логист', 'Таможенный брокер', 'Финансы', 'Оператор'),
+  },
+  documentation: {
+    ru: `Целевое состояние экспортной отгрузки с бразильских площадок.
+
+Объём и база расчёта не меняются: ≈ ${SHIPMENTS.toLocaleString('ru-RU')} отгрузок в год (вывод в модели «как есть»: внешняя выручка R$ ${(DERIVED.externalRevenue / 1e9).toFixed(1)} млрд × доля вывоза из Бразилии ÷ средняя стоимость отгрузки).
+
+Что меняется по сравнению с «как есть»:
+1. **Статус OEA.** Бразильская программа Operador Econômico Autorizado (аналог AEO/C-TPAT) даёт аккредитованному экспортёру приоритетную параметризацию: доля зелёного канала растёт с 84 до 96 %, жёлтого — с 11 до 3 %, красного — с 5 до 1 %. Это снимает самый непредсказуемый кусок срока.
+2. **Предварительное декларирование.** DU-E подаётся в Portal Único Siscomex на основании данных ERP до прибытия контейнера в порт, параллельно упаковке. Канал известен заранее, и контейнер не ждёт в терминале.
+3. **Документы.** Инвойс, packing list и сертификат происхождения формируются из ERP одним пакетом (90 → 12 мин), NF-e с экспортным CFOP выпускается автоматически.
+4. **Комплаенс.** Санкционный скрининг страны и контрагента выполняется правилами при вводе заказа; аналитик разбирает только совпадения.
+5. **Фрахт и страхование.** Годовой контракт со ставками вместо разового букинга (ожидание 2 дня → 0,5), генеральный полис вместо полиса на отгрузку.
+6. **Коносамент.** Электронный BL уходит банку и заказчику сразу после погрузки — курьерская пересылка документов исчезает вместе со своим ожиданием.
+7. **Назначение.** Документы приходят до судна, импортное оформление в стране назначения начинается заранее: ожидание 4 дня → 1,5.
+
+Что НЕ меняется: морской переход (26 дней — физика маршрута), экспортная упаковка и ISPM 15, загрузка контейнера, доставка в порт, платёжный срок контракта.
+
+Нормативная часть (DU-E, averbação, каналы, ISPM 15, CFOP) соответствует бразильскому порядку, а не внутренним регламентам WEG. Доли каналов в целевом состоянии — **отраслевые допущения** на основе того, какой приоритет даёт статус OEA; их нужно подтвердить статистикой собственного кабинета Siscomex.
+
+${dataNote('ru')}
+
+${sourceBlock(['fy2025', 'profile', 'numbers', 'annual2025'], 'ru')}`,
+    en: `Target state of the export shipment. The volume and its derivation are unchanged: about ${SHIPMENTS.toLocaleString('en-US')} shipments a year.
+
+Changes: the Brazilian AEO programme (Operador Econômico Autorizado) gives an accredited exporter priority parameterisation, so the green channel rises from 84% to 96%, yellow falls from 11% to 3% and red from 5% to 1%, removing the least predictable part of the lead time; the DU-E is pre-filed from ERP data before the container reaches the port, in parallel with packing, so the channel is known in advance and the box does not wait at the terminal; the invoice, packing list and certificate of origin are generated from ERP in one set (90 → 12 min) and the NF-e is issued automatically; sanctions screening runs by rule at order entry with an analyst only on the hits; an annual freight contract replaces per-shipment booking and an open marine policy replaces per-shipment cover; an electronic bill of lading reaches the bank and the customer right after loading, so courier document transfer disappears along with its wait; documents arrive before the vessel, so destination clearance starts early (four days of waiting down to one and a half).
+
+Unchanged: the 26-day ocean transit, export packing and ISPM 15, container stuffing, drayage to the port and the contractual payment term.
+
+The regulatory steps follow Brazilian practice, not WEG internal procedure. The target channel shares are **assumptions** based on the priority the AEO status grants; confirm them with your own Siscomex statistics.
+
+${dataNote('en')}
+
+${sourceBlock(['fy2025', 'profile', 'numbers', 'annual2025'], 'en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Экспорт и таможня — как будет', en: 'Export and customs — to be' },
+    lanes: LANES,
+    nodes: [
+      node('start', 'startMessageEvent', 'client', 'Экспортный заказ подтверждён', 'Export order confirmed', reported({})),
+      node('terms', 'businessRuleTask', 'sales', 'Проверить Incoterms, страну и требования правилами', 'Check Incoterms, country and requirements by rule', auto(1.5)),
+      node('screen', 'businessRuleTask', 'sales', 'Автоматический санкционный скрининг', 'Automatic sanctions screening', auto(0.5, { cost: 1.2 })),
+      node('gwScreen', 'exclusiveGateway', 'sales', 'Есть совпадение по спискам?', 'Any list hit?'),
+      node('investigate', 'userTask', 'sales', 'Разобрать совпадение комплаенс-аналитиком', 'Clear the hit with a compliance analyst', work(30, 'Аналитик')),
+      node('gwClear', 'exclusiveGateway', 'sales', 'Поставка допустима?', 'Shipment allowed?'),
+      node('reject', 'sendTask', 'sales', 'Отказать и зафиксировать решение', 'Decline and record the decision', work(20, 'Аналитик')),
+      node('endReject', 'endEvent', 'sales', 'Отгрузка запрещена комплаенсом', 'Blocked by compliance'),
+      node('proforma', 'serviceTask', 'sales', 'Выпустить proforma invoice из ERP', 'Issue the proforma invoice from ERP', auto(1)),
+      node('gwPay', 'exclusiveGateway', 'fin', 'Условия оплаты?', 'Payment terms?'),
+      node('lc', 'userTask', 'fin', 'Проверить аккредитив по типовому перечню документов', 'Check the L/C against the standard document set', work(60, 'Финансы', { waitTime: DAY * 2 })),
+      node('advance', 'receiveTask', 'fin', 'Получить предоплату', 'Receive the advance payment', work(10, 'Финансы', { waitTime: DAY * 3 })),
+      node('credit', 'businessRuleTask', 'fin', 'Проверить лимит и страховое покрытие правилами', 'Check the limit and export cover by rule', auto(0.6)),
+      node('gwPayJoin', 'exclusiveGateway', 'fin', 'Оплата обеспечена', 'Payment secured'),
+      node('release', 'serviceTask', 'plant', 'Выпустить заказ на отгрузку автоматически', 'Release the shipping order automatically', auto(0.5)),
+      node('waitGoods', 'intermediateTimerEvent', 'plant', 'Ожидание готовности продукции на складе', 'Waiting for the goods to be ready', { waitTime: WEEK * 2, dataSource: 'assumption' }),
+      node('pgSplit', 'parallelGateway', 'plant', 'Упаковка, документы и декларация параллельно', 'Packing, documents and declaration in parallel'),
+      node('pack', 'manualTask', 'plant', 'Экспортная упаковка и тара по ISPM 15', 'Export packing and ISPM 15 crating', work(300, 'Оператор', { resourceQty: 3, cost: 2600 })),
+      node('marking', 'serviceTask', 'plant', 'Маркировка, взвешивание и фотоотчёт', 'Marking, weighing and photo record', work(45, 'Оператор', { cost: 180 })),
+      node('docs', 'serviceTask', 'customs', 'Сформировать пакет документов из ERP', 'Generate the document set from ERP', work(12, 'Таможенный брокер', { cost: 160 })),
+      node('nfe', 'serviceTask', 'fin', 'Выпустить NF-e с экспортным CFOP автоматически', 'Issue the NF-e with an export CFOP automatically', auto(0.5)),
+      node('insure', 'serviceTask', 'fin', 'Отнести отгрузку на генеральный полис', 'Declare the shipment under the open policy', auto(0.5, { cost: 940 })),
+      node('due', 'serviceTask', 'customs', 'Предварительно подать DU-E в Portal Único Siscomex', 'Pre-file the DU-E in Portal Único Siscomex', work(25, 'Таможенный брокер', { cost: 1100 })),
+      node('gwLicense', 'exclusiveGateway', 'customs', 'Нужна экспортная лицензия (ануэнсия)?', 'Export licence (anuência) required?'),
+      node('license', 'userTask', 'customs', 'Получить согласование уполномоченного органа', 'Obtain the licensing authority approval', work(60, 'Таможенный брокер', { waitTime: DAY * 3 })),
+      node('channel', 'businessRuleTask', 'customs', 'Параметризация DU-E с приоритетом OEA', 'DU-E parameterisation with AEO priority', auto(0.4)),
+      node('gwChannel', 'exclusiveGateway', 'customs', 'Канал досмотра?', 'Inspection channel?'),
+      node('yellow', 'userTask', 'customs', 'Жёлтый канал: проверка документов', 'Yellow channel: document review', work(40, 'Таможенный брокер', { waitTime: 240 })),
+      node('red', 'userTask', 'customs', 'Красный канал: физический досмотр', 'Red channel: physical inspection', work(200, 'Таможенный брокер', { cost: 1900, waitTime: DAY })),
+      node('gwChannelJoin', 'exclusiveGateway', 'customs', 'Груз выпущен таможней', 'Cleared by customs'),
+      node('pgJoin', 'parallelGateway', 'plant', 'Груз, документы и выпуск готовы', 'Cargo, documents and clearance ready'),
+      node('booking', 'serviceTask', 'carrier', 'Разместить слот по годовому контракту фрахта', 'Take the slot under the annual freight contract', auto(2, { cost: 10400, waitTime: 240 })),
+      node('stuff', 'manualTask', 'plant', 'Загрузить контейнер и опломбировать', 'Stuff the container and seal it', work(180, 'Оператор', { resourceQty: 2, cost: 900 })),
+      node('drayage', 'serviceTask', 'carrier', 'Доставить в порт и пройти приоритетный gate-in', 'Truck to the port and use the priority gate-in', work(75, 'Логист', { cost: 3800, waitTime: 480 })),
+      node('authorise', 'serviceTask', 'customs', 'Разрешение на погрузку и averbação', 'Shipping authorisation and averbação', auto(1, { cost: 1900 })),
+      node('load', 'serviceTask', 'carrier', 'Погрузить на судно и выпустить электронный BL', 'Load on board and issue the electronic bill of lading', work(25, 'Логист', { waitTime: 480 })),
+      node('sendDocs', 'serviceTask', 'sales', 'Передать электронный пакет банку и заказчику', 'Send the electronic set to the bank and the customer', auto(0.5)),
+      node('preClear', 'userTask', 'dest', 'Предварительно заявить импорт в стране назначения', 'Pre-declare the import at the destination', work(90, 'Таможенный брокер', { cost: 1900 })),
+      node('transit', 'intermediateTimerEvent', 'carrier', 'Морской переход до порта назначения', 'Ocean transit to the destination port', { waitTime: DAY * 26, dataSource: 'assumption' }),
+      node('destClear', 'userTask', 'dest', 'Завершить импортное оформление', 'Complete the import clearance', work(60, 'Таможенный брокер', { cost: 600, waitTime: DAY * 1.5 })),
+      node('checkCargo', 'userTask', 'dest', 'Принять груз и проверить сохранность', 'Receive the cargo and check for damage', work(45, 'Логист')),
+      node('gwDamage', 'exclusiveGateway', 'dest', 'Есть повреждения?', 'Any damage?'),
+      node('claim', 'userTask', 'dest', 'Заявить убыток по генеральному полису', 'File the loss under the open policy', work(90, 'Логист', { waitTime: DAY * 6 })),
+      node('deliver', 'serviceTask', 'dest', 'Доставить заказчику и подтвердить приёмку', 'Deliver and obtain the acceptance', work(100, 'Логист', { cost: 1700, waitTime: DAY })),
+      node('payment', 'receiveTask', 'fin', 'Получить платёж по контракту', 'Receive the contract payment', auto(1, { waitTime: DAY * 10 })),
+      node('fx', 'serviceTask', 'fin', 'Закрыть валютный контракт и разнести выручку', 'Settle the FX contract and post the revenue', auto(1.5)),
+      node('end', 'endEvent', 'fin', 'Экспортная поставка закрыта', 'Export shipment closed', { completes: true }),
+      node('duDoc', 'dataObject', 'customs', 'DU-E (Siscomex)', 'DU-E (Siscomex)'),
+      node('blDoc', 'dataObject', 'carrier', 'Электронный Bill of Lading', 'Electronic bill of lading'),
+      node('regStore', 'dataStore', 'fin', 'Реестр экспортных операций и валютных контрактов', 'Register of export operations and FX contracts'),
+      node('note', 'textAnnotation', 'customs', 'Статус OEA: зелёный канал 96 % вместо 84 % — самый непредсказуемый кусок срока уходит', 'AEO status: a 96% green channel instead of 84% - the least predictable part of the lead time disappears'),
+    ],
+    edges: [
+      flow('start', 'terms'),
+      flow('terms', 'screen'),
+      flow('screen', 'gwScreen'),
+      flow('gwScreen', 'investigate', { share: 6, ru: 'совпадение', en: 'hit' }),
+      flow('gwScreen', 'proforma', { share: 94, ru: 'чисто', en: 'clear' }),
+      flow('investigate', 'gwClear'),
+      flow('gwClear', 'proforma', { share: 67, ru: 'допустима', en: 'allowed' }),
+      flow('gwClear', 'reject', { share: 33, ru: 'запрещена', en: 'blocked' }),
+      flow('reject', 'endReject'),
+      flow('proforma', 'gwPay'),
+      flow('gwPay', 'lc', { share: 28, ru: 'аккредитив', en: 'letter of credit', condition: 'terms == "L/C"' }),
+      flow('gwPay', 'advance', { share: 16, ru: 'предоплата', en: 'advance', condition: 'terms == "advance"' }),
+      flow('gwPay', 'credit', { share: 56, ru: 'открытый счёт', en: 'open account', condition: 'terms == "open account"' }),
+      flow('lc', 'gwPayJoin'),
+      flow('advance', 'gwPayJoin'),
+      flow('credit', 'gwPayJoin'),
+      flow('gwPayJoin', 'release'),
+      flow('release', 'waitGoods'),
+      flow('waitGoods', 'pgSplit'),
+      flow('pgSplit', 'pack'),
+      flow('pgSplit', 'docs'),
+      flow('pgSplit', 'nfe'),
+      flow('pack', 'marking'),
+      flow('marking', 'pgJoin'),
+      flow('nfe', 'insure'),
+      flow('insure', 'pgJoin'),
+      flow('docs', 'due'),
+      flow('due', 'gwLicense'),
+      flow('gwLicense', 'license', { share: 9, ru: 'нужна ануэнсия', en: 'licence needed' }),
+      flow('gwLicense', 'channel', { share: 91, ru: 'не требуется', en: 'not required' }),
+      flow('license', 'channel'),
+      flow('channel', 'gwChannel'),
+      flow('gwChannel', 'gwChannelJoin', { share: 96, ru: 'зелёный', en: 'green' }),
+      flow('gwChannel', 'yellow', { share: 3, ru: 'жёлтый', en: 'yellow' }),
+      flow('gwChannel', 'red', { share: 1, ru: 'красный', en: 'red' }),
+      flow('yellow', 'gwChannelJoin'),
+      flow('red', 'gwChannelJoin'),
+      flow('gwChannelJoin', 'pgJoin'),
+      flow('pgJoin', 'booking'),
+      flow('booking', 'stuff'),
+      flow('stuff', 'drayage'),
+      flow('drayage', 'authorise'),
+      flow('authorise', 'load'),
+      flow('load', 'sendDocs'),
+      flow('sendDocs', 'preClear'),
+      flow('preClear', 'transit'),
+      flow('transit', 'destClear'),
+      flow('destClear', 'checkCargo'),
+      flow('checkCargo', 'gwDamage'),
+      flow('gwDamage', 'claim', { share: 2, ru: 'да', en: 'yes' }),
+      flow('gwDamage', 'deliver', { share: 98, ru: 'нет', en: 'no' }),
+      flow('claim', 'deliver'),
+      flow('deliver', 'payment'),
+      flow('payment', 'fx'),
+      flow('fx', 'end'),
+      { source: 'due', target: 'duDoc', type: 'dataAssociation' },
+      { source: 'load', target: 'blDoc', type: 'dataAssociation' },
+      { source: 'fx', target: 'regStore', type: 'dataAssociation' },
+      { source: 'channel', target: 'note', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { exportProcessToBe });
+
+});
 __fm_define('app/library/weg/index.js', function (__exports) {
 /**
  * WEG process library.
@@ -12132,19 +13980,40 @@ __fm_define('app/library/weg/index.js', function (__exports) {
  */
 const { createProject } = __fm_require('app/core/model.js');
 const { buildBpmnDiagram } = __fm_require('app/ai/schema.js');
+const { compareProcesses } = __fm_require('app/analysis/compare.js');
+const { formatDuration, formatMoney } = __fm_require('app/analysis/parameters.js');
 const { WEG, WEG_SOURCES, dataNote, roleLabel } = __fm_require('app/library/weg/facts.js');
-const { orderToCash } = __fm_require('app/library/weg/p1-order-to-cash.js');
-const { motorManufacturing } = __fm_require('app/library/weg/p2-motor-manufacturing.js');
-const { procurement } = __fm_require('app/library/weg/p3-procurement.js');
-const { engineerToOrder } = __fm_require('app/library/weg/p4-engineer-to-order.js');
-const { transformerProject } = __fm_require('app/library/weg/p5-transformer-project.js');
-const { serviceProcess } = __fm_require('app/library/weg/p6-service.js');
-const { newProduct } = __fm_require('app/library/weg/p7-new-product.js');
-const { exportProcess } = __fm_require('app/library/weg/p8-export-customs.js');
-/** Folder name shown in the model explorer. */
+const { orderToCash } = __fm_require('app/library/weg/asis/p1-order-to-cash.js');
+const { motorManufacturing } = __fm_require('app/library/weg/asis/p2-motor-manufacturing.js');
+const { procurement } = __fm_require('app/library/weg/asis/p3-procurement.js');
+const { engineerToOrder } = __fm_require('app/library/weg/asis/p4-engineer-to-order.js');
+const { transformerProject } = __fm_require('app/library/weg/asis/p5-transformer-project.js');
+const { serviceProcess } = __fm_require('app/library/weg/asis/p6-service.js');
+const { newProduct } = __fm_require('app/library/weg/asis/p7-new-product.js');
+const { exportProcess } = __fm_require('app/library/weg/asis/p8-export-customs.js');
+const { orderToCashToBe } = __fm_require('app/library/weg/tobe/p1-order-to-cash.js');
+const { motorManufacturingToBe } = __fm_require('app/library/weg/tobe/p2-motor-manufacturing.js');
+const { procurementToBe } = __fm_require('app/library/weg/tobe/p3-procurement.js');
+const { engineerToOrderToBe } = __fm_require('app/library/weg/tobe/p4-engineer-to-order.js');
+const { transformerProjectToBe } = __fm_require('app/library/weg/tobe/p5-transformer-project.js');
+const { serviceProcessToBe } = __fm_require('app/library/weg/tobe/p6-service.js');
+const { newProductToBe } = __fm_require('app/library/weg/tobe/p7-new-product.js');
+const { exportProcessToBe } = __fm_require('app/library/weg/tobe/p8-export-customs.js');
+/** Root folder shown in the model explorer; the variants are its sub-folders. */
 const WEG_FOLDER = 'WEG';
 
-const WEG_PROCESSES = [
+const VARIANT_FOLDERS = {
+  'as-is': { ru: 'Как есть (AS-IS)', en: 'As is (AS-IS)' },
+  'to-be': { ru: 'Как будет (TO-BE)', en: 'To be (TO-BE)' },
+};
+
+/** `WEG/Как есть (AS-IS)` - the explorer splits the path into nested folders. */
+function wegFolder(variant, locale = 'ru') {
+  const name = VARIANT_FOLDERS[variant] || VARIANT_FOLDERS['as-is'];
+  return `${WEG_FOLDER}/${name[locale] || name.en}`;
+}
+
+const WEG_AS_IS = [
   orderToCash,
   motorManufacturing,
   procurement,
@@ -12154,6 +14023,20 @@ const WEG_PROCESSES = [
   newProduct,
   exportProcess,
 ].sort((a, b) => a.order - b.order);
+
+const WEG_TO_BE = [
+  orderToCashToBe,
+  motorManufacturingToBe,
+  procurementToBe,
+  engineerToOrderToBe,
+  transformerProjectToBe,
+  serviceProcessToBe,
+  newProductToBe,
+  exportProcessToBe,
+].sort((a, b) => a.order - b.order);
+
+/** Current state first, then the target state - the order of the explorer. */
+const WEG_PROCESSES = [...WEG_AS_IS, ...WEG_TO_BE];
 
 /* ------------------------------------------------------------ localisation */
 
@@ -12213,9 +14096,11 @@ function buildWegDiagram(process, locale = 'ru') {
   const spec = localizeSpec(process.spec, locale);
   const diagram = buildBpmnDiagram(spec, { locale, name: pick(process.name, locale) });
   diagram.name = pick(process.name, locale);
-  diagram.meta.folder = WEG_FOLDER;
+  diagram.meta.folder = wegFolder(process.variant, locale);
   diagram.meta.library = 'weg';
   diagram.meta.processId = process.id;
+  diagram.meta.variant = process.variant;
+  if (process.baselineId) diagram.meta.baselineId = process.baselineId;
   diagram.meta.description = pick(process.description, locale);
   diagram.meta.documentation = pick(process.documentation, locale);
   diagram.meta.author = 'WEG S.A. — public disclosure';
@@ -12223,9 +14108,55 @@ function buildWegDiagram(process, locale = 'ru') {
   return diagram;
 }
 
+/**
+ * Target-state documentation ends with the measured gain against the current
+ * state. It is computed from the two models here, not written by hand, so it
+ * cannot drift away from what the diagrams actually say.
+ */
+function comparisonBlock(baseline, current, locale) {
+  const comparison = compareProcesses(baseline, current);
+  if (!comparison) return '';
+  const ru = locale === 'ru';
+  const money = (value) => formatMoney(value, comparison.currency, locale);
+  const number = (value) => Math.round(value).toLocaleString(ru ? 'ru-RU' : 'en-US');
+  const label = {
+    lead: ru ? 'Срок выполнения' : 'Lead time',
+    work: ru ? 'Трудозатраты на случай' : 'Work per case',
+    wait: ru ? 'Ожидание' : 'Waiting',
+    cost: ru ? 'Стоимость случая' : 'Cost per case',
+    costPerCompletion: ru ? 'Стоимость доведённого до конца случая' : 'Cost per completed case',
+    annualCost: ru ? 'Затраты в год' : 'Annual cost',
+    fte: ru ? 'Штат (FTE)' : 'Headcount (FTE)',
+  };
+  const format = (row, value) => {
+    if (row.kind === 'duration') return formatDuration(value, locale);
+    if (row.kind === 'money') return money(value);
+    return number(value);
+  };
+  const lines = comparison.rows.map((row) => {
+    const delta = `${row.deltaPct > 0 ? '+' : ''}${row.deltaPct.toFixed(1)} %`;
+    return `| ${label[row.key]} | ${format(row, row.from)} | ${format(row, row.to)} | ${delta} |`;
+  });
+  const head = ru
+    ? `\n\n---\n\n### Что даёт переход (расчёт по обеим моделям)\n\n| Показатель | Как есть | Как будет | Δ |\n|---|---|---|---|`
+    : `\n\n---\n\n### Measured gain (computed from both models)\n\n| Metric | As is | To be | Δ |\n|---|---|---|---|`;
+  const doneFrom = Math.round(comparison.completion.from * 1000) / 10;
+  const doneTo = Math.round(comparison.completion.to * 1000) / 10;
+  const foot = ru
+    ? `\n\nДо успешного завершения доходит ${doneFrom} % случаев в модели «как есть» и ${doneTo} % в модели «как будет». Поэтому в таблице есть отдельная строка «стоимость доведённого до конца случая»: процесс, который перестаёт отбраковывать поздно, пропускает больше случаев в дорогие шаги, и его стоимость «на один запущенный случай» может вырасти, пока стоимость «на один доведённый до конца» падает.\n\nЦифры пересчитываются из самих схем: измените любой параметр в панели свойств — и этот блок перестанет совпадать с документацией, а вкладка «Анализ» покажет новое значение. Документация фиксирует состояние на момент построения библиотеки.`
+    : `\n\n${doneFrom}% of cases reach a successful end in the as-is model and ${doneTo}% in the to-be one. That is why the table carries a separate "cost per completed case" row: a process that stops rejecting late lets more cases reach the expensive steps, so its cost per *started* case can rise while the cost per *completed* one falls.\n\nThe figures are computed from the models themselves. Change a parameter in the properties panel and the Analysis tab will show the new value, while this block keeps the state at the time the library was built.`;
+  return `${head}\n${lines.join('\n')}${foot}`;
+}
+
 /** Every library process as diagrams, in the documented order. */
 function buildWegDiagrams(locale = 'ru') {
-  return WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
+  const diagrams = WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
+  const byProcessId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
+  for (const diagram of diagrams) {
+    const baseline = diagram.meta.baselineId ? byProcessId.get(diagram.meta.baselineId) : null;
+    if (baseline) diagram.meta.documentation += comparisonBlock(baseline, diagram, locale);
+  }
+  return diagrams;
 }
 
 function wegProjectName(locale = 'ru') {
@@ -12275,7 +14206,7 @@ function addWegLibrary(project, locale = 'ru') {
   return project;
 }
 
-Object.assign(__exports, { WEG_FOLDER, WEG_PROCESSES, localizeSpec, buildWegDiagram, buildWegDiagrams, wegProjectName, wegProjectDocumentation, createWegProject, addWegLibrary });
+Object.assign(__exports, { WEG_FOLDER, wegFolder, WEG_AS_IS, WEG_TO_BE, WEG_PROCESSES, localizeSpec, buildWegDiagram, buildWegDiagrams, wegProjectName, wegProjectDocumentation, createWegProject, addWegLibrary });
 
 });
 __fm_define('app/storage/db.js', function (__exports) {
@@ -13826,42 +15757,45 @@ class Explorer {
         rows.push(`<div class="tree-empty" style="padding-left:34px">${t('explorer.empty')}</div>`);
         continue;
       }
-      // diagrams that declare `meta.folder` are grouped under that folder
-      const folders = new Map();
-      const loose = [];
+      // `meta.folder` groups diagrams into a folder; a slash nests them further
+      const tree = { children: new Map(), diagrams: [] };
       for (const diagram of roots) {
-        const folder = diagram.meta?.folder;
-        if (!folder) {
-          loose.push(diagram);
-          continue;
+        const path = String(diagram.meta?.folder || '').split('/').map((part) => part.trim()).filter(Boolean);
+        let branch = tree;
+        for (const part of path) {
+          if (!branch.children.has(part)) branch.children.set(part, { children: new Map(), diagrams: [] });
+          branch = branch.children.get(part);
         }
-        if (!folders.has(folder)) folders.set(folder, []);
-        folders.get(folder).push(diagram);
+        branch.diagrams.push(diagram);
       }
-      for (const [folder, list] of folders) {
-        const folderId = `__folder_${notation}_${folder}`;
-        const folderCollapsed = this.collapsed.has(folderId);
-        rows.push(
-          row({
-            id: folderId,
-            level: 2,
-            label: folder,
-            iconName: 'folder',
-            badge: String(list.length),
-            hasChildren: true,
-            collapsed: folderCollapsed,
-          })
-        );
-        if (folderCollapsed) continue;
-        for (const diagram of list) this.renderDiagram(diagram, 3, rows);
-      }
-      for (const diagram of loose) this.renderDiagram(diagram, 2, rows);
+      this.renderFolders(tree, `__folder_${notation}`, 2, rows);
     }
 
     rows.push(
       row({ id: '__docs', level: 1, label: t('explorer.documentation'), groupHeader: true, noTwisty: true })
     );
     this.el.innerHTML = rows.join('');
+  }
+
+  /** Folder level of the tree: sub-folders first, then the diagrams in it. */
+  renderFolders(branch, prefix, level, rows) {
+    for (const [name, child] of branch.children) {
+      const id = `${prefix}_${name}`;
+      const collapsed = this.collapsed.has(id);
+      rows.push(
+        row({
+          id,
+          level,
+          label: name,
+          iconName: 'folder',
+          badge: String(countDiagrams(child)),
+          hasChildren: true,
+          collapsed,
+        })
+      );
+      if (!collapsed) this.renderFolders(child, id, level + 1, rows);
+    }
+    for (const diagram of branch.diagrams) this.renderDiagram(diagram, level, rows);
   }
 
   renderDiagram(diagram, level, rows) {
@@ -13956,6 +15890,12 @@ class Explorer {
       event.clientY
     );
   }
+}
+
+function countDiagrams(branch) {
+  let total = branch.diagrams.length;
+  for (const child of branch.children.values()) total += countDiagrams(child);
+  return total;
 }
 
 function row({ id, level, label, iconName, active, groupHeader, badge, collapsed, hasChildren, bold, noTwisty }) {
@@ -14588,368 +16528,6 @@ function escapeHtml(value) {
 Object.assign(__exports, { Properties });
 
 });
-__fm_define('app/analysis/simulate.js', function (__exports) {
-/**
- * Process calculation engine.
- *
- * Standard process-analysis maths over a BPMN graph:
- *   1. token propagation - how often each step runs per process instance,
- *      following gateway shares and rework loops;
- *   2. time - processing time, waiting time, expected and critical lead time;
- *   3. money - direct cost plus labour cost from role rates;
- *   4. capacity - hours per role per year and the resulting headcount (FTE);
- *   5. bottleneck - the step that consumes the most time per instance.
- *
- * Everything is derived from the parameters stored on the elements, so the
- * numbers change the moment the model changes.
- */
-const { BPMN_TYPES } = __fm_require('app/notations/bpmn/types.js');
-const { analysisSettings, edgeProbability, nodeCost, nodeDuration, nodeResource, nodeResourceQty, nodeWait, roleRate, round } = __fm_require('app/analysis/parameters.js');
-const FLOW_CATEGORIES = new Set(['event', 'activity', 'gateway']);
-
-function isFlowNode(node) {
-  const type = BPMN_TYPES[node?.type];
-  return !!type && FLOW_CATEGORIES.has(type.category);
-}
-
-function typeOf(node) {
-  return BPMN_TYPES[node?.type] || null;
-}
-
-function laneOf(diagram, node) {
-  let current = node;
-  const seen = new Set();
-  while (current?.parent && !seen.has(current.id)) {
-    seen.add(current.id);
-    const parent = diagram.nodes.find((x) => x.id === current.parent);
-    if (!parent) break;
-    if (parent.type === 'lane' || parent.type === 'pool') return parent.label || '';
-    current = parent;
-  }
-  return '';
-}
-
-/** Depth-first ordering that also reports the back edges (rework loops). */
-function topologicalOrder(ids, outgoing) {
-  const state = new Map(ids.map((id) => [id, 0]));
-  const order = [];
-  const backEdges = [];
-  const visit = (id, stack) => {
-    state.set(id, 1);
-    for (const edge of outgoing.get(id) || []) {
-      const next = edge.target;
-      if (!state.has(next)) continue;
-      if (state.get(next) === 1 || stack.has(next)) {
-        backEdges.push(edge);
-        continue;
-      }
-      if (state.get(next) === 0) {
-        stack.add(next);
-        visit(next, stack);
-        stack.delete(next);
-      }
-    }
-    state.set(id, 2);
-    order.push(id);
-  };
-  for (const id of ids) if (state.get(id) === 0) visit(id, new Set([id]));
-  return { order: order.reverse(), backEdges };
-}
-
-/** Share of tokens that leave `node` through `edge`. */
-function branchWeight(node, edge, outgoing) {
-  const flows = outgoing.get(node.id) || [];
-  if (flows.length <= 1) return 1;
-  const type = typeOf(node);
-  const explicit = edgeProbability(edge);
-  const kind = type?.category === 'gateway' ? node.type : 'implicit';
-
-  if (kind === 'parallelGateway') return 1;
-  if (kind === 'inclusiveGateway') return explicit === null ? 1 : explicit;
-  if (kind === 'exclusiveGateway' || kind === 'eventBasedGateway' || kind === 'complexGateway') {
-    if (explicit !== null) return explicit;
-    const known = flows.map(edgeProbability).filter((value) => value !== null);
-    const rest = Math.max(0, 1 - known.reduce((sum, value) => sum + value, 0));
-    const unknownCount = flows.length - known.length;
-    return unknownCount > 0 ? rest / unknownCount : 1 / flows.length;
-  }
-  return explicit === null ? 1 : explicit;
-}
-
-function analyzeProcess(diagram, overrides = {}) {
-  const settings = { ...analysisSettings(diagram), ...overrides };
-  const empty = {
-    ok: false,
-    settings,
-    nodes: [],
-    totals: { workMinutes: 0, waitMinutes: 0, leadExpected: 0, leadCritical: 0, costPerRun: 0, labourCost: 0, directCost: 0 },
-    resources: [],
-    bottleneck: null,
-    annual: { volume: settings.volumePerYear || 0, hours: 0, cost: 0, fte: 0 },
-    issues: [],
-  };
-  if (!diagram || diagram.notation !== 'bpmn') return empty;
-
-  const flowNodes = diagram.nodes.filter(isFlowNode);
-  if (!flowNodes.length) return empty;
-  const byId = new Map(flowNodes.map((node) => [node.id, node]));
-  const flows = diagram.edges.filter((edge) => edge.type === 'sequenceFlow' && byId.has(edge.source) && byId.has(edge.target));
-
-  const outgoing = new Map(flowNodes.map((node) => [node.id, []]));
-  const incoming = new Map(flowNodes.map((node) => [node.id, []]));
-  for (const edge of flows) {
-    outgoing.get(edge.source).push(edge);
-    incoming.get(edge.target).push(edge);
-  }
-
-  const ids = flowNodes.map((node) => node.id);
-  const { order, backEdges } = topologicalOrder(ids, outgoing);
-  const backSet = new Set(backEdges.map((edge) => edge.id));
-  void backEdges;
-
-  /* 1. how often does each step run per instance -------------------------- */
-
-  // a node with no incoming flow starts the process - unless it is an end
-  // event that was simply left unconnected, which must not create tokens
-  const starts = flowNodes.filter((node) => {
-    const kind = typeOf(node)?.kind;
-    if (kind === 'start') return true;
-    if (kind === 'end') return false;
-    return (incoming.get(node.id) || []).length === 0;
-  });
-  const startShare = starts.length ? 1 / starts.length : 0;
-  const startIds = new Set(starts.map((node) => node.id));
-  const isAndJoin = (node) => ['parallelGateway', 'inclusiveGateway'].includes(node.type);
-
-  // Fixpoint sweep: a plain topological pass cannot see rework loops, so the
-  // token counts are relaxed until they converge (they form a geometric
-  // series whenever the loop feedback is below 100%).
-  const tokens = new Map(ids.map((id) => [id, startIds.has(id) ? startShare : 0]));
-  let converged = false;
-  for (let pass = 0; pass < 200 && !converged; pass++) {
-    let delta = 0;
-    for (const id of order) {
-      const node = byId.get(id);
-      const inflow = incoming.get(id) || [];
-      let value = startIds.has(id) ? startShare : 0;
-      if (inflow.length) {
-        const contributions = inflow.map(
-          (edge) => (tokens.get(edge.source) || 0) * branchWeight(byId.get(edge.source), edge, outgoing)
-        );
-        // an AND-join lets one instance through once, it does not add tokens up
-        const merged = isAndJoin(node) && inflow.length > 1 ? Math.max(...contributions) : contributions.reduce((a, b) => a + b, 0);
-        value += merged;
-      }
-      value = Math.min(value, 1e6);
-      delta = Math.max(delta, Math.abs(value - (tokens.get(id) || 0)));
-      tokens.set(id, value);
-    }
-    converged = delta < 1e-9;
-  }
-
-  /* 2. time ---------------------------------------------------------------- */
-
-  const finishExpected = new Map();
-  const finishCritical = new Map();
-  for (const id of order) {
-    const node = byId.get(id);
-    const inflow = (incoming.get(id) || []).filter((edge) => !backSet.has(edge.id));
-    const isParallelJoin = node.type === 'parallelGateway' || node.type === 'inclusiveGateway';
-    let startExpected = 0;
-    let startCritical = 0;
-    if (inflow.length) {
-      const arrivals = inflow.map((edge) => ({
-        expected: finishExpected.get(edge.source) || 0,
-        critical: finishCritical.get(edge.source) || 0,
-        weight: (tokens.get(edge.source) || 0) * branchWeight(byId.get(edge.source), edge, outgoing),
-      }));
-      const totalWeight = arrivals.reduce((sum, item) => sum + item.weight, 0);
-      startExpected = isParallelJoin || !totalWeight
-        ? Math.max(...arrivals.map((item) => item.expected))
-        : arrivals.reduce((sum, item) => sum + item.expected * item.weight, 0) / totalWeight;
-      startCritical = Math.max(...arrivals.map((item) => item.critical));
-    }
-    const own = nodeDuration(node) + nodeWait(node);
-    finishExpected.set(id, startExpected + own);
-    finishCritical.set(id, startCritical + own);
-  }
-
-  const ends = flowNodes.filter((node) => typeOf(node)?.kind === 'end' || (outgoing.get(node.id) || []).length === 0);
-  // expected lead time averages the end events by how often each one is reached
-  const endWeight = ends.reduce((sum, node) => sum + (tokens.get(node.id) || 0), 0);
-  const leadAcyclic = !ends.length
-    ? 0
-    : endWeight > 0
-      ? ends.reduce((sum, node) => sum + (finishExpected.get(node.id) || 0) * (tokens.get(node.id) || 0), 0) / endWeight
-      : Math.max(...ends.map((node) => finishExpected.get(node.id) || 0));
-  const leadCriticalAcyclic = ends.length ? Math.max(...ends.map((node) => finishCritical.get(node.id) || 0)) : 0;
-  // repeated steps (rework loops) add their extra passes to the lead time
-  let reworkDelay = 0;
-  for (const node of flowNodes) {
-    const runs = tokens.get(node.id) || 0;
-    if (runs > 1.0001) reworkDelay += (runs - 1) * (nodeDuration(node) + nodeWait(node));
-  }
-  const leadExpected = leadAcyclic + reworkDelay;
-  const leadCritical = leadCriticalAcyclic + reworkDelay;
-
-  /* 3. money and resources ------------------------------------------------- */
-
-  const rows = [];
-  const resourceMap = new Map();
-  let workMinutes = 0;
-  let waitMinutes = 0;
-  let directCost = 0;
-  let labourCost = 0;
-
-  for (const node of flowNodes) {
-    const runs = tokens.get(node.id) || 0;
-    const duration = nodeDuration(node);
-    const wait = nodeWait(node);
-    const role = nodeResource(node);
-    const qty = nodeResourceQty(node);
-    const rate = roleRate(settings, role);
-    const minutes = runs * duration;
-    const labour = (minutes / 60) * rate * qty;
-    const direct = runs * nodeCost(node);
-    workMinutes += minutes;
-    waitMinutes += runs * wait;
-    directCost += direct;
-    labourCost += labour;
-
-    if (role) {
-      const entry = resourceMap.get(role) || { role, minutesPerRun: 0, costPerRun: 0, rate };
-      entry.minutesPerRun += minutes * qty;
-      entry.costPerRun += labour;
-      entry.rate = rate || entry.rate;
-      resourceMap.set(role, entry);
-    }
-
-    rows.push({
-      id: node.id,
-      label: node.label || node.id,
-      type: node.type,
-      category: typeOf(node)?.category || '',
-      lane: laneOf(diagram, node),
-      runs: round(runs, 3),
-      duration,
-      wait,
-      resource: role,
-      resourceQty: qty,
-      totalMinutes: round(minutes, 2),
-      totalCost: round(direct + labour, 2),
-      dataSource: node.props?.dataSource || '',
-      finish: round(finishExpected.get(node.id) || 0, 2),
-    });
-  }
-
-  const volume = Math.max(0, Number(settings.volumePerYear) || 0);
-  const hoursPerFte = Math.max(1, Number(settings.hoursPerFte) || 1800);
-  const resources = [...resourceMap.values()]
-    .map((entry) => {
-      const hoursPerYear = (entry.minutesPerRun / 60) * volume;
-      return {
-        ...entry,
-        minutesPerRun: round(entry.minutesPerRun, 2),
-        costPerRun: round(entry.costPerRun, 2),
-        hoursPerYear: round(hoursPerYear, 1),
-        fte: round(hoursPerYear / hoursPerFte, 2),
-        costPerYear: round(entry.costPerRun * volume, 2),
-      };
-    })
-    .sort((a, b) => b.minutesPerRun - a.minutesPerRun);
-
-  const activityRows = rows.filter((row) => row.category === 'activity');
-  const bottleneck = activityRows.length
-    ? activityRows.reduce((best, row) => (row.totalMinutes > best.totalMinutes ? row : best))
-    : null;
-
-  const costPerRun = directCost + labourCost;
-
-  /* 4. data quality checks ------------------------------------------------- */
-
-  const issues = [];
-  for (const node of flowNodes) {
-    if (typeOf(node)?.category !== 'gateway') continue;
-    const flowsOut = outgoing.get(node.id) || [];
-    if (flowsOut.length < 2) continue;
-    if (!['exclusiveGateway', 'eventBasedGateway', 'complexGateway'].includes(node.type)) continue;
-    const values = flowsOut.map(edgeProbability);
-    if (values.every((value) => value === null)) continue;
-    const sum = values.reduce((acc, value) => acc + (value || 0), 0);
-    if (Math.abs(sum - 1) > 0.005) {
-      issues.push({
-        severity: 'warning',
-        code: 'shareSum',
-        elementId: node.id,
-        params: { name: node.label || node.id, sum: Math.round(sum * 100) },
-        message: {
-          en: 'Branch shares of “{name}” add up to {sum}% instead of 100%',
-          ru: 'Доли веток шлюза «{name}» дают {sum}% вместо 100%',
-        },
-      });
-    }
-  }
-  const missing = activityRows.filter((row) => !row.duration);
-  if (missing.length) {
-    issues.push({
-      severity: 'info',
-      code: 'noDuration',
-      elementId: missing[0].id,
-      params: { count: missing.length },
-      message: {
-        en: '{count} task(s) have no processing time - they are counted as instant',
-        ru: 'У {count} задач(и) не задано время — они считаются мгновенными',
-      },
-    });
-  }
-  const unreachable = rows.filter((row) => !row.runs);
-  if (unreachable.length) {
-    issues.push({
-      severity: 'warning',
-      code: 'unreachable',
-      elementId: unreachable[0].id,
-      params: { count: unreachable.length, name: unreachable[0].label },
-      message: {
-        en: '{count} element(s) are never reached, starting with “{name}”',
-        ru: 'До {count} элемент(ов) поток не доходит, первый — «{name}»',
-      },
-    });
-  }
-
-  return {
-    ok: true,
-    settings,
-    nodes: rows.sort((a, b) => a.finish - b.finish),
-    totals: {
-      workMinutes: round(workMinutes, 2),
-      waitMinutes: round(waitMinutes, 2),
-      leadExpected: round(leadExpected, 2),
-      leadCritical: round(leadCritical, 2),
-      reworkDelay: round(reworkDelay, 2),
-      costPerRun: round(costPerRun, 2),
-      labourCost: round(labourCost, 2),
-      directCost: round(directCost, 2),
-      // how much of the elapsed time is spent waiting, and how much labour is
-      // packed into one unit of lead time (> 1 means work runs in parallel)
-      waitShare: workMinutes + waitMinutes ? round((waitMinutes / (workMinutes + waitMinutes)) * 100, 1) : 0,
-      laborPerLead: leadExpected ? round(workMinutes / leadExpected, 2) : 0,
-      steps: activityRows.length,
-    },
-    resources,
-    bottleneck,
-    annual: {
-      volume,
-      hours: round((workMinutes / 60) * volume, 1),
-      cost: round(costPerRun * volume, 2),
-      fte: round(((workMinutes / 60) * volume) / hoursPerFte, 2),
-    },
-    issues,
-  };
-}
-
-Object.assign(__exports, { analyzeProcess });
-
-});
 __fm_define('app/ui/panels/analysis.js', function (__exports) {
 /**
  * Process calculation panel.
@@ -14962,6 +16540,7 @@ __fm_define('app/ui/panels/analysis.js', function (__exports) {
 const { i18n, t } = __fm_require('app/i18n/index.js');
 const { analyzeProcess } = __fm_require('app/analysis/simulate.js');
 const { analysisSettings, formatDuration, formatMoney, round } = __fm_require('app/analysis/parameters.js');
+const { compareProcesses } = __fm_require('app/analysis/compare.js');
 const { icon } = __fm_require('app/ui/icons.js');
 const { downloadText, safeFileName } = __fm_require('app/io/files.js');
 const SOURCE_LABEL = {
@@ -15036,6 +16615,9 @@ class AnalysisPanel {
       row.addEventListener('click', () => this.app.canvas.revealElement(result.bottleneck.id));
       this.el.appendChild(row);
     }
+
+    /* comparison with the baseline version of the same process */
+    this.renderComparison(diagram, locale);
 
     /* annual projection */
     if (settings.volumePerYear > 0) {
@@ -15222,6 +16804,59 @@ class AnalysisPanel {
     this.history.run('analysis', diagram.id, (doc) => doc.updateDiagram(diagram.id, { meta: { analysis: next } }));
     this.render();
     this.app.refreshCanvas();
+  }
+
+  /**
+   * When a diagram names another one as its baseline (`meta.baselineId`), show
+   * both sides next to each other. Both are recomputed live, so editing either
+   * model moves the comparison.
+   */
+  renderComparison(diagram, locale) {
+    const baselineId = diagram.meta?.baselineId;
+    if (!baselineId) return;
+    const baseline = this.doc.project.diagrams.find((item) => item.meta?.processId === baselineId);
+    if (!baseline) return;
+    const comparison = compareProcesses(baseline, diagram);
+    if (!comparison) return;
+    const money = (value) => formatMoney(value, comparison.currency, locale);
+    const format = (row, value) => {
+      if (row.kind === 'duration') return formatDuration(value, locale);
+      if (row.kind === 'money') return money(value);
+      return formatNumber(value, locale);
+    };
+    const section = this.section(t('compare.title'));
+    const open = document.createElement('div');
+    open.className = 'note clickable';
+    open.innerHTML = `<b>${t('compare.baseline')}:</b> ${escapeHtml(baseline.name)}`;
+    open.addEventListener('click', () => this.app.openDiagram(baseline.id));
+    section.appendChild(open);
+
+    const table = document.createElement('table');
+    table.className = 'grid compare-table';
+    const rows = comparison.rows
+      .map((row) => {
+        const delta = `${row.deltaPct > 0 ? '+' : ''}${row.deltaPct.toFixed(1)}%`;
+        const cls = row.deltaPct === 0 ? '' : row.improved ? 'delta-good' : 'delta-bad';
+        return `<tr><td>${escapeHtml(t(row.labelKey))}</td><td class="num-cell">${escapeHtml(
+          format(row, row.from)
+        )}</td><td class="num-cell">${escapeHtml(format(row, row.to))}</td><td class="num-cell ${cls}">${escapeHtml(
+          delta
+        )}</td></tr>`;
+      })
+      .join('');
+    table.innerHTML =
+      `<thead><tr><th></th><th class="num-cell">${t('compare.asIs')}</th><th class="num-cell">${t(
+        'compare.toBe'
+      )}</th><th class="num-cell">${t('compare.delta')}</th></tr></thead><tbody>${rows}</tbody>`;
+    section.appendChild(table);
+
+    const done = document.createElement('div');
+    done.className = 'compare-hint';
+    done.textContent = t('compare.completion', {
+      from: round(comparison.completion.from * 100, 1),
+      to: round(comparison.completion.to * 100, 1),
+    });
+    section.appendChild(done);
   }
 
   exportCsv() {

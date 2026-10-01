@@ -1,11 +1,15 @@
 import { assert, test } from './harness.js';
 import {
+  WEG_AS_IS,
   WEG_FOLDER,
   WEG_PROCESSES,
+  WEG_TO_BE,
   buildWegDiagrams,
   createWegProject,
   localizeSpec,
+  wegFolder,
 } from '../app/library/weg/index.js';
+import { compareProcesses, completionShare } from '../app/analysis/compare.js';
 import { ROLE_LABELS, WEG, WEG_SOURCES, roleLabel } from '../app/library/weg/facts.js';
 import { validateBpmn } from '../app/notations/bpmn/validate.js';
 import { analyzeProcess } from '../app/analysis/simulate.js';
@@ -18,15 +22,27 @@ const docStub = (project) => ({
   childDiagrams: () => [],
 });
 
-test('the library ships eight numbered processes', () => {
-  assert.equal(WEG_PROCESSES.length, 8, 'eight processes');
-  assert.deepEqual(
-    WEG_PROCESSES.map((p) => p.order),
-    [1, 2, 3, 4, 5, 6, 7, 8],
-    'processes are ordered 1..8'
-  );
+test('the library ships eight processes in a current and a target version', () => {
+  assert.equal(WEG_AS_IS.length, 8, 'eight as-is processes');
+  assert.equal(WEG_TO_BE.length, 8, 'eight to-be processes');
+  assert.equal(WEG_PROCESSES.length, 16, 'sixteen models in total');
+  for (const list of [WEG_AS_IS, WEG_TO_BE]) {
+    assert.deepEqual(list.map((p) => p.order), [1, 2, 3, 4, 5, 6, 7, 8], 'processes are ordered 1..8');
+  }
+  for (const process of WEG_AS_IS) assert.equal(process.variant, 'as-is', `${process.id} is the current state`);
+  for (const process of WEG_TO_BE) {
+    assert.equal(process.variant, 'to-be', `${process.id} is the target state`);
+    const baseline = WEG_AS_IS.find((item) => item.id === process.baselineId);
+    assert.ok(baseline, `${process.id} names an existing baseline`);
+    assert.equal(baseline.order, process.order, `${process.id} pairs with the same numbered process`);
+    assert.equal(
+      baseline.analysis.volumePerYear,
+      process.analysis.volumePerYear,
+      `${process.id} keeps the same annual volume as its baseline`
+    );
+  }
   const ids = new Set(WEG_PROCESSES.map((p) => p.id));
-  assert.equal(ids.size, 8, 'process identifiers are unique');
+  assert.equal(ids.size, 16, 'process identifiers are unique');
   for (const process of WEG_PROCESSES) {
     assert.ok(process.name.ru && process.name.en, `${process.id} is named in both languages`);
     assert.ok(process.description.ru && process.description.en, `${process.id} is described in both languages`);
@@ -114,13 +130,14 @@ test('documentation cites the public sources it relies on', () => {
   }
 });
 
-test('all eight diagrams build, land in the WEG folder and pass BPMN validation', () => {
+test('all sixteen diagrams build, land in the WEG folders and pass BPMN validation', () => {
   for (const locale of ['ru', 'en']) {
     const project = createWegProject(locale);
-    assert.equal(project.diagrams.length, 8, 'eight diagrams');
+    assert.equal(project.diagrams.length, 16, 'sixteen diagrams');
     const doc = docStub(project);
     for (const diagram of project.diagrams) {
-      assert.equal(diagram.meta.folder, WEG_FOLDER, `${diagram.name}: WEG folder`);
+      assert.equal(diagram.meta.folder, wegFolder(diagram.meta.variant, locale), `${diagram.name}: variant folder`);
+      assert.ok(diagram.meta.folder.startsWith(`${WEG_FOLDER}/`), `${diagram.name}: nested under WEG`);
       assert.equal(diagram.meta.library, 'weg', `${diagram.name}: marked as library content`);
       assert.ok(diagram.meta.documentation.length > 400, `${diagram.name}: documentation travels with the diagram`);
       assert.ok(
@@ -165,10 +182,12 @@ test('every diagram produces a calculation, not an empty report', () => {
 
 test('the models sum up to a plausible share of the reported business', () => {
   const diagrams = buildWegDiagrams('ru');
-  const byId = new Map(WEG_PROCESSES.map((process, index) => [process.id, diagrams[index]]));
+  const byId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
   const motors = analyzeProcess(byId.get('weg-make-motor'));
   assert.equal(motors.settings.volumePerYear, WEG.motorsPerYear, 'manufacturing runs the reported motor volume');
-  const totalFte = diagrams.reduce((sum, diagram) => sum + analyzeProcess(diagram).annual.fte, 0);
+  const totalFte = diagrams
+    .filter((diagram) => diagram.meta.variant === 'as-is')
+    .reduce((sum, diagram) => sum + analyzeProcess(diagram).annual.fte, 0);
   assert.ok(totalFte > 1000, `modelled workforce demand is meaningful (${Math.round(totalFte)} FTE)`);
   assert.ok(totalFte < WEG.employees * 1.5, `modelled workforce stays in the order of the reported headcount (${Math.round(totalFte)} FTE)`);
 });
@@ -197,11 +216,12 @@ test('localisation resolves both languages down to plain strings', () => {
 test('the library survives a save / load round trip', () => {
   const project = createWegProject('ru');
   const restored = normalizeProject(JSON.parse(JSON.stringify(project)));
-  assert.equal(restored.diagrams.length, 8, 'diagrams survive');
+  assert.equal(restored.diagrams.length, 16, 'diagrams survive');
   for (let i = 0; i < restored.diagrams.length; i++) {
     const before = project.diagrams[i];
     const after = restored.diagrams[i];
-    assert.equal(after.meta.folder, WEG_FOLDER, 'folder survives');
+    assert.ok(after.meta.folder.startsWith(`${WEG_FOLDER}/`), 'folder survives');
+    assert.equal(after.meta.variant, before.meta.variant, 'variant survives');
     assert.equal(after.nodes.length, before.nodes.length, 'node count survives');
     assert.equal(after.edges.length, before.edges.length, 'edge count survives');
     assert.deepEqual(after.meta.analysis, before.meta.analysis, 'analysis settings survive');
@@ -209,5 +229,86 @@ test('the library survives a save / load round trip', () => {
     const b = analyzeProcess(after);
     assert.close(b.totals.costPerRun, a.totals.costPerRun, 0.01, 'cost survives');
     assert.close(b.totals.leadExpected, a.totals.leadExpected, 0.01, 'lead time survives');
+  }
+});
+
+
+test('every target model is paired with its baseline and is measurably better', () => {
+  const diagrams = buildWegDiagrams('ru');
+  const byId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
+  const targets = diagrams.filter((diagram) => diagram.meta.variant === 'to-be');
+  assert.equal(targets.length, 8, 'eight target models');
+  for (const target of targets) {
+    const baseline = byId.get(target.meta.baselineId);
+    assert.ok(baseline, `${target.name}: baseline present in the project`);
+    const comparison = compareProcesses(baseline, target);
+    assert.ok(comparison, `${target.name}: comparison computed`);
+
+    const by = Object.fromEntries(comparison.rows.map((row) => [row.key, row]));
+    assert.ok(by.lead.to < by.lead.from, `${target.name}: lead time improves`);
+    assert.ok(by.work.to < by.work.from, `${target.name}: work per case improves`);
+    assert.ok(by.fte.to < by.fte.from, `${target.name}: resource demand improves`);
+    // cost per *started* case may rise when fewer cases are rejected late, but
+    // the cost of actually finishing one must always come down
+    assert.ok(
+      by.costPerCompletion.to < by.costPerCompletion.from,
+      `${target.name}: cost per completed case improves (${by.costPerCompletion.from} -> ${by.costPerCompletion.to})`
+    );
+    assert.ok(comparison.completion.to > 0 && comparison.completion.to <= 1.0001, `${target.name}: completion share is a share`);
+  }
+});
+
+test('the target documentation carries the computed comparison', () => {
+  for (const locale of ['ru', 'en']) {
+    const diagrams = buildWegDiagrams(locale);
+    for (const diagram of diagrams) {
+      const hasTable = diagram.meta.documentation.includes('|---|---|---|---|');
+      if (diagram.meta.variant === 'to-be') {
+        assert.ok(hasTable, `${diagram.name}: comparison table present`);
+        assert.ok(
+          diagram.meta.documentation.includes('%'),
+          `${diagram.name}: comparison carries the deltas`
+        );
+      } else {
+        assert.ok(!hasTable, `${diagram.name}: baseline has no comparison table`);
+      }
+    }
+  }
+});
+
+test('completion share counts only the end events marked as successful', () => {
+  const diagrams = buildWegDiagrams('ru');
+  for (const diagram of diagrams) {
+    const marked = diagram.nodes.filter((node) => node.props?.completes);
+    assert.ok(marked.length > 0, `${diagram.name}: a successful end is marked`);
+    for (const node of marked) {
+      assert.ok(/^end/i.test(node.type), `${diagram.name}: only end events are marked (${node.type})`);
+    }
+    const share = completionShare(diagram, analyzeProcess(diagram));
+    assert.ok(share > 0.1 && share <= 1.0001, `${diagram.name}: completion share ${share} is plausible`);
+  }
+});
+
+
+test('no two elements of a diagram overlap on the canvas', () => {
+  const containers = new Set(['pool', 'lane', 'group']);
+  for (const locale of ['ru', 'en']) {
+    for (const diagram of buildWegDiagrams(locale)) {
+      const boxes = diagram.nodes
+        .filter((node) => !containers.has(node.type))
+        .map((node) => ({ id: node.id, label: node.label, x: node.x, y: node.y, w: node.w, h: node.h }));
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i];
+          const b = boxes[j];
+          const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+          const overlapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+          assert.ok(
+            overlapX <= 0 || overlapY <= 0,
+            `${diagram.name}: “${a.label}” overlaps “${b.label}” by ${Math.round(overlapX)}x${Math.round(overlapY)}`
+          );
+        }
+      }
+    }
   }
 });

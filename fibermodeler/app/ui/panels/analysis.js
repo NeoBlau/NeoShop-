@@ -9,6 +9,7 @@
 import { i18n, t } from '../../i18n/index.js';
 import { analyzeProcess } from '../../analysis/simulate.js';
 import { analysisSettings, formatDuration, formatMoney, round } from '../../analysis/parameters.js';
+import { compareProcesses } from '../../analysis/compare.js';
 import { icon } from '../icons.js';
 import { downloadText, safeFileName } from '../../io/files.js';
 
@@ -84,6 +85,9 @@ export class AnalysisPanel {
       row.addEventListener('click', () => this.app.canvas.revealElement(result.bottleneck.id));
       this.el.appendChild(row);
     }
+
+    /* comparison with the baseline version of the same process */
+    this.renderComparison(diagram, locale);
 
     /* annual projection */
     if (settings.volumePerYear > 0) {
@@ -270,6 +274,59 @@ export class AnalysisPanel {
     this.history.run('analysis', diagram.id, (doc) => doc.updateDiagram(diagram.id, { meta: { analysis: next } }));
     this.render();
     this.app.refreshCanvas();
+  }
+
+  /**
+   * When a diagram names another one as its baseline (`meta.baselineId`), show
+   * both sides next to each other. Both are recomputed live, so editing either
+   * model moves the comparison.
+   */
+  renderComparison(diagram, locale) {
+    const baselineId = diagram.meta?.baselineId;
+    if (!baselineId) return;
+    const baseline = this.doc.project.diagrams.find((item) => item.meta?.processId === baselineId);
+    if (!baseline) return;
+    const comparison = compareProcesses(baseline, diagram);
+    if (!comparison) return;
+    const money = (value) => formatMoney(value, comparison.currency, locale);
+    const format = (row, value) => {
+      if (row.kind === 'duration') return formatDuration(value, locale);
+      if (row.kind === 'money') return money(value);
+      return formatNumber(value, locale);
+    };
+    const section = this.section(t('compare.title'));
+    const open = document.createElement('div');
+    open.className = 'note clickable';
+    open.innerHTML = `<b>${t('compare.baseline')}:</b> ${escapeHtml(baseline.name)}`;
+    open.addEventListener('click', () => this.app.openDiagram(baseline.id));
+    section.appendChild(open);
+
+    const table = document.createElement('table');
+    table.className = 'grid compare-table';
+    const rows = comparison.rows
+      .map((row) => {
+        const delta = `${row.deltaPct > 0 ? '+' : ''}${row.deltaPct.toFixed(1)}%`;
+        const cls = row.deltaPct === 0 ? '' : row.improved ? 'delta-good' : 'delta-bad';
+        return `<tr><td>${escapeHtml(t(row.labelKey))}</td><td class="num-cell">${escapeHtml(
+          format(row, row.from)
+        )}</td><td class="num-cell">${escapeHtml(format(row, row.to))}</td><td class="num-cell ${cls}">${escapeHtml(
+          delta
+        )}</td></tr>`;
+      })
+      .join('');
+    table.innerHTML =
+      `<thead><tr><th></th><th class="num-cell">${t('compare.asIs')}</th><th class="num-cell">${t(
+        'compare.toBe'
+      )}</th><th class="num-cell">${t('compare.delta')}</th></tr></thead><tbody>${rows}</tbody>`;
+    section.appendChild(table);
+
+    const done = document.createElement('div');
+    done.className = 'compare-hint';
+    done.textContent = t('compare.completion', {
+      from: round(comparison.completion.from * 100, 1),
+      to: round(comparison.completion.to * 100, 1),
+    });
+    section.appendChild(done);
   }
 
   exportCsv() {

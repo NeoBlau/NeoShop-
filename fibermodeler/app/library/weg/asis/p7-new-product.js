@@ -5,8 +5,8 @@
  * 3.4% of net revenue - and reports that 71% of revenue comes from products
  * classified as sustainable.
  */
-import { DERIVED, WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { DAY, WEEK, flow, node, reported, wait, work } from './kit.js';
+import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { DAY, WEEK, flow, node, reported, wait, work } from '../kit.js';
 
 const LANES = [
   { id: 'market', label: { ru: 'Маркетинг и продукт', en: 'Marketing & product' } },
@@ -20,6 +20,7 @@ const LANES = [
 export const newProduct = {
   id: 'weg-npd',
   order: 7,
+  variant: 'as-is',
   name: { ru: '7. Разработка нового продукта (stage-gate)', en: '7. New product development (stage-gate)' },
   description: {
     ru: 'Идея — бизнес-кейс — конструкция — прототип — испытания КПД по IEC 60034-2-1 — сертификация — подготовка производства — запуск.',
@@ -86,7 +87,7 @@ ${sourceBlock(['annual2025', 'fy2025', 'numbers'], 'en')}`,
       node('ppap', 'userTask', 'ops', 'Подтвердить процесс и качество (PPAP)', 'Confirm the process and quality (PPAP)', work(600, 'ОТК')),
       node('gwPilot', 'exclusiveGateway', 'ops', 'Пилот успешен?', 'Pilot successful?'),
       node('launch', 'userTask', 'market', 'Запустить продажи и обучить сеть', 'Launch sales and train the channel', work(1200, 'Аналитик', { cost: 85000 })),
-      node('end', 'endEvent', 'market', 'Продукт в серийном производстве', 'Product in serial production'),
+      node('end', 'endEvent', 'market', 'Продукт в серийном производстве', 'Product in serial production', { completes: true }),
       node('spec', 'dataObject', 'rnd', 'Техническое описание и расчёты', 'Design record and calculations'),
       node('certDoc', 'dataObject', 'cert', 'Сертификаты соответствия', 'Certificates of conformity'),
       node('note', 'textAnnotation', 'market', 'R&D 2025: R$ 1,4 млрд = 3,4 % выручки (публичный отчёт)', 'R&D 2025: R$ 1.4bn = 3.4% of revenue (public report)'),

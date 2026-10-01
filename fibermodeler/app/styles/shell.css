@@ -1572,3 +1572,34 @@ table.grid.steps-table tbody tr:hover {
   background: rgba(224, 139, 0, 0.16);
   color: var(--warning);
 }
+
+/* AS-IS / TO-BE comparison in the analysis panel */
+.delta-good { color: var(--success); font-weight: 600; }
+.delta-bad { color: var(--danger); font-weight: 600; }
+/* four columns in a narrow sidebar: fixed widths, everything may wrap */
+.compare-table { table-layout: fixed; width: 100%; }
+.compare-table th,
+.compare-table td {
+  font-size: var(--fs-xs);
+  padding: 5px 3px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.compare-table th:first-child,
+.compare-table td:first-child { width: 31%; }
+.compare-table th:nth-child(2),
+.compare-table td:nth-child(2),
+.compare-table th:nth-child(3),
+.compare-table td:nth-child(3) { width: 25%; }
+.compare-table th:last-child,
+.compare-table td:last-child { width: 19%; }
+/* numbers wrap here too - a sidebar column is narrower than "R$ 307.5 тыс";
+   the selector has to outweigh `table.grid td.num-cell` above */
+table.grid.compare-table td.num-cell { white-space: normal; padding: 5px 3px; }
+.props-section .compare-hint {
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  line-height: 1.45;
+}

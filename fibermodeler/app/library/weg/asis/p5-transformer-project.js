@@ -4,8 +4,8 @@
  * Generation, transmission and distribution is 35.8% of WEG's 2025 revenue and
  * the company is putting R$ 1.2 billion into transformer capacity.
  */
-import { DERIVED, WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { DAY, WEEK, flow, node, reported, wait, work } from './kit.js';
+import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { DAY, WEEK, flow, node, reported, wait, work } from '../kit.js';
 
 const LANES = [
   { id: 'utility', label: { ru: 'Заказчик (энергокомпания)', en: 'Customer (utility)' } },
@@ -19,6 +19,7 @@ const LANES = [
 export const transformerProject = {
   id: 'weg-gtd',
   order: 5,
+  variant: 'as-is',
   name: { ru: '5. Проект силового трансформатора (GTD)', en: '5. Power transformer project (GTD)' },
   description: {
     ru: 'Тендер энергокомпании — расчёт — контракт — проектирование — изготовление активной части — высоковольтные испытания — монтаж на подстанции.',
@@ -89,7 +90,7 @@ ${sourceBlock(['transformers', 'annual2025', 'fy2025', 'astec'], 'en')}`,
       node('install', 'userTask', 'site', 'Монтаж на фундаменте, сборка вводов', 'Installation and bushing assembly', work(2400, 'Сервисный инженер', { resourceQty: 2 })),
       node('commission', 'userTask', 'site', 'Пусконаладка и испытания на площадке', 'Commissioning and site tests', work(1440, 'Сервисный инженер', { resourceQty: 2, cost: 38000 })),
       node('handover', 'userTask', 'site', 'Передать заказчику, закрыть гарантию по вводу', 'Hand over to the utility', work(240, 'Сервисный инженер')),
-      node('end', 'endEvent', 'site', 'Трансформатор в сети', 'Transformer energised'),
+      node('end', 'endEvent', 'site', 'Трансформатор в сети', 'Transformer energised', { completes: true }),
       node('protocol', 'dataObject', 'lab', 'Протоколы испытаний IEC 60076', 'IEC 60076 test reports'),
       node('asbuilt', 'dataObject', 'site', 'Исполнительная документация', 'As-built documentation'),
       node('note', 'textAnnotation', 'bid', 'GTD = 35,8 % выручки 2025 (публичный отчёт)', 'GTD = 35.8% of 2025 revenue (public report)'),

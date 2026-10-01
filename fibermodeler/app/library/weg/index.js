@@ -12,20 +12,41 @@
  */
 import { createProject } from '../../core/model.js';
 import { buildBpmnDiagram } from '../../ai/schema.js';
+import { compareProcesses } from '../../analysis/compare.js';
+import { formatDuration, formatMoney } from '../../analysis/parameters.js';
 import { WEG, WEG_SOURCES, dataNote, roleLabel } from './facts.js';
-import { orderToCash } from './p1-order-to-cash.js';
-import { motorManufacturing } from './p2-motor-manufacturing.js';
-import { procurement } from './p3-procurement.js';
-import { engineerToOrder } from './p4-engineer-to-order.js';
-import { transformerProject } from './p5-transformer-project.js';
-import { serviceProcess } from './p6-service.js';
-import { newProduct } from './p7-new-product.js';
-import { exportProcess } from './p8-export-customs.js';
+import { orderToCash } from './asis/p1-order-to-cash.js';
+import { motorManufacturing } from './asis/p2-motor-manufacturing.js';
+import { procurement } from './asis/p3-procurement.js';
+import { engineerToOrder } from './asis/p4-engineer-to-order.js';
+import { transformerProject } from './asis/p5-transformer-project.js';
+import { serviceProcess } from './asis/p6-service.js';
+import { newProduct } from './asis/p7-new-product.js';
+import { exportProcess } from './asis/p8-export-customs.js';
+import { orderToCashToBe } from './tobe/p1-order-to-cash.js';
+import { motorManufacturingToBe } from './tobe/p2-motor-manufacturing.js';
+import { procurementToBe } from './tobe/p3-procurement.js';
+import { engineerToOrderToBe } from './tobe/p4-engineer-to-order.js';
+import { transformerProjectToBe } from './tobe/p5-transformer-project.js';
+import { serviceProcessToBe } from './tobe/p6-service.js';
+import { newProductToBe } from './tobe/p7-new-product.js';
+import { exportProcessToBe } from './tobe/p8-export-customs.js';
 
-/** Folder name shown in the model explorer. */
+/** Root folder shown in the model explorer; the variants are its sub-folders. */
 export const WEG_FOLDER = 'WEG';
 
-export const WEG_PROCESSES = [
+const VARIANT_FOLDERS = {
+  'as-is': { ru: 'Как есть (AS-IS)', en: 'As is (AS-IS)' },
+  'to-be': { ru: 'Как будет (TO-BE)', en: 'To be (TO-BE)' },
+};
+
+/** `WEG/Как есть (AS-IS)` - the explorer splits the path into nested folders. */
+export function wegFolder(variant, locale = 'ru') {
+  const name = VARIANT_FOLDERS[variant] || VARIANT_FOLDERS['as-is'];
+  return `${WEG_FOLDER}/${name[locale] || name.en}`;
+}
+
+export const WEG_AS_IS = [
   orderToCash,
   motorManufacturing,
   procurement,
@@ -35,6 +56,20 @@ export const WEG_PROCESSES = [
   newProduct,
   exportProcess,
 ].sort((a, b) => a.order - b.order);
+
+export const WEG_TO_BE = [
+  orderToCashToBe,
+  motorManufacturingToBe,
+  procurementToBe,
+  engineerToOrderToBe,
+  transformerProjectToBe,
+  serviceProcessToBe,
+  newProductToBe,
+  exportProcessToBe,
+].sort((a, b) => a.order - b.order);
+
+/** Current state first, then the target state - the order of the explorer. */
+export const WEG_PROCESSES = [...WEG_AS_IS, ...WEG_TO_BE];
 
 /* ------------------------------------------------------------ localisation */
 
@@ -94,9 +129,11 @@ export function buildWegDiagram(process, locale = 'ru') {
   const spec = localizeSpec(process.spec, locale);
   const diagram = buildBpmnDiagram(spec, { locale, name: pick(process.name, locale) });
   diagram.name = pick(process.name, locale);
-  diagram.meta.folder = WEG_FOLDER;
+  diagram.meta.folder = wegFolder(process.variant, locale);
   diagram.meta.library = 'weg';
   diagram.meta.processId = process.id;
+  diagram.meta.variant = process.variant;
+  if (process.baselineId) diagram.meta.baselineId = process.baselineId;
   diagram.meta.description = pick(process.description, locale);
   diagram.meta.documentation = pick(process.documentation, locale);
   diagram.meta.author = 'WEG S.A. — public disclosure';
@@ -104,9 +141,55 @@ export function buildWegDiagram(process, locale = 'ru') {
   return diagram;
 }
 
+/**
+ * Target-state documentation ends with the measured gain against the current
+ * state. It is computed from the two models here, not written by hand, so it
+ * cannot drift away from what the diagrams actually say.
+ */
+function comparisonBlock(baseline, current, locale) {
+  const comparison = compareProcesses(baseline, current);
+  if (!comparison) return '';
+  const ru = locale === 'ru';
+  const money = (value) => formatMoney(value, comparison.currency, locale);
+  const number = (value) => Math.round(value).toLocaleString(ru ? 'ru-RU' : 'en-US');
+  const label = {
+    lead: ru ? 'Срок выполнения' : 'Lead time',
+    work: ru ? 'Трудозатраты на случай' : 'Work per case',
+    wait: ru ? 'Ожидание' : 'Waiting',
+    cost: ru ? 'Стоимость случая' : 'Cost per case',
+    costPerCompletion: ru ? 'Стоимость доведённого до конца случая' : 'Cost per completed case',
+    annualCost: ru ? 'Затраты в год' : 'Annual cost',
+    fte: ru ? 'Штат (FTE)' : 'Headcount (FTE)',
+  };
+  const format = (row, value) => {
+    if (row.kind === 'duration') return formatDuration(value, locale);
+    if (row.kind === 'money') return money(value);
+    return number(value);
+  };
+  const lines = comparison.rows.map((row) => {
+    const delta = `${row.deltaPct > 0 ? '+' : ''}${row.deltaPct.toFixed(1)} %`;
+    return `| ${label[row.key]} | ${format(row, row.from)} | ${format(row, row.to)} | ${delta} |`;
+  });
+  const head = ru
+    ? `\n\n---\n\n### Что даёт переход (расчёт по обеим моделям)\n\n| Показатель | Как есть | Как будет | Δ |\n|---|---|---|---|`
+    : `\n\n---\n\n### Measured gain (computed from both models)\n\n| Metric | As is | To be | Δ |\n|---|---|---|---|`;
+  const doneFrom = Math.round(comparison.completion.from * 1000) / 10;
+  const doneTo = Math.round(comparison.completion.to * 1000) / 10;
+  const foot = ru
+    ? `\n\nДо успешного завершения доходит ${doneFrom} % случаев в модели «как есть» и ${doneTo} % в модели «как будет». Поэтому в таблице есть отдельная строка «стоимость доведённого до конца случая»: процесс, который перестаёт отбраковывать поздно, пропускает больше случаев в дорогие шаги, и его стоимость «на один запущенный случай» может вырасти, пока стоимость «на один доведённый до конца» падает.\n\nЦифры пересчитываются из самих схем: измените любой параметр в панели свойств — и этот блок перестанет совпадать с документацией, а вкладка «Анализ» покажет новое значение. Документация фиксирует состояние на момент построения библиотеки.`
+    : `\n\n${doneFrom}% of cases reach a successful end in the as-is model and ${doneTo}% in the to-be one. That is why the table carries a separate "cost per completed case" row: a process that stops rejecting late lets more cases reach the expensive steps, so its cost per *started* case can rise while the cost per *completed* one falls.\n\nThe figures are computed from the models themselves. Change a parameter in the properties panel and the Analysis tab will show the new value, while this block keeps the state at the time the library was built.`;
+  return `${head}\n${lines.join('\n')}${foot}`;
+}
+
 /** Every library process as diagrams, in the documented order. */
 export function buildWegDiagrams(locale = 'ru') {
-  return WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
+  const diagrams = WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
+  const byProcessId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
+  for (const diagram of diagrams) {
+    const baseline = diagram.meta.baselineId ? byProcessId.get(diagram.meta.baselineId) : null;
+    if (baseline) diagram.meta.documentation += comparisonBlock(baseline, diagram, locale);
+  }
+  return diagrams;
 }
 
 export function wegProjectName(locale = 'ru') {

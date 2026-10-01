@@ -43,42 +43,45 @@ export class Explorer {
         rows.push(`<div class="tree-empty" style="padding-left:34px">${t('explorer.empty')}</div>`);
         continue;
       }
-      // diagrams that declare `meta.folder` are grouped under that folder
-      const folders = new Map();
-      const loose = [];
+      // `meta.folder` groups diagrams into a folder; a slash nests them further
+      const tree = { children: new Map(), diagrams: [] };
       for (const diagram of roots) {
-        const folder = diagram.meta?.folder;
-        if (!folder) {
-          loose.push(diagram);
-          continue;
+        const path = String(diagram.meta?.folder || '').split('/').map((part) => part.trim()).filter(Boolean);
+        let branch = tree;
+        for (const part of path) {
+          if (!branch.children.has(part)) branch.children.set(part, { children: new Map(), diagrams: [] });
+          branch = branch.children.get(part);
         }
-        if (!folders.has(folder)) folders.set(folder, []);
-        folders.get(folder).push(diagram);
+        branch.diagrams.push(diagram);
       }
-      for (const [folder, list] of folders) {
-        const folderId = `__folder_${notation}_${folder}`;
-        const folderCollapsed = this.collapsed.has(folderId);
-        rows.push(
-          row({
-            id: folderId,
-            level: 2,
-            label: folder,
-            iconName: 'folder',
-            badge: String(list.length),
-            hasChildren: true,
-            collapsed: folderCollapsed,
-          })
-        );
-        if (folderCollapsed) continue;
-        for (const diagram of list) this.renderDiagram(diagram, 3, rows);
-      }
-      for (const diagram of loose) this.renderDiagram(diagram, 2, rows);
+      this.renderFolders(tree, `__folder_${notation}`, 2, rows);
     }
 
     rows.push(
       row({ id: '__docs', level: 1, label: t('explorer.documentation'), groupHeader: true, noTwisty: true })
     );
     this.el.innerHTML = rows.join('');
+  }
+
+  /** Folder level of the tree: sub-folders first, then the diagrams in it. */
+  renderFolders(branch, prefix, level, rows) {
+    for (const [name, child] of branch.children) {
+      const id = `${prefix}_${name}`;
+      const collapsed = this.collapsed.has(id);
+      rows.push(
+        row({
+          id,
+          level,
+          label: name,
+          iconName: 'folder',
+          badge: String(countDiagrams(child)),
+          hasChildren: true,
+          collapsed,
+        })
+      );
+      if (!collapsed) this.renderFolders(child, id, level + 1, rows);
+    }
+    for (const diagram of branch.diagrams) this.renderDiagram(diagram, level, rows);
   }
 
   renderDiagram(diagram, level, rows) {
@@ -173,6 +176,12 @@ export class Explorer {
       event.clientY
     );
   }
+}
+
+function countDiagrams(branch) {
+  let total = branch.diagrams.length;
+  for (const child of branch.children.values()) total += countDiagrams(child);
+  return total;
 }
 
 function row({ id, level, label, iconName, active, groupHeader, badge, collapsed, hasChildren, bold, noTwisty }) {

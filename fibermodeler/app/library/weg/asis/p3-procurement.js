@@ -2,8 +2,8 @@
  * 3. Sourcing of strategic raw materials (copper, electrical steel, aluminium)
  *    together with the commodity hedge that protects the margin.
  */
-import { WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { DAY, flow, node, reported, wait, work } from './kit.js';
+import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { DAY, flow, node, reported, wait, work } from '../kit.js';
 
 const LANES = [
   { id: 'mrp', label: { ru: 'Планирование материалов', en: 'Material planning' } },
@@ -16,6 +16,7 @@ const LANES = [
 export const procurement = {
   id: 'weg-procurement',
   order: 3,
+  variant: 'as-is',
   name: { ru: '3. Закупка сырья и хеджирование', en: '3. Raw material sourcing and hedging' },
   description: {
     ru: 'От прогона MRP до оплаты поставщику: отзыв по контракту или тендер, квалификация поставщика, хедж по меди, приёмка и входной контроль.',
@@ -82,7 +83,7 @@ ${sourceBlock(['verticalization', 'annual2025', 'fy2025'], 'en')}`,
       node('stock', 'serviceTask', 'wh', 'Оприходовать на склад', 'Post the goods receipt', work(6, 'Логист')),
       node('match', 'serviceTask', 'wh', 'Трёхсторонняя сверка заказ–приёмка–счёт', 'Three-way match', work(10, 'Финансы')),
       node('pay', 'serviceTask', 'wh', 'Оплатить в срок контракта', 'Pay per contract terms', work(4, 'Финансы', { waitTime: DAY * 30 })),
-      node('end', 'endEvent', 'wh', 'Материал доступен производству', 'Material available to production'),
+      node('end', 'endEvent', 'wh', 'Материал доступен производству', 'Material available to production', { completes: true }),
       node('contractData', 'dataStore', 'buy', 'Рамочные контракты и цены', 'Frame contracts and prices'),
       node('certData', 'dataObject', 'qa', 'Сертификат качества партии', 'Batch quality certificate'),
       node('note', 'textAnnotation', 'treasury', 'Хедж защищает EBITDA-маржу 21,5 % (отчёт 2025)', 'The hedge protects the 21.5% EBITDA margin (2025 report)'),

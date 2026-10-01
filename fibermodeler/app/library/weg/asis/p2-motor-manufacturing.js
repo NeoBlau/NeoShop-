@@ -5,8 +5,8 @@
  * Jaraguá do Sul hosts what the industry recognises as the largest electric
  * motor plant in the world. The model follows one motor through the line.
  */
-import { DERIVED, WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { flow, node, reported, wait, work } from './kit.js';
+import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { flow, node, reported, wait, work } from '../kit.js';
 
 const LANES = [
   { id: 'plan', label: { ru: 'Планирование производства', en: 'Production planning' } },
@@ -21,6 +21,7 @@ const LANES = [
 export const motorManufacturing = {
   id: 'weg-make-motor',
   order: 2,
+  variant: 'as-is',
   name: { ru: '2. Производство асинхронного двигателя', en: '2. Induction motor manufacturing' },
   description: {
     ru: 'Маршрут одного двигателя по линии: штамповка, литьё ротора, обмотка, пропитка, сборка, испытания по IEC 60034, окраска и упаковка.',
@@ -98,7 +99,7 @@ ${sourceBlock(['production', 'annual2025', 'verticalization', 'numbers'], 'en')}
 
       node('paint', 'serviceTask', 'finish', 'Окрасить корпус', 'Paint the frame', work(1.8, 'Оператор', { waitTime: 25, cost: 12 })),
       node('pack', 'manualTask', 'finish', 'Упаковать и передать на склад', 'Pack and move to the warehouse', work(1.2, 'Оператор', { cost: 9 })),
-      node('end', 'endEvent', 'finish', 'Двигатель на складе готовой продукции', 'Motor in finished goods'),
+      node('end', 'endEvent', 'finish', 'Двигатель на складе готовой продукции', 'Motor in finished goods', { completes: true }),
 
       node('specData', 'dataObject', 'plan', 'Спецификация и маршрутная карта', 'BOM and routing'),
       node('testData', 'dataStore', 'test', 'Протоколы испытаний', 'Test records'),

@@ -5,8 +5,8 @@
  * the bulk of that volume is catalogue product shipped from stock, which is
  * what this model describes.
  */
-import { DERIVED, WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { DAY, derived, flow, node, reported, wait, work } from './kit.js';
+import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { DAY, derived, flow, node, reported, wait, work } from '../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент / дистрибьютор', en: 'Customer / distributor' } },
@@ -20,6 +20,7 @@ const LANES = [
 export const orderToCash = {
   id: 'weg-o2c',
   order: 1,
+  variant: 'as-is',
   name: { ru: '1. Обработка заказа на серийный двигатель', en: '1. Order to cash — catalogue motors' },
   description: {
     ru: 'От заказа дистрибьютора до поступления оплаты: проверка спецификации, кредитный лимит, резерв на складе, отгрузка и закрытие дебиторки.',
@@ -89,7 +90,7 @@ ${sourceBlock(['annual2025', 'production', 'fy2025', 'profile'], 'en')}`,
       node('gwCash', 'exclusiveGateway', 'fin', 'Оплата поступила в срок?', 'Paid on time?'),
       node('dunning', 'userTask', 'fin', 'Работа с просрочкой', 'Collections', work(30, 'Финансы', { waitTime: DAY * 12 })),
       node('close', 'serviceTask', 'fin', 'Закрыть заказ и разнести оплату', 'Close the order and apply the payment', work(6, 'Финансы')),
-      node('end', 'endEvent', 'fin', 'Деньги получены', 'Cash received'),
+      node('end', 'endEvent', 'fin', 'Деньги получены', 'Cash received', { completes: true }),
       node('note', 'textAnnotation', 'sales', 'Объём: ≈760 тыс. заказов в год (расчёт из 19 млн двигателей)', 'Volume: ≈760k orders/year (derived from 19m motors)'),
     ],
     edges: [

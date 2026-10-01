@@ -1,8 +1,8 @@
 /**
  * 8. Export shipment from Brazil and customs clearance (DU-E / Siscomex).
  */
-import { DERIVED, WEG, dataNote, roles, sourceBlock } from './facts.js';
-import { DAY, WEEK, flow, node, reported, work } from './kit.js';
+import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
+import { DAY, WEEK, flow, node, reported, work } from '../kit.js';
 
 const LANES = [
   { id: 'client', label: { ru: 'Зарубежный заказчик', en: 'Overseas customer' } },
@@ -22,6 +22,7 @@ const SHIPMENTS = Math.round(EXPORT_REVENUE / SHIPMENT_VALUE / 100) * 100; // �
 export const exportProcess = {
   id: 'weg-export',
   order: 8,
+  variant: 'as-is',
   name: {
     ru: '8. Экспортная поставка и таможенное оформление',
     en: '8. Export shipment and customs clearance',
@@ -124,7 +125,7 @@ ${sourceBlock(['fy2025', 'profile', 'numbers', 'annual2025'], 'en')}`,
       node('deliver', 'serviceTask', 'dest', 'Доставить заказчику и получить подтверждение приёмки', 'Deliver to the customer and obtain the acceptance', work(120, 'Логист', { cost: 1700, waitTime: DAY * 2 })),
       node('payment', 'receiveTask', 'fin', 'Получить платёж по контракту', 'Receive the contract payment', work(25, 'Финансы', { waitTime: DAY * 12 })),
       node('fx', 'serviceTask', 'fin', 'Закрыть валютный контракт обмена и разнести выручку', 'Settle the FX contract and post the revenue', work(45, 'Финансы')),
-      node('end', 'endEvent', 'fin', 'Экспортная поставка закрыта', 'Export shipment closed'),
+      node('end', 'endEvent', 'fin', 'Экспортная поставка закрыта', 'Export shipment closed', { completes: true }),
       node('duDoc', 'dataObject', 'customs', 'DU-E (Siscomex)', 'DU-E (Siscomex)'),
       node('blDoc', 'dataObject', 'carrier', 'Bill of Lading', 'Bill of Lading'),
       node('regStore', 'dataStore', 'fin', 'Реестр экспортных операций и валютных контрактов', 'Register of export operations and FX contracts'),
