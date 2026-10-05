@@ -56,7 +56,7 @@ export function commandList(app) {
     { id: 'file.save', group: 'file', icon: 'save', shortcut: 'Mod+s', label: t('file.save'), run: () => app.saveProject() },
     { id: 'file.saveAs', group: 'file', icon: 'save', shortcut: 'Mod+Shift+s', label: t('file.saveAs'), run: () => app.saveProject({ as: true }) },
     { id: 'file.demo', group: 'file', icon: 'sparkles', label: t('file.demo'), run: () => app.openDemoProject() },
-    { id: 'file.weg', group: 'file', icon: 'folder', label: t('weg.open'), run: () => app.openWegLibrary() },
+    { id: 'file.libraries', group: 'file', icon: 'folder', label: t('library.open'), run: () => app.openLibraries() },
     { id: 'file.projectInfo', group: 'file', icon: 'file', label: t('file.projectInfo'), run: () => app.openProjectProperties() },
     { id: 'file.print', group: 'file', icon: 'print', shortcut: 'Mod+p', label: t('file.print'), enabled: hasDiagram, run: () => app.openPrint() },
 

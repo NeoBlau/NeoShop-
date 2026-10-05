@@ -3,7 +3,7 @@
  * pre-filed DU-E, an ERP-generated document set and an electronic bill of lading.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, auto, flow, node, reported, work } from '../kit.js';
+import { DAY, WEEK, auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'client', label: { ru: 'Зарубежный заказчик', en: 'Overseas customer' } },

@@ -6,7 +6,7 @@
  * turns such an enquiry into a commissioned machine.
  */
 import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, flow, node, reported, wait, work } from '../kit.js';
+import { DAY, WEEK, flow, node, reported, wait, work } from '../../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Заказчик', en: 'Customer' } },

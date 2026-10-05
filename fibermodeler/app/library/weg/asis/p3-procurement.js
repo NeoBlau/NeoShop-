@@ -3,7 +3,7 @@
  *    together with the commodity hedge that protects the margin.
  */
 import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, flow, node, reported, wait, work } from '../kit.js';
+import { DAY, flow, node, reported, wait, work } from '../../kit.js';
 
 const LANES = [
   { id: 'mrp', label: { ru: 'Планирование материалов', en: 'Material planning' } },

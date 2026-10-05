@@ -3,7 +3,7 @@
  * for C-class items and a rule-driven hedge.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, auto, flow, node, reported, work } from '../kit.js';
+import { DAY, WEEK, auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'mrp', label: { ru: 'Планирование материалов', en: 'Material planning' } },

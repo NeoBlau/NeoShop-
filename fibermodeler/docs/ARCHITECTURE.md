@@ -48,12 +48,14 @@ app/
   io/                   zip, xml, bpmn, projectfile, svgexport, raster, pdf, files
   ai/                   schema, local, providers, index
   analysis/             parameters (схема и форматирование), simulate (расчёт), compare (AS-IS/TO-BE)
-  library/weg/          библиотека WEG: facts, kit, asis/p1…p8, tobe/p1…p8, index
+  library/              kit, shared (сборка схем, сравнение), index (все библиотеки)
+    weg/                facts, asis/p1…p8, tobe/p1…p8, index
+    ubereats/           facts, asis, tobe, index
   storage/              db (IndexedDB), recent, autosave
   ui/                   app, commands, menus, panels/, dialogs/, icons, menu, dialog, toast
   i18n/                 ru, en
   assets/fonts/         подмножество DejaVu Sans для PDF
-tests/                  87 тестов, свой раннер
+tests/                  103 теста, свой раннер
 tools/                  сборка одного файла, subsetting шрифта
 ```
 

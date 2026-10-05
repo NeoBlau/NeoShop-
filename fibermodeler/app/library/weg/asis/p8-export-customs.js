@@ -2,7 +2,7 @@
  * 8. Export shipment from Brazil and customs clearance (DU-E / Siscomex).
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, flow, node, reported, work } from '../kit.js';
+import { DAY, WEEK, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'client', label: { ru: 'Зарубежный заказчик', en: 'Overseas customer' } },

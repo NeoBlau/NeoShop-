@@ -3812,10 +3812,9 @@ const en = {
   'compare.delta': 'Δ',
   'compare.costPerDone': 'Cost per completed case',
   'compare.completion': '{from}% of cases reach a successful end in the baseline model and {to}% in the target one. When a process stops rejecting late, the cost per started case can rise while the cost per completed one falls.',
-  'weg.library': 'WEG process library',
-  'weg.open': 'Open the WEG library',
-  'weg.folder': 'WEG',
-  'weg.loaded': 'WEG process library loaded: {count} models',
+  'library.title': 'Process libraries',
+  'library.open': 'Open the process libraries',
+  'library.loaded': 'Process libraries loaded: {count} models',
   'guide.title': 'Quick start',
   'canvas.empty': 'Drag an element from the palette, or press ⌘K / Ctrl+K',
   'canvas.emptyNoDiagram': 'Create a diagram in the left panel to start modelling',
@@ -4219,10 +4218,9 @@ const ru = {
   'compare.delta': 'Δ',
   'compare.costPerDone': 'Стоимость доведённого до конца случая',
   'compare.completion': 'До успешного завершения доходит {from} % случаев в исходной модели и {to} % в целевой. Если процесс перестаёт отбраковывать поздно, стоимость «на один запущенный случай» может вырасти, пока стоимость «на один доведённый до конца» падает.',
-  'weg.library': 'Библиотека процессов WEG',
-  'weg.open': 'Открыть библиотеку WEG',
-  'weg.folder': 'WEG',
-  'weg.loaded': 'Загружена библиотека WEG: моделей — {count}',
+  'library.title': 'Библиотеки процессов',
+  'library.open': 'Открыть библиотеки процессов',
+  'library.loaded': 'Загружены библиотеки процессов: моделей — {count}',
   'guide.title': 'Быстрый старт',
   'canvas.empty': 'Перетащите элемент из палитры или нажмите ⌘K / Ctrl+K',
   'canvas.emptyNoDiagram': 'Создайте диаграмму в левой панели, чтобы начать',
@@ -10784,6 +10782,244 @@ function createDemoProject(locale = 'ru') {
 Object.assign(__exports, { createDemoProject });
 
 });
+__fm_define('app/library/weg/facts.js', function (__exports) {
+/**
+ * Public facts about WEG S.A. used by the process library.
+ *
+ * Everything here comes from WEG's own disclosure (2025 Integrated Annual
+ * Report, FY2025 results release, investor-relations profile) or from press
+ * coverage of those releases. Nothing in this file is internal company data:
+ * WEG does not publish step-level cycle times, so the process parameters in
+ * the models are marked as `derived` (computed from these figures) or
+ * `assumption` (industry norm, meant to be calibrated by the user).
+ */
+
+const WEG_SOURCES = [
+  {
+    id: 'annual2025',
+    title: {
+      ru: 'WEG, Интегрированный годовой отчёт за 2025 год',
+      en: 'WEG, 2025 Integrated Annual Report',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/corporate/weg-releases-its-2025-integrated-annual-report-and-highlights-progress-in-sustainability',
+  },
+  {
+    id: 'profile',
+    title: { ru: 'WEG, профиль компании (IR)', en: 'WEG, corporate profile (IR)' },
+    url: 'https://ri.weg.net/en/weg/corporate-profile/',
+  },
+  {
+    id: 'numbers',
+    title: { ru: 'WEG в цифрах', en: 'WEG in numbers' },
+    url: 'https://www.weg.net/institutional/BR/en/weg-in-numbers',
+  },
+  {
+    id: 'fy2025',
+    title: { ru: 'Результаты за 4-й квартал и 2025 год', en: 'Q4 and FY2025 results coverage' },
+    url: 'https://www.infomoney.com.br/mercados/weg-wege3-resultados-quarto-trimestre-2025/',
+  },
+  {
+    id: 'transformers',
+    title: {
+      ru: 'WEG инвестирует R$ 1,2 млрд в расширение производства трансформаторов',
+      en: 'WEG invests R$ 1.2 billion to expand transformer capacity',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/result-and-investiments/weg-announces-that-it-will-invest-r-1-2-billion-to-expand-transformer-production-capacity',
+  },
+  {
+    id: 'generators',
+    title: {
+      ru: 'WEG инвестирует US$ 165 млн в производство генераторов в Северной Америке',
+      en: 'WEG invests US$ 165 million in North American generator capacity',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/corporate/crescimento-no-exterior',
+  },
+  {
+    id: 'verticalization',
+    title: {
+      ru: 'WEG вложит около R$ 670 млн в вертикальную интеграцию в Мексике и Бразилии',
+      en: 'WEG will invest about R$ 670 million in vertical integration in Mexico and Brazil',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/news/corporate/weg-will-invest-approximately-r-670-million-in-vertical-integration-processes-in-mexico-and-brazil',
+  },
+  {
+    id: 'production',
+    title: {
+      ru: 'Производственные показатели 2025: более 19 млн двигателей, 67 площадок',
+      en: '2025 output: more than 19 million motors across 67 plants',
+    },
+    url: 'https://www.nsctotal.com.br/economia/weg-revela-numeros-da-producao-historica-que-consolida-lideranca-global-no-setor',
+  },
+  {
+    id: 'astec',
+    title: {
+      ru: 'Сеть авторизованного сервиса WEG (ASTEC)',
+      en: 'WEG authorised technical assistance network (ASTEC)',
+    },
+    url: 'https://www.weg.net/institutional/BR/en/contact/technical-support',
+  },
+];
+
+/** Head-line figures of the 2025 financial year. */
+const WEG = {
+  year: 2025,
+  revenue: 40.8e9, // R$, net operating revenue, +7.4% YoY
+  netIncome: 6.38e9, // R$, +5.5% YoY
+  ebitda: 8.77e9, // R$
+  q4Revenue: 10.247e9,
+  q4Ebitda: 2.292e9,
+  q4NetIncome: 1.588e9,
+  roic: 0.325,
+  externalShare: 0.595, // 59-60% of revenue from markets outside Brazil
+  employees: 49000, // "more than 49,000"
+  plants: 67,
+  countries: 18,
+  motorsPerYear: 19e6, // "more than 19 million motors"
+  paintLitresPerYear: 15e6,
+  rndSpend: 1.4e9, // R$
+  segments: {
+    industrial: 0.516, // Industrial Electro-Electronic Equipment
+    gtd: 0.358, // Generation, Transmission & Distribution
+    other: 0.126, // Commercial motors & appliances + paints and varnishes
+  },
+  investments: {
+    generatorsUsd: 165e6,
+    generatorsBrl: 840e6,
+    generatorsPerDay2030: 50,
+    transformersBrl: 1.2e9,
+    verticalizationBrl: 670e6,
+    capacityBrl3y: 1.2e9,
+  },
+  acquisition2024: { employees: 2800, plants: 10, countries: 7 },
+  workingDays: 250,
+  serviceNetworkBrazilTransformers: 40,
+};
+
+/** Numbers computed from the figures above - shown as "derived" in the models. */
+const DERIVED = {
+  motorsPerDay: Math.round(WEG.motorsPerYear / WEG.workingDays), // 76 000
+  revenuePerEmployee: Math.round(WEG.revenue / WEG.employees), // ≈ R$ 833 000
+  revenuePerWorkingDay: Math.round(WEG.revenue / WEG.workingDays), // ≈ R$ 163 млн
+  ebitdaMargin: Math.round((WEG.ebitda / WEG.revenue) * 1000) / 10, // 21.5 %
+  rndShare: Math.round((WEG.rndSpend / WEG.revenue) * 1000) / 10, // 3.4 %
+  industrialRevenue: Math.round(WEG.revenue * WEG.segments.industrial), // ≈ R$ 21.1 bn
+  gtdRevenue: Math.round(WEG.revenue * WEG.segments.gtd), // ≈ R$ 14.6 bn
+  externalRevenue: Math.round(WEG.revenue * WEG.externalShare), // ≈ R$ 24.3 bn
+};
+
+/**
+ * Fully loaded hourly rates used by the models.
+ * These are NOT published by WEG - they are conventional Brazilian industry
+ * rates and are flagged as assumptions everywhere they are used.
+ */
+const RATES = {
+  operator: 48,
+  technician: 72,
+  engineer: 135,
+  seniorEngineer: 190,
+  planner: 95,
+  buyer: 105,
+  sales: 115,
+  analyst: 90,
+  logistics: 70,
+  finance: 100,
+  quality: 85,
+  fieldService: 160,
+  customs: 120,
+};
+
+/** English labels for the Russian role names used by the process library. */
+const ROLE_LABELS = {
+  Оператор: 'Operator',
+  'Оператор линии': 'Line operator',
+  Намотчик: 'Winder',
+  Сборщик: 'Assembler',
+  Техник: 'Technician',
+  'Техник-испытатель': 'Test technician',
+  Инженер: 'Engineer',
+  'Инженер-конструктор': 'Design engineer',
+  'Ведущий инженер': 'Senior engineer',
+  Планировщик: 'Planner',
+  Закупщик: 'Buyer',
+  'Менеджер по продажам': 'Sales manager',
+  Аналитик: 'Analyst',
+  Логист: 'Logistics',
+  Финансы: 'Finance',
+  ОТК: 'Quality',
+  'Сервисный инженер': 'Field service',
+  'Таможенный брокер': 'Customs broker',
+  Казначейство: 'Treasury',
+};
+
+/** Role name in the requested language; unknown names are returned as they are. */
+function roleLabel(name, locale = 'ru') {
+  if (!name) return name;
+  if (locale !== 'en') return name;
+  return ROLE_LABELS[name] || name;
+}
+
+function roles(...names) {
+  return names.map((name) => ({ id: name, name, rate: RATES[roleKey(name)] ?? 90 }));
+}
+
+const ROLE_KEYS = {
+  Оператор: 'operator',
+  'Оператор линии': 'operator',
+  Намотчик: 'operator',
+  Сборщик: 'operator',
+  Техник: 'technician',
+  'Техник-испытатель': 'technician',
+  Инженер: 'engineer',
+  'Инженер-конструктор': 'engineer',
+  'Ведущий инженер': 'seniorEngineer',
+  Планировщик: 'planner',
+  Закупщик: 'buyer',
+  'Менеджер по продажам': 'sales',
+  Аналитик: 'analyst',
+  Логист: 'logistics',
+  Финансы: 'finance',
+  ОТК: 'quality',
+  'Сервисный инженер': 'fieldService',
+  'Таможенный брокер': 'customs',
+  Казначейство: 'finance',
+  Operator: 'operator',
+  Technician: 'technician',
+  Engineer: 'engineer',
+  'Senior engineer': 'seniorEngineer',
+  Planner: 'planner',
+  Buyer: 'buyer',
+  'Sales manager': 'sales',
+  Analyst: 'analyst',
+  Logistics: 'logistics',
+  Finance: 'finance',
+  Quality: 'quality',
+  'Field service': 'fieldService',
+  'Customs broker': 'customs',
+  Treasury: 'finance',
+};
+
+function roleKey(name) {
+  return ROLE_KEYS[name] || 'analyst';
+}
+
+/** Renders the source list as a markdown-ish block for the documentation field. */
+function sourceBlock(ids, locale = 'ru') {
+  const header = locale === 'ru' ? 'Источники публичных данных:' : 'Public sources:';
+  const lines = WEG_SOURCES.filter((item) => ids.includes(item.id)).map(
+    (item) => `• ${item.title[locale] || item.title.en} — ${item.url}`
+  );
+  return `${header}\n${lines.join('\n')}`;
+}
+
+function dataNote(locale = 'ru') {
+  return locale === 'ru'
+    ? 'Обозначение источников у параметров: «публичная отчётность» — цифра взята из отчёта WEG; «расчёт из публичных данных» — получена из отчётных цифр по формуле, указанной в описании; «отраслевое допущение» — нормативная оценка, которую нужно откалибровать по собственным данным. WEG не публикует пооперационные нормативы времени, поэтому времена операций — допущения.'
+    : 'Parameter source tags: “public report” — the figure comes from WEG disclosure; “derived” — computed from reported figures with the formula given in the description; “assumption” — an industry norm to calibrate with your own data. WEG does not publish step-level cycle times, so operation times are assumptions.';
+}
+
+Object.assign(__exports, { WEG_SOURCES, WEG, DERIVED, RATES, ROLE_LABELS, roleLabel, roles, sourceBlock, dataNote });
+
+});
 __fm_define('app/analysis/simulate.js', function (__exports) {
 /**
  * Process calculation engine.
@@ -11085,7 +11321,9 @@ function analyzeProcess(diagram, overrides = {}) {
       });
     }
   }
-  const missing = activityRows.filter((row) => !row.duration);
+  // a task that only waits (a customer choosing, a kitchen cooking) has elapsed
+  // time but no labour - that is a legitimate description, not a missing value
+  const missing = activityRows.filter((row) => !row.duration && !row.wait);
   if (missing.length) {
     issues.push({
       severity: 'info',
@@ -11229,245 +11467,176 @@ function compareProcesses(baseline, current) {
 Object.assign(__exports, { completionShare, COMPARE_METRICS, compareProcesses });
 
 });
-__fm_define('app/library/weg/facts.js', function (__exports) {
+__fm_define('app/library/shared.js', function (__exports) {
 /**
- * Public facts about WEG S.A. used by the process library.
+ * Code shared by every shipped process library (WEG, Uber Eats, ...).
  *
- * Everything here comes from WEG's own disclosure (2025 Integrated Annual
- * Report, FY2025 results release, investor-relations profile) or from press
- * coverage of those releases. Nothing in this file is internal company data:
- * WEG does not publish step-level cycle times, so the process parameters in
- * the models are marked as `derived` (computed from these figures) or
- * `assumption` (industry norm, meant to be calibrated by the user).
+ * A library process is a notation-neutral specification with `{ ru, en }`
+ * pairs; this module resolves one language, turns the specification into a real
+ * diagram through the same pipeline the templates and the table builder use,
+ * and appends the computed AS-IS / TO-BE comparison to the target models.
  */
+const { buildBpmnDiagram } = __fm_require('app/ai/schema.js');
+const { compareProcesses } = __fm_require('app/analysis/compare.js');
+const { formatDuration, formatMoney } = __fm_require('app/analysis/parameters.js');
+/* ------------------------------------------------------------ localisation */
 
-const WEG_SOURCES = [
-  {
-    id: 'annual2025',
-    title: {
-      ru: 'WEG, Интегрированный годовой отчёт за 2025 год',
-      en: 'WEG, 2025 Integrated Annual Report',
-    },
-    url: 'https://www.weg.net/institutional/BR/en/news/corporate/weg-releases-its-2025-integrated-annual-report-and-highlights-progress-in-sustainability',
-  },
-  {
-    id: 'profile',
-    title: { ru: 'WEG, профиль компании (IR)', en: 'WEG, corporate profile (IR)' },
-    url: 'https://ri.weg.net/en/weg/corporate-profile/',
-  },
-  {
-    id: 'numbers',
-    title: { ru: 'WEG в цифрах', en: 'WEG in numbers' },
-    url: 'https://www.weg.net/institutional/BR/en/weg-in-numbers',
-  },
-  {
-    id: 'fy2025',
-    title: { ru: 'Результаты за 4-й квартал и 2025 год', en: 'Q4 and FY2025 results coverage' },
-    url: 'https://www.infomoney.com.br/mercados/weg-wege3-resultados-quarto-trimestre-2025/',
-  },
-  {
-    id: 'transformers',
-    title: {
-      ru: 'WEG инвестирует R$ 1,2 млрд в расширение производства трансформаторов',
-      en: 'WEG invests R$ 1.2 billion to expand transformer capacity',
-    },
-    url: 'https://www.weg.net/institutional/BR/en/news/result-and-investiments/weg-announces-that-it-will-invest-r-1-2-billion-to-expand-transformer-production-capacity',
-  },
-  {
-    id: 'generators',
-    title: {
-      ru: 'WEG инвестирует US$ 165 млн в производство генераторов в Северной Америке',
-      en: 'WEG invests US$ 165 million in North American generator capacity',
-    },
-    url: 'https://www.weg.net/institutional/BR/en/news/corporate/crescimento-no-exterior',
-  },
-  {
-    id: 'verticalization',
-    title: {
-      ru: 'WEG вложит около R$ 670 млн в вертикальную интеграцию в Мексике и Бразилии',
-      en: 'WEG will invest about R$ 670 million in vertical integration in Mexico and Brazil',
-    },
-    url: 'https://www.weg.net/institutional/BR/en/news/corporate/weg-will-invest-approximately-r-670-million-in-vertical-integration-processes-in-mexico-and-brazil',
-  },
-  {
-    id: 'production',
-    title: {
-      ru: 'Производственные показатели 2025: более 19 млн двигателей, 67 площадок',
-      en: '2025 output: more than 19 million motors across 67 plants',
-    },
-    url: 'https://www.nsctotal.com.br/economia/weg-revela-numeros-da-producao-historica-que-consolida-lideranca-global-no-setor',
-  },
-  {
-    id: 'astec',
-    title: {
-      ru: 'Сеть авторизованного сервиса WEG (ASTEC)',
-      en: 'WEG authorised technical assistance network (ASTEC)',
-    },
-    url: 'https://www.weg.net/institutional/BR/en/contact/technical-support',
-  },
-];
+function pick(value, locale) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  return value[locale] || value.en || value.ru || '';
+}
 
-/** Head-line figures of the 2025 financial year. */
-const WEG = {
-  year: 2025,
-  revenue: 40.8e9, // R$, net operating revenue, +7.4% YoY
-  netIncome: 6.38e9, // R$, +5.5% YoY
-  ebitda: 8.77e9, // R$
-  q4Revenue: 10.247e9,
-  q4Ebitda: 2.292e9,
-  q4NetIncome: 1.588e9,
-  roic: 0.325,
-  externalShare: 0.595, // 59-60% of revenue from markets outside Brazil
-  employees: 49000, // "more than 49,000"
-  plants: 67,
-  countries: 18,
-  motorsPerYear: 19e6, // "more than 19 million motors"
-  paintLitresPerYear: 15e6,
-  rndSpend: 1.4e9, // R$
-  segments: {
-    industrial: 0.516, // Industrial Electro-Electronic Equipment
-    gtd: 0.358, // Generation, Transmission & Distribution
-    other: 0.126, // Commercial motors & appliances + paints and varnishes
-  },
-  investments: {
-    generatorsUsd: 165e6,
-    generatorsBrl: 840e6,
-    generatorsPerDay2030: 50,
-    transformersBrl: 1.2e9,
-    verticalizationBrl: 670e6,
-    capacityBrl3y: 1.2e9,
-  },
-  acquisition2024: { employees: 2800, plants: 10, countries: 7 },
-  workingDays: 250,
-  serviceNetworkBrazilTransformers: 40,
-};
+function localizeProps(props, locale, roleName) {
+  if (!props) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && ('ru' in value || 'en' in value)) {
+      out[key] = pick(value, locale);
+    } else if (key === 'resource' && typeof value === 'string') {
+      out[key] = roleName(value, locale);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
 
-/** Numbers computed from the figures above - shown as "derived" in the models. */
-const DERIVED = {
-  motorsPerDay: Math.round(WEG.motorsPerYear / WEG.workingDays), // 76 000
-  revenuePerEmployee: Math.round(WEG.revenue / WEG.employees), // ≈ R$ 833 000
-  revenuePerWorkingDay: Math.round(WEG.revenue / WEG.workingDays), // ≈ R$ 163 млн
-  ebitdaMargin: Math.round((WEG.ebitda / WEG.revenue) * 1000) / 10, // 21.5 %
-  rndShare: Math.round((WEG.rndSpend / WEG.revenue) * 1000) / 10, // 3.4 %
-  industrialRevenue: Math.round(WEG.revenue * WEG.segments.industrial), // ≈ R$ 21.1 bn
-  gtdRevenue: Math.round(WEG.revenue * WEG.segments.gtd), // ≈ R$ 14.6 bn
-  externalRevenue: Math.round(WEG.revenue * WEG.externalShare), // ≈ R$ 24.3 bn
-};
+/** Resolves every `{ ru, en }` pair of a specification into one language. */
+function localizeSpec(spec, locale = 'ru', roleName = (name) => name) {
+  return {
+    notation: spec.notation || 'bpmn',
+    name: pick(spec.name, locale),
+    poolLabel: spec.poolLabel ? pick(spec.poolLabel, locale) : undefined,
+    lanes: (spec.lanes || []).map((lane) => ({ id: lane.id, label: pick(lane.label, locale) })),
+    nodes: (spec.nodes || []).map((node) => ({
+      ...node,
+      label: pick(node.label, locale),
+      props: localizeProps(node.props, locale, roleName),
+    })),
+    edges: (spec.edges || []).map((edge) => ({
+      ...edge,
+      label: edge.label ? pick(edge.label, locale) : undefined,
+      props: localizeProps(edge.props, locale, roleName),
+    })),
+  };
+}
+
+function localizeAnalysis(analysis, locale, roleName = (name) => name) {
+  if (!analysis) return undefined;
+  return {
+    ...analysis,
+    roles: (analysis.roles || []).map((role) => ({ ...role, name: roleName(role.name, locale) })),
+  };
+}
+
+/* --------------------------------------------------------------- building */
 
 /**
- * Fully loaded hourly rates used by the models.
- * These are NOT published by WEG - they are conventional Brazilian industry
- * rates and are flagged as assumptions everywhere they are used.
+ * One library process -> one ready diagram.
+ *
+ * `options`: `library` (id stored in meta.library), `folder` (explorer path),
+ * `author`, `roleName(name, locale)` for the role translations.
  */
-const RATES = {
-  operator: 48,
-  technician: 72,
-  engineer: 135,
-  seniorEngineer: 190,
-  planner: 95,
-  buyer: 105,
-  sales: 115,
-  analyst: 90,
-  logistics: 70,
-  finance: 100,
-  quality: 85,
-  fieldService: 160,
-  customs: 120,
-};
-
-/** English labels for the Russian role names used by the process library. */
-const ROLE_LABELS = {
-  Оператор: 'Operator',
-  'Оператор линии': 'Line operator',
-  Намотчик: 'Winder',
-  Сборщик: 'Assembler',
-  Техник: 'Technician',
-  'Техник-испытатель': 'Test technician',
-  Инженер: 'Engineer',
-  'Инженер-конструктор': 'Design engineer',
-  'Ведущий инженер': 'Senior engineer',
-  Планировщик: 'Planner',
-  Закупщик: 'Buyer',
-  'Менеджер по продажам': 'Sales manager',
-  Аналитик: 'Analyst',
-  Логист: 'Logistics',
-  Финансы: 'Finance',
-  ОТК: 'Quality',
-  'Сервисный инженер': 'Field service',
-  'Таможенный брокер': 'Customs broker',
-  Казначейство: 'Treasury',
-};
-
-/** Role name in the requested language; unknown names are returned as they are. */
-function roleLabel(name, locale = 'ru') {
-  if (!name) return name;
-  if (locale !== 'en') return name;
-  return ROLE_LABELS[name] || name;
+function buildLibraryDiagram(process, locale, options) {
+  const spec = localizeSpec(process.spec, locale, options.roleName);
+  const diagram = buildBpmnDiagram(spec, { locale, name: pick(process.name, locale) });
+  diagram.name = pick(process.name, locale);
+  diagram.meta.folder = options.folder;
+  diagram.meta.library = options.library;
+  diagram.meta.processId = process.id;
+  diagram.meta.variant = process.variant;
+  if (process.baselineId) diagram.meta.baselineId = process.baselineId;
+  diagram.meta.description = pick(process.description, locale);
+  diagram.meta.documentation = pick(process.documentation, locale);
+  diagram.meta.author = options.author;
+  diagram.meta.analysis = localizeAnalysis(process.analysis, locale, options.roleName);
+  return diagram;
 }
 
-function roles(...names) {
-  return names.map((name) => ({ id: name, name, rate: RATES[roleKey(name)] ?? 90 }));
+/**
+ * Target-state documentation ends with the measured gain against the current
+ * state. It is computed from the two models here, not written by hand, so it
+ * cannot drift away from what the diagrams actually say.
+ */
+function comparisonBlock(baseline, current, locale) {
+  const comparison = compareProcesses(baseline, current);
+  if (!comparison) return '';
+  const ru = locale === 'ru';
+  const money = (value) => formatMoney(value, comparison.currency, locale);
+  const number = (value) => Math.round(value).toLocaleString(ru ? 'ru-RU' : 'en-US');
+  const label = {
+    lead: ru ? 'Срок выполнения' : 'Lead time',
+    work: ru ? 'Трудозатраты на случай' : 'Work per case',
+    wait: ru ? 'Ожидание' : 'Waiting',
+    cost: ru ? 'Стоимость случая' : 'Cost per case',
+    costPerCompletion: ru ? 'Стоимость доведённого до конца случая' : 'Cost per completed case',
+    annualCost: ru ? 'Затраты в год' : 'Annual cost',
+    fte: ru ? 'Штат (FTE)' : 'Headcount (FTE)',
+  };
+  const format = (row, value) => {
+    if (row.kind === 'duration') return formatDuration(value, locale);
+    if (row.kind === 'money') return money(value);
+    return number(value);
+  };
+  const lines = comparison.rows.map((row) => {
+    const delta = `${row.deltaPct > 0 ? '+' : ''}${row.deltaPct.toFixed(1)} %`;
+    return `| ${label[row.key]} | ${format(row, row.from)} | ${format(row, row.to)} | ${delta} |`;
+  });
+  const head = ru
+    ? `\n\n---\n\n### Что даёт переход (расчёт по обеим моделям)\n\n| Показатель | Как есть | Как будет | Δ |\n|---|---|---|---|`
+    : `\n\n---\n\n### Measured gain (computed from both models)\n\n| Metric | As is | To be | Δ |\n|---|---|---|---|`;
+  const doneFrom = Math.round(comparison.completion.from * 1000) / 10;
+  const doneTo = Math.round(comparison.completion.to * 1000) / 10;
+  const foot = ru
+    ? `\n\nДо успешного завершения доходит ${doneFrom} % случаев в модели «как есть» и ${doneTo} % в модели «как будет». Поэтому в таблице есть отдельная строка «стоимость доведённого до конца случая»: процесс, который перестаёт отбраковывать поздно, пропускает больше случаев в дорогие шаги, и его стоимость «на один запущенный случай» может вырасти, пока стоимость «на один доведённый до конца» падает.\n\nЦифры пересчитываются из самих схем: измените любой параметр в панели свойств — и этот блок перестанет совпадать с документацией, а вкладка «Анализ» покажет новое значение. Документация фиксирует состояние на момент построения библиотеки.`
+    : `\n\n${doneFrom}% of cases reach a successful end in the as-is model and ${doneTo}% in the to-be one. That is why the table carries a separate "cost per completed case" row: a process that stops rejecting late lets more cases reach the expensive steps, so its cost per *started* case can rise while the cost per *completed* one falls.\n\nThe figures are computed from the models themselves. Change a parameter in the properties panel and the Analysis tab will show the new value, while this block keeps the state at the time the library was built.`;
+  return `${head}\n${lines.join('\n')}${foot}`;
 }
 
-const ROLE_KEYS = {
-  Оператор: 'operator',
-  'Оператор линии': 'operator',
-  Намотчик: 'operator',
-  Сборщик: 'operator',
-  Техник: 'technician',
-  'Техник-испытатель': 'technician',
-  Инженер: 'engineer',
-  'Инженер-конструктор': 'engineer',
-  'Ведущий инженер': 'seniorEngineer',
-  Планировщик: 'planner',
-  Закупщик: 'buyer',
-  'Менеджер по продажам': 'sales',
-  Аналитик: 'analyst',
-  Логист: 'logistics',
-  Финансы: 'finance',
-  ОТК: 'quality',
-  'Сервисный инженер': 'fieldService',
-  'Таможенный брокер': 'customs',
-  Казначейство: 'finance',
-  Operator: 'operator',
-  Technician: 'technician',
-  Engineer: 'engineer',
-  'Senior engineer': 'seniorEngineer',
-  Planner: 'planner',
-  Buyer: 'buyer',
-  'Sales manager': 'sales',
-  Analyst: 'analyst',
-  Logistics: 'logistics',
-  Finance: 'finance',
-  Quality: 'quality',
-  'Field service': 'fieldService',
-  'Customs broker': 'customs',
-  Treasury: 'finance',
-};
-
-function roleKey(name) {
-  return ROLE_KEYS[name] || 'analyst';
+/** Every library process as diagrams, in the documented order. */
+function buildWegDiagrams(locale = 'ru') {
+  const diagrams = WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
+  const byProcessId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
+  for (const diagram of diagrams) {
+    const baseline = diagram.meta.baselineId ? byProcessId.get(diagram.meta.baselineId) : null;
+    if (baseline) diagram.meta.documentation += comparisonBlock(baseline, diagram, locale);
+  }
+  return diagrams;
 }
 
-/** Renders the source list as a markdown-ish block for the documentation field. */
-function sourceBlock(ids, locale = 'ru') {
-  const header = locale === 'ru' ? 'Источники публичных данных:' : 'Public sources:';
-  const lines = WEG_SOURCES.filter((item) => ids.includes(item.id)).map(
-    (item) => `• ${item.title[locale] || item.title.en} — ${item.url}`
+/**
+ * Builds every process of a library and appends the computed comparison to the
+ * documentation of each target-state model. `folderOf(process, locale)` gives
+ * the explorer path of a process.
+ */
+function buildLibraryDiagrams(processes, locale, options, folderOf) {
+  const diagrams = processes.map((process) =>
+    buildLibraryDiagram(process, locale, { ...options, folder: folderOf(process, locale) })
   );
-  return `${header}\n${lines.join('\n')}`;
+  const byProcessId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
+  for (const diagram of diagrams) {
+    const baseline = diagram.meta.baselineId ? byProcessId.get(diagram.meta.baselineId) : null;
+    if (baseline) diagram.meta.documentation += comparisonBlock(baseline, diagram, locale);
+  }
+  return diagrams;
 }
 
-function dataNote(locale = 'ru') {
-  return locale === 'ru'
-    ? 'Обозначение источников у параметров: «публичная отчётность» — цифра взята из отчёта WEG; «расчёт из публичных данных» — получена из отчётных цифр по формуле, указанной в описании; «отраслевое допущение» — нормативная оценка, которую нужно откалибровать по собственным данным. WEG не публикует пооперационные нормативы времени, поэтому времена операций — допущения.'
-    : 'Parameter source tags: “public report” — the figure comes from WEG disclosure; “derived” — computed from reported figures with the formula given in the description; “assumption” — an industry norm to calibrate with your own data. WEG does not publish step-level cycle times, so operation times are assumptions.';
+/** Explorer sub-folders for the two versions of a process, shared by every library. */
+const VARIANT_FOLDERS = {
+  'as-is': { ru: 'Как есть (AS-IS)', en: 'As is (AS-IS)' },
+  'to-be': { ru: 'Как будет (TO-BE)', en: 'To be (TO-BE)' },
+};
+
+function variantFolder(root, variant, locale = 'ru') {
+  const name = VARIANT_FOLDERS[variant] || VARIANT_FOLDERS['as-is'];
+  return `${root}/${name[locale] || name.en}`;
 }
 
-Object.assign(__exports, { WEG_SOURCES, WEG, DERIVED, RATES, ROLE_LABELS, roleLabel, roles, sourceBlock, dataNote });
+Object.assign(__exports, { pick, localizeSpec, localizeAnalysis, buildLibraryDiagram, comparisonBlock, buildWegDiagrams, buildLibraryDiagrams, variantFolder });
 
 });
-__fm_define('app/library/weg/kit.js', function (__exports) {
+__fm_define('app/library/kit.js', function (__exports) {
 /** Small helpers that keep the process definitions readable. */
 
 /** Node: id, BPMN type, lane, russian label, english label, parameters. */
@@ -11528,7 +11697,7 @@ __fm_define('app/library/weg/asis/p1-order-to-cash.js', function (__exports) {
  * what this model describes.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, derived, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, derived, flow, node, reported, wait, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент / дистрибьютор', en: 'Customer / distributor' } },
   { id: 'sales', label: { ru: 'Отдел продаж', en: 'Sales' } },
@@ -11661,7 +11830,7 @@ __fm_define('app/library/weg/asis/p2-motor-manufacturing.js', function (__export
  * motor plant in the world. The model follows one motor through the line.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const { flow, node, reported, wait, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'plan', label: { ru: 'Планирование производства', en: 'Production planning' } },
   { id: 'stamp', label: { ru: 'Штамповка и пакетирование', en: 'Stamping & core stacking' } },
@@ -11804,7 +11973,7 @@ __fm_define('app/library/weg/asis/p3-procurement.js', function (__exports) {
  *    together with the commodity hedge that protects the margin.
  */
 const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, flow, node, reported, wait, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'mrp', label: { ru: 'Планирование материалов', en: 'Material planning' } },
   { id: 'buy', label: { ru: 'Закупки', en: 'Procurement' } },
@@ -11937,7 +12106,7 @@ __fm_define('app/library/weg/asis/p4-engineer-to-order.js', function (__exports)
  * turns such an enquiry into a commissioned machine.
  */
 const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'customer', label: { ru: 'Заказчик', en: 'Customer' } },
   { id: 'sales', label: { ru: 'Продажи проектов', en: 'Project sales' } },
@@ -12077,7 +12246,7 @@ __fm_define('app/library/weg/asis/p5-transformer-project.js', function (__export
  * the company is putting R$ 1.2 billion into transformer capacity.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'utility', label: { ru: 'Заказчик (энергокомпания)', en: 'Customer (utility)' } },
   { id: 'bid', label: { ru: 'Тендерный отдел', en: 'Bid office' } },
@@ -12210,7 +12379,7 @@ __fm_define('app/library/weg/asis/p6-service.js', function (__exports) {
  * 6. After-sales service and repair through the authorised network (ASTEC).
  */
 const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, flow, node, reported, wait, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент', en: 'Customer' } },
   { id: 'support', label: { ru: 'Техническая поддержка', en: 'Technical support' } },
@@ -12339,7 +12508,7 @@ __fm_define('app/library/weg/asis/p7-new-product.js', function (__exports) {
  * classified as sustainable.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, flow, node, reported, wait, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'market', label: { ru: 'Маркетинг и продукт', en: 'Marketing & product' } },
   { id: 'rnd', label: { ru: 'R&D — расчёт и конструкция', en: 'R&D — design' } },
@@ -12470,7 +12639,7 @@ __fm_define('app/library/weg/asis/p8-export-customs.js', function (__exports) {
  * 8. Export shipment from Brazil and customs clearance (DU-E / Siscomex).
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'client', label: { ru: 'Зарубежный заказчик', en: 'Overseas customer' } },
   { id: 'sales', label: { ru: 'Экспортные продажи', en: 'Export sales' } },
@@ -12667,7 +12836,7 @@ __fm_define('app/library/weg/tobe/p1-order-to-cash.js', function (__exports) {
  * scoring, available-to-promise from stock, early-payment discount.
  */
 const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент / дистрибьютор', en: 'Customer / distributor' } },
   { id: 'portal', label: { ru: 'B2B-портал и ERP (автоматика)', en: 'B2B portal and ERP (automated)' } },
@@ -12819,7 +12988,7 @@ __fm_define('app/library/weg/tobe/p2-motor-manufacturing.js', function (__export
  * statistical process control instead of end-of-line sorting.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'plan', label: { ru: 'Планирование производства', en: 'Production planning' } },
   { id: 'stamp', label: { ru: 'Штамповка и пакетирование', en: 'Stamping and stacking' } },
@@ -12972,7 +13141,7 @@ __fm_define('app/library/weg/tobe/p3-procurement.js', function (__exports) {
  * for C-class items and a rule-driven hedge.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'mrp', label: { ru: 'Планирование материалов', en: 'Material planning' } },
   { id: 'buy', label: { ru: 'Закупки', en: 'Procurement' } },
@@ -13134,7 +13303,7 @@ __fm_define('app/library/weg/tobe/p4-engineer-to-order.js', function (__exports)
  * validated executions, modular design, a digital twin and a virtual FAT.
  */
 const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'customer', label: { ru: 'Заказчик', en: 'Customer' } },
   { id: 'sales', label: { ru: 'Продажи проектов', en: 'Project sales' } },
@@ -13300,7 +13469,7 @@ __fm_define('app/library/weg/tobe/p5-transformer-project.js', function (__export
  * and procurement, expanded capacity and a remote type test.
  */
 const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'utility', label: { ru: 'Заказчик (энергокомпания)', en: 'Customer (utility)' } },
   { id: 'bid', label: { ru: 'Тендерный отдел', en: 'Bid office' } },
@@ -13462,7 +13631,7 @@ __fm_define('app/library/weg/tobe/p6-service.js', function (__exports) {
  * the failure, parts are staged from the forecast, most cases close remotely.
  */
 const { WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'fleet', label: { ru: 'Мониторинг парка оборудования', en: 'Equipment fleet monitoring' } },
   { id: 'customer', label: { ru: 'Клиент', en: 'Customer' } },
@@ -13616,7 +13785,7 @@ __fm_define('app/library/weg/tobe/p7-new-product.js', function (__exports) {
  * design, additive tooling for the pilot and certification run in parallel.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'market', label: { ru: 'Маркетинг и продукт', en: 'Marketing and product' } },
   { id: 'rnd', label: { ru: 'R&D — расчёт и конструкция', en: 'R&D — calculation and design' } },
@@ -13775,7 +13944,7 @@ __fm_define('app/library/weg/tobe/p8-export-customs.js', function (__exports) {
  * pre-filed DU-E, an ERP-generated document set and an electronic bill of lading.
  */
 const { DERIVED, WEG, dataNote, roles, sourceBlock } = __fm_require('app/library/weg/facts.js');
-const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/weg/kit.js');
+const { DAY, WEEK, auto, flow, node, reported, work } = __fm_require('app/library/kit.js');
 const LANES = [
   { id: 'client', label: { ru: 'Зарубежный заказчик', en: 'Overseas customer' } },
   { id: 'sales', label: { ru: 'Экспортные продажи', en: 'Export sales' } },
@@ -13979,10 +14148,8 @@ __fm_define('app/library/weg/index.js', function (__exports) {
  * pipeline the templates and the table builder use.
  */
 const { createProject } = __fm_require('app/core/model.js');
-const { buildBpmnDiagram } = __fm_require('app/ai/schema.js');
-const { compareProcesses } = __fm_require('app/analysis/compare.js');
-const { formatDuration, formatMoney } = __fm_require('app/analysis/parameters.js');
 const { WEG, WEG_SOURCES, dataNote, roleLabel } = __fm_require('app/library/weg/facts.js');
+const { buildLibraryDiagram, buildLibraryDiagrams, localizeSpec: localizeWithRoles, pick, variantFolder } = __fm_require('app/library/shared.js');
 const { orderToCash } = __fm_require('app/library/weg/asis/p1-order-to-cash.js');
 const { motorManufacturing } = __fm_require('app/library/weg/asis/p2-motor-manufacturing.js');
 const { procurement } = __fm_require('app/library/weg/asis/p3-procurement.js');
@@ -14002,15 +14169,9 @@ const { exportProcessToBe } = __fm_require('app/library/weg/tobe/p8-export-custo
 /** Root folder shown in the model explorer; the variants are its sub-folders. */
 const WEG_FOLDER = 'WEG';
 
-const VARIANT_FOLDERS = {
-  'as-is': { ru: 'Как есть (AS-IS)', en: 'As is (AS-IS)' },
-  'to-be': { ru: 'Как будет (TO-BE)', en: 'To be (TO-BE)' },
-};
-
 /** `WEG/Как есть (AS-IS)` - the explorer splits the path into nested folders. */
 function wegFolder(variant, locale = 'ru') {
-  const name = VARIANT_FOLDERS[variant] || VARIANT_FOLDERS['as-is'];
-  return `${WEG_FOLDER}/${name[locale] || name.en}`;
+  return variantFolder(WEG_FOLDER, variant, locale);
 }
 
 const WEG_AS_IS = [
@@ -14038,125 +14199,27 @@ const WEG_TO_BE = [
 /** Current state first, then the target state - the order of the explorer. */
 const WEG_PROCESSES = [...WEG_AS_IS, ...WEG_TO_BE];
 
-/* ------------------------------------------------------------ localisation */
+/* ------------------------------------------------------------ build */
 
-function pick(value, locale) {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  return value[locale] || value.en || value.ru || '';
-}
-
-function localizeProps(props, locale) {
-  if (!props) return {};
-  const out = {};
-  for (const [key, value] of Object.entries(props)) {
-    if (value && typeof value === 'object' && !Array.isArray(value) && ('ru' in value || 'en' in value)) {
-      out[key] = pick(value, locale);
-    } else if (key === 'resource' && typeof value === 'string') {
-      out[key] = roleLabel(value, locale);
-    } else {
-      out[key] = value;
-    }
-  }
-  return out;
-}
+const WEG_BUILD = {
+  library: 'weg',
+  author: 'WEG S.A. — public disclosure',
+  roleName: roleLabel,
+};
 
 /** Resolves every `{ ru, en }` pair of a specification into one language. */
 function localizeSpec(spec, locale = 'ru') {
-  return {
-    notation: spec.notation || 'bpmn',
-    name: pick(spec.name, locale),
-    poolLabel: spec.poolLabel ? pick(spec.poolLabel, locale) : undefined,
-    lanes: (spec.lanes || []).map((lane) => ({ id: lane.id, label: pick(lane.label, locale) })),
-    nodes: (spec.nodes || []).map((node) => ({
-      ...node,
-      label: pick(node.label, locale),
-      props: localizeProps(node.props, locale),
-    })),
-    edges: (spec.edges || []).map((edge) => ({
-      ...edge,
-      label: edge.label ? pick(edge.label, locale) : undefined,
-      props: localizeProps(edge.props, locale),
-    })),
-  };
+  return localizeWithRoles(spec, locale, roleLabel);
 }
 
-function localizeAnalysis(analysis, locale) {
-  if (!analysis) return undefined;
-  return {
-    ...analysis,
-    roles: (analysis.roles || []).map((role) => ({ ...role, name: roleLabel(role.name, locale) })),
-  };
-}
-
-/* --------------------------------------------------------------- building */
-
-/** One library process -> one ready diagram placed in the WEG folder. */
+/** One library process -> one ready diagram placed in its WEG folder. */
 function buildWegDiagram(process, locale = 'ru') {
-  const spec = localizeSpec(process.spec, locale);
-  const diagram = buildBpmnDiagram(spec, { locale, name: pick(process.name, locale) });
-  diagram.name = pick(process.name, locale);
-  diagram.meta.folder = wegFolder(process.variant, locale);
-  diagram.meta.library = 'weg';
-  diagram.meta.processId = process.id;
-  diagram.meta.variant = process.variant;
-  if (process.baselineId) diagram.meta.baselineId = process.baselineId;
-  diagram.meta.description = pick(process.description, locale);
-  diagram.meta.documentation = pick(process.documentation, locale);
-  diagram.meta.author = 'WEG S.A. — public disclosure';
-  diagram.meta.analysis = localizeAnalysis(process.analysis, locale);
-  return diagram;
-}
-
-/**
- * Target-state documentation ends with the measured gain against the current
- * state. It is computed from the two models here, not written by hand, so it
- * cannot drift away from what the diagrams actually say.
- */
-function comparisonBlock(baseline, current, locale) {
-  const comparison = compareProcesses(baseline, current);
-  if (!comparison) return '';
-  const ru = locale === 'ru';
-  const money = (value) => formatMoney(value, comparison.currency, locale);
-  const number = (value) => Math.round(value).toLocaleString(ru ? 'ru-RU' : 'en-US');
-  const label = {
-    lead: ru ? 'Срок выполнения' : 'Lead time',
-    work: ru ? 'Трудозатраты на случай' : 'Work per case',
-    wait: ru ? 'Ожидание' : 'Waiting',
-    cost: ru ? 'Стоимость случая' : 'Cost per case',
-    costPerCompletion: ru ? 'Стоимость доведённого до конца случая' : 'Cost per completed case',
-    annualCost: ru ? 'Затраты в год' : 'Annual cost',
-    fte: ru ? 'Штат (FTE)' : 'Headcount (FTE)',
-  };
-  const format = (row, value) => {
-    if (row.kind === 'duration') return formatDuration(value, locale);
-    if (row.kind === 'money') return money(value);
-    return number(value);
-  };
-  const lines = comparison.rows.map((row) => {
-    const delta = `${row.deltaPct > 0 ? '+' : ''}${row.deltaPct.toFixed(1)} %`;
-    return `| ${label[row.key]} | ${format(row, row.from)} | ${format(row, row.to)} | ${delta} |`;
-  });
-  const head = ru
-    ? `\n\n---\n\n### Что даёт переход (расчёт по обеим моделям)\n\n| Показатель | Как есть | Как будет | Δ |\n|---|---|---|---|`
-    : `\n\n---\n\n### Measured gain (computed from both models)\n\n| Metric | As is | To be | Δ |\n|---|---|---|---|`;
-  const doneFrom = Math.round(comparison.completion.from * 1000) / 10;
-  const doneTo = Math.round(comparison.completion.to * 1000) / 10;
-  const foot = ru
-    ? `\n\nДо успешного завершения доходит ${doneFrom} % случаев в модели «как есть» и ${doneTo} % в модели «как будет». Поэтому в таблице есть отдельная строка «стоимость доведённого до конца случая»: процесс, который перестаёт отбраковывать поздно, пропускает больше случаев в дорогие шаги, и его стоимость «на один запущенный случай» может вырасти, пока стоимость «на один доведённый до конца» падает.\n\nЦифры пересчитываются из самих схем: измените любой параметр в панели свойств — и этот блок перестанет совпадать с документацией, а вкладка «Анализ» покажет новое значение. Документация фиксирует состояние на момент построения библиотеки.`
-    : `\n\n${doneFrom}% of cases reach a successful end in the as-is model and ${doneTo}% in the to-be one. That is why the table carries a separate "cost per completed case" row: a process that stops rejecting late lets more cases reach the expensive steps, so its cost per *started* case can rise while the cost per *completed* one falls.\n\nThe figures are computed from the models themselves. Change a parameter in the properties panel and the Analysis tab will show the new value, while this block keeps the state at the time the library was built.`;
-  return `${head}\n${lines.join('\n')}${foot}`;
+  return buildLibraryDiagram(process, locale, { ...WEG_BUILD, folder: wegFolder(process.variant, locale) });
 }
 
 /** Every library process as diagrams, in the documented order. */
 function buildWegDiagrams(locale = 'ru') {
-  const diagrams = WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
-  const byProcessId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
-  for (const diagram of diagrams) {
-    const baseline = diagram.meta.baselineId ? byProcessId.get(diagram.meta.baselineId) : null;
-    if (baseline) diagram.meta.documentation += comparisonBlock(baseline, diagram, locale);
-  }
-  return diagrams;
+  return buildLibraryDiagrams(WEG_PROCESSES, locale, WEG_BUILD, (process) => wegFolder(process.variant, locale));
 }
 
 function wegProjectName(locale = 'ru') {
@@ -14207,6 +14270,846 @@ function addWegLibrary(project, locale = 'ru') {
 }
 
 Object.assign(__exports, { WEG_FOLDER, wegFolder, WEG_AS_IS, WEG_TO_BE, WEG_PROCESSES, localizeSpec, buildWegDiagram, buildWegDiagrams, wegProjectName, wegProjectDocumentation, createWegProject, addWegLibrary });
+
+});
+__fm_define('app/library/ubereats/facts.js', function (__exports) {
+/**
+ * Uber Eats - ordering from McDonald's in Dubai, seen from the platform.
+ *
+ * What this file is NOT: a set of company figures. Uber does not publish
+ * step-level cycle times, courier occupancy, refund rules or per-order costs,
+ * and the sandbox this library was written in had no network access to check
+ * anything. Every number in the models is therefore an *assumption* made for
+ * the purpose of the exercise, tagged `assumption` in the diagram, and meant to
+ * be replaced with the company's own data.
+ *
+ * What it does hold: the structure of the process (actors, hand-offs, decision
+ * points) and the local operating context that shapes it. The context items
+ * below are well-known general facts about the UAE market, marked as "verify"
+ * because nothing here was fetched from a source.
+ */
+
+/** Orders per year used for the annual projection (1 000 a day) - an assumption. */
+const ORDERS_PER_DAY = 1000;
+const ORDERS_PER_YEAR = ORDERS_PER_DAY * 365;
+
+/**
+ * Loaded hourly cost in AED. Assumptions, not published rates.
+ * The courier rate is deliberately an *occupied-time* rate: a courier waiting
+ * at the counter cannot take another order, so that time is paid for in
+ * practice even when the platform pays per delivery.
+ */
+const RATES = {
+  support: 38,
+  fraud: 52,
+  courier: 24,
+  settlements: 60,
+};
+
+const ROLE_NAMES = {
+  support: { ru: 'Агент поддержки', en: 'Support agent' },
+  fraud: { ru: 'Аналитик антифрода', en: 'Fraud analyst' },
+  courier: { ru: 'Курьер-партнёр', en: 'Courier partner' },
+  settlements: { ru: 'Специалист по расчётам', en: 'Settlements specialist' },
+};
+
+/** English label of a Russian role name; unknown names pass through. */
+function roleLabel(name, locale = 'ru') {
+  if (locale !== 'en') return name;
+  const entry = Object.values(ROLE_NAMES).find((item) => item.ru === name);
+  return entry ? entry.en : name;
+}
+
+/** Rate card for the diagram settings: `roles('support', 'courier')`. */
+function roles(...keys) {
+  return keys.map((key) => ({ id: ROLE_NAMES[key].ru, name: ROLE_NAMES[key].ru, rate: RATES[key] }));
+}
+
+/** Role names as the node properties spell them (Russian is the source language). */
+const ROLE = {
+  support: ROLE_NAMES.support.ru,
+  fraud: ROLE_NAMES.fraud.ru,
+  courier: ROLE_NAMES.courier.ru,
+  settlements: ROLE_NAMES.settlements.ru,
+};
+
+/**
+ * Local context that shapes the process. General knowledge, not fetched from
+ * a source - hence "verify".
+ */
+const CONTEXT = [
+  {
+    ru: 'Адреса в Дубае: в башнях и на виллах адрес состоит из пина на карте, здания, этажа и квартиры; в городе действует система адресации Makani (10-значный код здания). От точности адреса напрямую зависит время поиска входа курьером.',
+    en: 'Addresses in Dubai: in towers and villas an address is a map pin plus building, floor and apartment; the city runs the Makani building-code system (a 10-digit code). The accuracy of the address directly drives how long the courier takes to find the entrance.',
+  },
+  {
+    ru: 'Налог: VAT 5 % в ОАЭ (введён в 2018 г.) применяется к позициям заказа и к сборам платформы.',
+    en: 'Tax: 5% VAT in the UAE (introduced in 2018) applies to the order items and to the platform fees.',
+  },
+  {
+    ru: 'Оплата: помимо карты и Apple Pay в регионе заметна доля оплаты наличными курьеру. Это отдельная ветка со своим риском и учётом денег у курьера.',
+    en: 'Payment: besides card and Apple Pay, cash paid to the courier remains significant in the region. It is a separate branch with its own risk and cash accounting.',
+  },
+  {
+    ru: 'Безопасность пищи: ресторан работает под надзором муниципалитета Дубая; платформа отвечает за сохранность и своевременность доставки, а не за приготовление.',
+    en: 'Food safety: the restaurant operates under Dubai Municipality supervision; the platform is responsible for the safe and timely delivery, not for the cooking.',
+  },
+  {
+    ru: 'Курьеры: доставка на мотоциклах и автомобилях регулируется транспортным регулятором эмирата (RTA); летняя жара снижает скорость и доступность курьеров в дневные часы.',
+    en: 'Couriers: motorbike and car delivery is regulated by the emirate transport authority (RTA); summer heat lowers courier speed and availability in daytime hours.',
+  },
+  {
+    ru: 'Сезонность: в Рамадан пики спроса смещаются на время ифтара, а в дневные часы поста спрос падает.',
+    en: 'Seasonality: during Ramadan demand peaks move to iftar time and drops during the fasting hours.',
+  },
+];
+
+function contextBlock(locale = 'ru') {
+  const head = locale === 'ru' ? 'Контекст рынка (общеизвестное, проверьте перед использованием):' : 'Market context (general knowledge, verify before relying on it):';
+  return `${head}\n${CONTEXT.map((item) => `• ${item[locale] || item.en}`).join('\n')}`;
+}
+
+function dataNote(locale = 'ru') {
+  return locale === 'ru'
+    ? 'Откуда цифры. Здесь нет ни одной цифры из отчётности Uber или McDonald\'s: пооперационные нормативы, доли веток, ставки и стоимости компании не публикуют, а при подготовке модели не было доступа к сети, чтобы что-либо сверить. Поэтому ВСЕ параметры помечены как «отраслевое допущение». Они подобраны правдоподобно для городской доставки, чтобы показать механику процесса и расчёта, и должны быть заменены данными самой компании перед любым решением. Присутствие и условия работы сервиса в Дубае на текущий момент проверьте независимо.'
+    : 'Where the numbers come from. There is not a single figure from Uber\'s or McDonald\'s reporting here: step-level norms, branch shares, rates and costs are not published, and no network access was available while preparing the model to check anything. Every parameter is therefore tagged "assumption". They are set plausibly for urban delivery to show the mechanics of the process and of the calculation, and must be replaced with the company\'s own data before any decision. Check independently whether and on what terms the service operates in Dubai today.';
+}
+
+/** Conventions every diagram of this library follows - printed in the documentation. */
+function conventionsBlock(locale = 'ru') {
+  return locale === 'ru'
+    ? `Как читать числа в этих схемах (соглашения):
+• Время клиента и ресторана — это ОЖИДАНИЕ (waitTime): у платформы нет трудозатрат на то, что клиент выбирает блюда, а кухня собирает заказ. Оно входит в срок, но не в трудозатраты и не в стоимость.
+• Автоматические шаги платформы не занимают людей: у них нет роли, только стоимость транзакции в AED (карта, карты и маршруты, SMS).
+• Курьер — ресурс платформы: его ВРЕМЯ ЗАНЯТО, пока он едет, ждёт у стойки и ищет вход, поэтому эти шаги учитываются как трудозатраты по ставке занятого времени. Ожидание предложения заказа — не занятое время.
+• Валюта — AED. Ставки — полная стоимость часа (допущение).
+• Годовой объём — условные ${ORDERS_PER_DAY.toLocaleString('ru-RU')} заказов в день.
+• Завершённым считается заказ, доставленный клиенту; отмены, блокировки и недоставки — нет.`
+    : `How to read the numbers in these diagrams (conventions):
+• Customer and restaurant time is WAITING (waitTime): the platform spends no labour while the customer chooses and the kitchen prepares. It counts toward lead time but not toward work or cost.
+• Automated platform steps occupy nobody: they carry no role, only a transaction cost in AED (card, maps, SMS).
+• The courier is a platform resource: their time is OCCUPIED while riding, waiting at the counter and finding the entrance, so those steps count as work at an occupied-time rate. Waiting for an order offer is not occupied time.
+• Currency is AED. Rates are fully loaded hourly costs (an assumption).
+• The annual volume is a notional ${ORDERS_PER_DAY.toLocaleString('en-US')} orders a day.
+• An order counts as completed when it is delivered to the customer; cancellations, blocks and failed deliveries do not.`;
+}
+
+Object.assign(__exports, { ORDERS_PER_DAY, ORDERS_PER_YEAR, RATES, ROLE_NAMES, roleLabel, roles, ROLE, CONTEXT, contextBlock, dataNote, conventionsBlock });
+
+});
+__fm_define('app/library/ubereats/asis.js', function (__exports) {
+/**
+ * Uber Eats, Dubai - ordering from McDonald's, AS-IS (current state).
+ *
+ * Seen from the platform: the customer, the restaurant and the courier are
+ * actors the platform coordinates, and the lanes below show who does what.
+ */
+const { auto, flow, node, wait, work } = __fm_require('app/library/kit.js');
+const { ORDERS_PER_YEAR, ROLE, conventionsBlock, contextBlock, dataNote, roles } = __fm_require('app/library/ubereats/facts.js');
+const LANES = [
+  { id: 'customer', label: { ru: 'Клиент (приложение)', en: 'Customer (app)' } },
+  { id: 'platform', label: { ru: 'Платформа Uber Eats (автоматика)', en: 'Uber Eats platform (automated)' } },
+  { id: 'support', label: { ru: 'Поддержка и антифрод Uber', en: 'Uber support and fraud' } },
+  { id: 'merchant', label: { ru: 'Ресторан McDonald\'s (партнёр)', en: 'McDonald\'s restaurant (partner)' } },
+  { id: 'courier', label: { ru: 'Курьер-партнёр', en: 'Courier partner' } },
+  { id: 'finance', label: { ru: 'Платежи и расчёты Uber', en: 'Uber payments and settlements' } },
+];
+
+const uberAsIs = {
+  id: 'uber-dubai-order',
+  order: 1,
+  variant: 'as-is',
+  name: {
+    ru: 'Заказ еды из McDonald\'s в Дубае — как есть',
+    en: 'Ordering food from McDonald\'s in Dubai — as is',
+  },
+  description: {
+    ru: 'От открытия приложения до расчётов и разбора проблем после доставки: наличие ресторана, корзина и цена, антифрод и оплата, передача ресторану, диспетчеризация курьера, выдача и доставка в башню, наличные, закрытие заказа, начисления и обращения в поддержку.',
+    en: 'From opening the app to settlement and after-sale issues: restaurant availability, basket and price, fraud and payment, hand-off to the restaurant, courier dispatch, pickup and delivery to a tower, cash, order close, accruals and support cases.',
+  },
+  analysis: {
+    currency: 'AED',
+    volumePerYear: ORDERS_PER_YEAR,
+    hoursPerFte: 1800,
+    workingDays: 365,
+    roles: roles('support', 'fraud', 'courier', 'settlements'),
+  },
+  documentation: {
+    ru: `Заказ еды из McDonald's в Дубае через приложение Uber Eats — процесс «как есть», описанный со стороны платформы (компании Uber).
+
+${dataNote('ru')}
+
+${conventionsBlock('ru')}
+
+Границы процесса. Начало — клиент открыл приложение. Конец — заказ доставлен и закрыт, включая начисления и разбор проблемы, если она возникла. Выплаты ресторану и курьеру по расписанию (недельные, мгновенные) — отдельный процесс; здесь они представлены начислением по заказу.
+
+Участники (дорожки):
+1. Клиент — выбирает, платит, ждёт, принимает заказ, оценивает.
+2. Платформа Uber Eats — автоматические шаги: зона доставки, расчёт цены, антифрод, авторизация карты, передача заказа, диспетчеризация, ETA, закрытие.
+3. Поддержка и антифрод Uber — люди: ручная проверка подозрительных заказов, звонки в ресторан, ответы «где мой заказ», разбор жалоб.
+4. Ресторан McDonald's — партнёр, а не сотрудник: принимает заказ на планшете и готовит.
+5. Курьер-партнёр — независимый исполнитель: получает предложение, едет, забирает, доставляет, принимает наличные.
+6. Платежи и расчёты Uber — списание, возврат, учёт наличных у курьера, начисление комиссии, выплаты курьеру и VAT.
+
+Описание этапов.
+1) Доступность. По геопозиции платформа определяет зону доставки и решает, принимает ли McDonald's заказы по этому адресу (закрыт, перегружен, вне зоны). Если нет — клиенту показываются альтернативы, заказ не создаётся.
+2) Корзина и цена. Клиент выбирает позиции и модификаторы, применяется промокод или скидка Uber One (за счёт Uber), платформа считает итог: позиции, сбор за доставку, сервисный сбор, надбавку за малый заказ, динамику цены и VAT 5 %.
+3) Адрес и оплата. Клиент вводит адрес вручную (пин, здание, этаж, квартира) и выбирает способ оплаты. Антифрод оценивает заказ; подозрительные уходят аналитику.
+4) Платёж. Карта или Apple Pay — авторизация (холд суммы), при отказе клиент выбирает другой способ. Наличные — проверка лимита; при отказе клиент возвращается к выбору способа.
+5) Передача ресторану. Заказ уходит на планшет ресторана. Платформа ждёт ответа: принял, отклонил или тишина в течение 3 минут (событийный шлюз). Если ресторан не принял, агент звонит в ресторан; если договориться не удалось, заказ отменяется, деньги возвращаются, клиент получает кредит.
+6) Параллельно после принятия. Кухня собирает заказ; одновременно платформа подбирает курьера. Диспетчеризация запускается сразу при принятии, а не к моменту готовности, поэтому курьер часто приезжает раньше еды и ждёт. Если курьер не найден, радиус и бонус растут; если курьер отказался, предложение уходит следующему.
+7) Выдача. Заказ готов и курьер на месте (параллельное слияние). Курьер называет код, сверяет пакеты, напитки и соусы по памяти и на глаз. Платформа фиксирует выдачу, строит маршрут и ETA, уведомляет клиента.
+8) Доставка. Курьер едет к клиенту. Часть клиентов пишет «где мой заказ» — отвечает агент. В башне курьеру нужно найти вход, парковку, консьержа, этаж и квартиру. Если клиент не отвечает, курьер звонит и ждёт; если клиент так и не вышел, заказ считается недоставленным, оплата удерживается.
+9) Вручение и оплата. Передача заказа, фото или PIN. При оплате наличными курьер принимает деньги и даёт сдачу, платформа учитывает наличные у курьера и удерживает из его выплаты; при карте — capture суммы.
+10) Закрытие и начисления. Заказ закрывается, начисляются комиссия ресторана, выплата курьеру и VAT.
+11) После доставки. Часть клиентов сообщает о проблеме (недовложение, не тот заказ, холодный, просрочка). Агент разбирает фото, состав, маршрут курьера и историю ресторана: полный возврат, частичный кредит или отказ. Затем клиент оценивает заказ, платформа обновляет рейтинги ресторана и курьера.
+
+Слабые места, которые целевая схема адресует:
+• Ручное принятие заказа на планшете: 10 % заказов не приняты сразу, и агент звонит в ресторан.
+• Диспетчеризация при принятии, а не к готовности: курьер простаивает у стойки в среднем 4 минуты — это занятое время, оплаченное впустую.
+• Ручной ввод адреса и поиск входа в башне: 3,5 минуты на поиск и 9 % недозвонов.
+• Статичный ETA: 11 % клиентов пишут «где мой заказ».
+• Сверка пакета на глаз: 6,5 % заказов заканчиваются жалобой, и каждую разбирает человек.
+• Наличные у 26 % заказов: время на сдачу, учёт и риск у курьера.
+• 6 % отказов карты возвращают клиента на шаг оплаты.
+
+${contextBlock('ru')}`,
+    en: `Ordering food from McDonald's in Dubai through the Uber Eats app - the as-is process, described from the platform's side (Uber, the company).
+
+${dataNote('en')}
+
+${conventionsBlock('en')}
+
+Scope. It starts when the customer opens the app and ends when the order is delivered and closed, including accruals and the case handling if a problem arises. Scheduled payouts to the restaurant and the courier (weekly or instant) are a separate process; here they appear as the accrual per order.
+
+Actors (lanes): the customer; the Uber Eats platform (automated steps: delivery zone, pricing, fraud, card authorisation, hand-off, dispatch, ETA, close); Uber support and fraud (people: manual review of suspicious orders, calls to the restaurant, "where is my order" replies, complaint handling); the McDonald's restaurant (a partner, not an employee: accepts the order on the tablet and cooks); the courier partner (an independent contractor: receives the offer, rides, collects, delivers, takes cash); and Uber payments and settlements (charge, refund, courier cash accounting, commission accrual, courier earnings and VAT).
+
+Stages. 1) Availability: from the location the platform finds the delivery zone and decides whether McDonald's takes orders for this address; if not, alternatives are shown and no order is created. 2) Basket and price: items and modifiers, a promo or Uber One discount funded by Uber, then the total with items, delivery fee, service fee, small-order surcharge, dynamic pricing and 5% VAT. 3) Address and payment: the address is typed by hand (pin, building, floor, apartment) and the payment method chosen; fraud scoring sends suspicious orders to an analyst. 4) Payment: card or Apple Pay is authorised (a hold), on a decline the customer picks another method; cash passes a limit check and falls back to the same choice. 5) Hand-off to the restaurant: the order goes to the restaurant tablet and the platform waits for accepted, rejected or silence for 3 minutes (an event-based gateway); if the restaurant did not accept, an agent calls it, and if that fails the order is cancelled, the money returned and a credit issued. 6) After acceptance, in parallel: the kitchen assembles the order while the platform finds a courier; dispatch starts at acceptance, not at food-ready time, so the courier often arrives early and waits; if no courier is found the radius and bonus grow, and a declined offer goes to the next courier. 7) Pickup: the order is ready and the courier is there (a parallel join); the courier states the code and checks bags, drinks and sauces by eye; the platform records the pickup, builds the route and ETA and notifies the customer. 8) Delivery: the courier rides to the customer; some customers ask "where is my order" and an agent answers; in a tower the courier has to find the entrance, parking, concierge, floor and apartment; if the customer does not answer the courier calls and waits, and if the customer never comes out the order is a failed delivery with payment retained. 9) Hand-over and payment: hand-over with a photo or PIN; for cash the courier takes the money and gives change and the platform books the cash against the courier's earnings, for card the amount is captured. 10) Close and accruals: the order closes and the restaurant commission, the courier earnings and VAT are accrued. 11) After delivery: some customers report a problem (missing item, wrong order, cold food, lateness) and an agent reviews photo, contents, courier route and the restaurant's history: a full refund, a partial credit or a rejection; then the customer rates and the platform updates restaurant and courier ratings.
+
+Weak spots the target diagram addresses: manual acceptance on the tablet (10% not accepted at once, then an agent phones the restaurant); dispatch at acceptance rather than at readiness (the courier idles at the counter for 4 minutes on average - occupied time paid for nothing); manual address entry and entrance search in a tower (3.5 minutes and 9% unreachable); a static ETA (11% ask where the order is); bag checks by eye (6.5% of orders end in a complaint, each handled by a person); cash on 26% of orders; and 6% card declines that send the customer back to the payment step.
+
+${contextBlock('en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Заказ из McDonald\'s в Дубае — как есть', en: 'McDonald\'s order in Dubai — as is' },
+    lanes: LANES,
+    nodes: [
+      /* 1. availability */
+      node('start', 'startEvent', 'customer', 'Клиент открыл приложение Uber Eats в Дубае', 'Customer opens the Uber Eats app in Dubai'),
+      node('zone', 'businessRuleTask', 'platform', 'Определить зону доставки по геопозиции и показать доступные рестораны', 'Resolve the delivery zone from the location and show available restaurants', auto(0.1, { cost: 0.03 })),
+      node('gwOpen', 'exclusiveGateway', 'platform', 'McDonald\'s принимает заказы по этому адресу?', 'Does McDonald\'s take orders for this address?'),
+      node('closed', 'serviceTask', 'platform', 'Показать «ресторан закрыт или перегружен» и предложить альтернативы', 'Show "restaurant closed or busy" and suggest alternatives', auto(0.1)),
+      node('endClosed', 'endEvent', 'platform', 'Заказ не оформлен: McDonald\'s недоступен', 'No order: McDonald\'s unavailable'),
+
+      /* 2. basket and price */
+      node('browse', 'userTask', 'customer', 'Выбрать McDonald\'s, просмотреть меню и состав позиций', 'Pick McDonald\'s and browse the menu and item details', wait(2.5)),
+      node('cart', 'userTask', 'customer', 'Собрать корзину, выбрать модификаторы, ввести промокод', 'Build the basket, choose modifiers, enter a promo code', wait(2)),
+      node('promo', 'serviceTask', 'platform', 'Применить промокод и скидки Uber One (за счёт Uber)', 'Apply the promo code and Uber One discounts (funded by Uber)', auto(0.1, { cost: 4.2 })),
+      node('price', 'businessRuleTask', 'platform', 'Рассчитать итог: позиции, доставка, сервисный сбор, малый заказ, динамика цены, VAT 5 %', 'Compute the total: items, delivery, service fee, small order, dynamic price, 5% VAT', auto(0.2, { cost: 0.05 })),
+
+      /* 3. address, fraud */
+      node('checkout', 'userTask', 'customer', 'Ввести адрес вручную (пин, здание, этаж, квартира) и выбрать способ оплаты', 'Type the address (pin, building, floor, apartment) and choose the payment method', wait(1.8)),
+      node('fraud', 'businessRuleTask', 'platform', 'Антифрод-скоринг: устройство, история, адрес, состав заказа', 'Fraud scoring: device, history, address, basket', auto(0.2, { cost: 0.06 })),
+      node('gwFraud', 'exclusiveGateway', 'platform', 'Заказ выглядит подозрительным?', 'Does the order look suspicious?'),
+      node('review', 'userTask', 'support', 'Проверить заказ вручную: история клиента, адрес, состав', 'Review manually: customer history, address, basket', work(6, ROLE.fraud)),
+      node('gwReview', 'exclusiveGateway', 'support', 'Заказ допустим?', 'Order acceptable?'),
+      node('blocked', 'endErrorEvent', 'support', 'Заказ заблокирован антифродом', 'Order blocked by fraud control'),
+
+      /* 4. payment */
+      node('gwPay', 'exclusiveGateway', 'platform', 'Способ оплаты?', 'Payment method?'),
+      node('card', 'serviceTask', 'platform', 'Авторизовать карту или Apple Pay (холд суммы)', 'Authorise the card or Apple Pay (hold the amount)', auto(0.3, { cost: 0.35 })),
+      node('gwAuth', 'exclusiveGateway', 'platform', 'Авторизация прошла?', 'Authorisation approved?'),
+      node('cod', 'businessRuleTask', 'platform', 'Проверить лимит наличных для клиента и района', 'Check the cash limit for the customer and area', auto(0.1)),
+      node('gwCod', 'exclusiveGateway', 'platform', 'Наличные разрешены?', 'Cash allowed?'),
+      node('payFail', 'userTask', 'customer', 'Выбрать другую карту или способ оплаты', 'Choose another card or payment method', wait(1.6)),
+      node('gwPayJoin', 'exclusiveGateway', 'platform', 'Оплата обеспечена', 'Payment secured'),
+
+      /* 5. hand-off to the restaurant */
+      node('place', 'serviceTask', 'platform', 'Создать заказ и передать в McDonald\'s на планшет', 'Create the order and send it to the McDonald\'s tablet', auto(0.2, { cost: 0.04 })),
+      node('gwResp', 'eventBasedGateway', 'platform', 'Ожидание ответа ресторана', 'Waiting for the restaurant\'s answer'),
+      node('accepted', 'intermediateMessageCatchEvent', 'merchant', 'Ресторан принял заказ на планшете', 'Restaurant accepts on the tablet', wait(1.4)),
+      node('rejected', 'intermediateMessageCatchEvent', 'merchant', 'Ресторан отклонил заказ', 'Restaurant rejects the order', wait(1)),
+      node('timeout', 'intermediateTimerEvent', 'platform', 'Нет ответа 3 минуты', 'No answer for 3 minutes', wait(3)),
+      node('callRest', 'userTask', 'support', 'Позвонить в ресторан: причина, наличие позиций, загрузка кухни', 'Call the restaurant: reason, item availability, kitchen load', work(5, ROLE.support)),
+      node('gwCall', 'exclusiveGateway', 'support', 'Удалось договориться?', 'Resolved with the restaurant?'),
+      node('cancel', 'serviceTask', 'platform', 'Отменить заказ, извиниться и выдать кредит клиенту', 'Cancel the order, apologise and give the customer a credit', auto(0.2, { cost: 3.2 })),
+      node('refund', 'serviceTask', 'finance', 'Снять холд по карте', 'Release the card hold', auto(0.3)),
+      node('endCancel', 'endEvent', 'platform', 'Заказ отменён: ресторан не принял', 'Order cancelled: restaurant did not accept'),
+      node('gwAcceptJoin', 'exclusiveGateway', 'platform', 'Ресторан принял заказ', 'Restaurant has the order'),
+
+      /* 6. kitchen and dispatch in parallel */
+      node('pgSplit', 'parallelGateway', 'platform', 'Кухня и доставка запускаются параллельно', 'Kitchen and delivery start in parallel'),
+      node('prepare', 'manualTask', 'merchant', 'Кухня собирает заказ: жарка, сборка, упаковка', 'The kitchen prepares the order: cook, assemble, pack', wait(13)),
+      node('dispatch', 'businessRuleTask', 'platform', 'Диспетчеризация: подобрать курьера по расстоянию, загрузке и рейтингу', 'Dispatch: pick a courier by distance, load and rating', auto(0.4, { cost: 0.08 })),
+      node('gwFound', 'exclusiveGateway', 'platform', 'Курьер найден?', 'Courier found?'),
+      node('boost', 'serviceTask', 'platform', 'Расширить радиус поиска и поднять бонус за заказ', 'Widen the search radius and raise the order bonus', auto(0.2, { waitTime: 4, cost: 4.5 })),
+      node('offer', 'userTask', 'courier', 'Курьер получает предложение и решает, принять ли', 'The courier gets the offer and decides', wait(0.7)),
+      node('gwOffer', 'exclusiveGateway', 'courier', 'Курьер принял?', 'Courier accepted?'),
+      node('redispatch', 'serviceTask', 'platform', 'Отметить отказ и передать предложение следующему курьеру', 'Record the decline and pass the offer to the next courier', auto(0.1)),
+      node('toRest', 'manualTask', 'courier', 'Ехать к McDonald\'s (трафик, жара, ограничения RTA)', 'Ride to McDonald\'s (traffic, heat, RTA restrictions)', work(8, ROLE.courier)),
+      node('idle', 'manualTask', 'courier', 'Ждать готовности заказа у стойки (простой)', 'Wait for the order at the counter (idle)', work(4, ROLE.courier)),
+      node('pgJoin', 'parallelGateway', 'merchant', 'Заказ готов и курьер на месте', 'Order ready and courier present'),
+
+      /* 7. pickup */
+      node('verify', 'manualTask', 'courier', 'Забрать заказ: назвать код, сверить пакеты, напитки и соусы на глаз', 'Collect the order: state the code, check bags, drinks and sauces by eye', work(1.8, ROLE.courier)),
+      node('picked', 'serviceTask', 'platform', 'Зафиксировать выдачу, построить маршрут, запустить ETA', 'Record the pickup, build the route, start the ETA', auto(0.15, { cost: 0.22 })),
+      node('notifyTransit', 'sendTask', 'platform', 'Сообщить клиенту: заказ в пути, ориентировочное время', 'Tell the customer: on the way, estimated time', auto(0.1, { cost: 0.03 })),
+
+      /* 8. delivery */
+      node('gwWismo', 'exclusiveGateway', 'platform', 'Клиент спрашивает «где мой заказ»?', 'Does the customer ask "where is my order"?'),
+      node('wismo', 'userTask', 'support', 'Ответить клиенту: положение курьера, причина задержки', 'Answer the customer: courier position, reason for the delay', work(3.2, ROLE.support)),
+      node('gwWismoJoin', 'exclusiveGateway', 'platform', 'Доставка продолжается', 'Delivery continues'),
+      node('toCust', 'manualTask', 'courier', 'Везти заказ клиенту (жара, пробки, парковка)', 'Carry the order to the customer (heat, traffic, parking)', work(14, ROLE.courier)),
+      node('arrive', 'manualTask', 'courier', 'Найти вход: башня, парковка, консьерж, этаж и квартира', 'Find the entrance: tower, parking, concierge, floor and apartment', work(3.5, ROLE.courier)),
+      node('gwReach', 'exclusiveGateway', 'courier', 'Клиент на связи и встречает?', 'Customer reachable and meeting the courier?'),
+      node('callCust', 'userTask', 'courier', 'Позвонить клиенту и ждать у входа', 'Call the customer and wait at the entrance', work(3, ROLE.courier)),
+      node('gwReach2', 'exclusiveGateway', 'courier', 'Клиент вышел?', 'Customer came out?'),
+      node('noShow', 'serviceTask', 'platform', 'Зафиксировать неудачную доставку, удержать оплату, вернуть заказ', 'Record the failed delivery, retain payment, return the order', auto(0.3, { cost: 6 })),
+      node('endNoShow', 'endEvent', 'platform', 'Заказ не вручён: клиент недоступен, оплата удержана', 'Not delivered: customer unreachable, payment retained'),
+
+      /* 9. hand-over and payment */
+      node('handoff', 'manualTask', 'courier', 'Передать заказ клиенту, сделать фото или проверить PIN', 'Hand the order over, take a photo or check the PIN', work(1.2, ROLE.courier)),
+      node('gwCash', 'exclusiveGateway', 'courier', 'Оплата наличными?', 'Paid in cash?'),
+      node('cash', 'manualTask', 'courier', 'Принять наличные, выдать сдачу, подтвердить в приложении', 'Take the cash, give change, confirm in the app', work(1.6, ROLE.courier)),
+      node('cashSettle', 'serviceTask', 'finance', 'Учесть наличные у курьера и удержать из его выплаты', 'Book the cash against the courier\'s earnings', auto(0.3)),
+      node('capture', 'serviceTask', 'finance', 'Списать сумму с карты (capture), комиссия эквайера', 'Capture the card amount, acquirer fee', auto(0.3, { cost: 2.15 })),
+      node('gwPaid', 'exclusiveGateway', 'finance', 'Расчёт с клиентом завершён', 'Customer payment settled'),
+
+      /* 10. close and accruals */
+      node('complete', 'serviceTask', 'platform', 'Закрыть заказ: статус «доставлен», время и GPS', 'Close the order: "delivered", time and GPS', auto(0.2)),
+      node('ledger', 'serviceTask', 'finance', 'Начислить комиссию ресторана, выплату курьеру и VAT 5 %', 'Accrue the restaurant commission, the courier earnings and 5% VAT', auto(0.5, { cost: 0.3 })),
+
+      /* 11. after delivery */
+      node('gwIssue', 'exclusiveGateway', 'platform', 'Клиент сообщил о проблеме с заказом?', 'Did the customer report a problem?'),
+      node('issueChat', 'userTask', 'customer', 'Написать в чат: что не так, приложить фото', 'Write in the chat: what is wrong, attach a photo', wait(2.2)),
+      node('issueReview', 'userTask', 'support', 'Разобрать обращение: фото, состав, маршрут курьера, история ресторана', 'Review the case: photo, basket, courier route, restaurant history', work(7.5, ROLE.support)),
+      node('gwIssueType', 'exclusiveGateway', 'support', 'Решение по обращению?', 'Case decision?'),
+      node('refundFull', 'serviceTask', 'finance', 'Вернуть полную сумму заказа', 'Refund the full order amount', auto(0.3, { cost: 62 })),
+      node('refundPart', 'serviceTask', 'finance', 'Выдать частичный возврат или кредит', 'Give a partial refund or a credit', auto(0.3, { cost: 18 })),
+      node('rejectIssue', 'sendTask', 'support', 'Отказать с объяснением', 'Decline with an explanation', work(2, ROLE.support)),
+      node('gwIssueJoin', 'exclusiveGateway', 'support', 'Обращение закрыто', 'Case closed'),
+      node('rate', 'userTask', 'customer', 'Оценить заказ и курьера', 'Rate the order and the courier', wait(0.8)),
+      node('rating', 'serviceTask', 'platform', 'Обновить рейтинги ресторана и курьера', 'Update the restaurant and courier ratings', auto(0.1)),
+      node('end', 'endEvent', 'platform', 'Заказ доставлен и закрыт', 'Order delivered and closed', { completes: true }),
+
+      /* data and notes */
+      node('orderData', 'dataObject', 'platform', 'Заказ и состояние: статусы, ETA, GPS', 'Order and its state: statuses, ETA, GPS'),
+      node('riskData', 'dataStore', 'platform', 'Правила антифрода и профили клиентов', 'Fraud rules and customer profiles'),
+      node('ledgerData', 'dataStore', 'finance', 'Книга расчётов: заказы, комиссии, выплаты, VAT', 'Settlement ledger: orders, commissions, payouts, VAT'),
+      node('idleNote', 'textAnnotation', 'courier', 'Простой курьера оплачен впустую: он занят и не может взять другой заказ', 'The courier\'s idle time is paid for nothing: they are busy and cannot take another order'),
+      node('addrNote', 'textAnnotation', 'courier', 'В Дубае адрес — пин + здание + этаж + квартира; код Makani помогает, но клиент вводит всё вручную', 'In Dubai an address is pin + building + floor + apartment; the Makani code helps but the customer types it all'),
+    ],
+    edges: [
+      flow('start', 'zone'),
+      flow('zone', 'gwOpen'),
+      flow('gwOpen', 'browse', { share: 94, ru: 'принимает', en: 'open' }),
+      flow('gwOpen', 'closed', { share: 6, ru: 'закрыт или перегружен', en: 'closed or busy' }),
+      flow('closed', 'endClosed'),
+      flow('browse', 'cart'),
+      flow('cart', 'promo'),
+      flow('promo', 'price'),
+      flow('price', 'checkout'),
+      flow('checkout', 'fraud'),
+      flow('fraud', 'gwFraud'),
+      flow('gwFraud', 'gwPay', { share: 97, ru: 'нет', en: 'no' }),
+      flow('gwFraud', 'review', { share: 3, ru: 'да', en: 'yes' }),
+      flow('review', 'gwReview'),
+      flow('gwReview', 'gwPay', { share: 55, ru: 'допустим', en: 'acceptable' }),
+      flow('gwReview', 'blocked', { share: 45, ru: 'блок', en: 'block' }),
+      flow('gwPay', 'card', { share: 72, ru: 'карта или Apple Pay', en: 'card or Apple Pay' }),
+      flow('gwPay', 'cod', { share: 28, ru: 'наличные', en: 'cash' }),
+      flow('card', 'gwAuth'),
+      flow('gwAuth', 'gwPayJoin', { share: 94, ru: 'одобрено', en: 'approved' }),
+      flow('gwAuth', 'payFail', { share: 6, ru: 'отказ', en: 'declined' }),
+      flow('cod', 'gwCod'),
+      flow('gwCod', 'gwPayJoin', { share: 92, ru: 'разрешены', en: 'allowed' }),
+      flow('gwCod', 'payFail', { share: 8, ru: 'лимит', en: 'limit' }),
+      flow('payFail', 'gwPay'),
+      flow('gwPayJoin', 'place'),
+      flow('place', 'gwResp'),
+      flow('gwResp', 'accepted', { share: 90, ru: 'принял', en: 'accepted' }),
+      flow('gwResp', 'rejected', { share: 4, ru: 'отклонил', en: 'rejected' }),
+      flow('gwResp', 'timeout', { share: 6, ru: 'тишина', en: 'silence' }),
+      flow('accepted', 'gwAcceptJoin'),
+      flow('rejected', 'callRest'),
+      flow('timeout', 'callRest'),
+      flow('callRest', 'gwCall'),
+      flow('gwCall', 'gwAcceptJoin', { share: 35, ru: 'принял или замена', en: 'accepted or substituted' }),
+      flow('gwCall', 'cancel', { share: 65, ru: 'не вышло', en: 'failed' }),
+      flow('cancel', 'refund'),
+      flow('refund', 'endCancel'),
+      flow('gwAcceptJoin', 'pgSplit'),
+      flow('pgSplit', 'prepare'),
+      flow('pgSplit', 'dispatch'),
+      flow('prepare', 'pgJoin'),
+      flow('dispatch', 'gwFound'),
+      flow('gwFound', 'offer', { share: 95, ru: 'найден', en: 'found' }),
+      flow('gwFound', 'boost', { share: 5, ru: 'нет свободных', en: 'none free' }),
+      flow('boost', 'dispatch'),
+      flow('offer', 'gwOffer'),
+      flow('gwOffer', 'toRest', { share: 78, ru: 'принял', en: 'accepted' }),
+      flow('gwOffer', 'redispatch', { share: 22, ru: 'отказ или тишина', en: 'declined or silent' }),
+      flow('redispatch', 'dispatch'),
+      flow('toRest', 'idle'),
+      flow('idle', 'pgJoin'),
+      flow('pgJoin', 'verify'),
+      flow('verify', 'picked'),
+      flow('picked', 'notifyTransit'),
+      flow('notifyTransit', 'gwWismo'),
+      flow('gwWismo', 'wismo', { share: 11, ru: 'спрашивает', en: 'asks' }),
+      flow('gwWismo', 'gwWismoJoin', { share: 89, ru: 'нет', en: 'no' }),
+      flow('wismo', 'gwWismoJoin'),
+      flow('gwWismoJoin', 'toCust'),
+      flow('toCust', 'arrive'),
+      flow('arrive', 'gwReach'),
+      flow('gwReach', 'handoff', { share: 91, ru: 'встречает', en: 'meets' }),
+      flow('gwReach', 'callCust', { share: 9, ru: 'не отвечает', en: 'no answer' }),
+      flow('callCust', 'gwReach2'),
+      flow('gwReach2', 'handoff', { share: 70, ru: 'вышел', en: 'came out' }),
+      flow('gwReach2', 'noShow', { share: 30, ru: 'не вышел', en: 'did not' }),
+      flow('noShow', 'endNoShow'),
+      flow('handoff', 'gwCash'),
+      flow('gwCash', 'cash', { share: 26, ru: 'наличные', en: 'cash' }),
+      flow('gwCash', 'capture', { share: 74, ru: 'карта', en: 'card' }),
+      flow('cash', 'cashSettle'),
+      flow('cashSettle', 'gwPaid'),
+      flow('capture', 'gwPaid'),
+      flow('gwPaid', 'complete'),
+      flow('complete', 'ledger'),
+      flow('ledger', 'gwIssue'),
+      flow('gwIssue', 'rate', { share: 93.5, ru: 'нет', en: 'no' }),
+      flow('gwIssue', 'issueChat', { share: 6.5, ru: 'есть проблема', en: 'problem' }),
+      flow('issueChat', 'issueReview'),
+      flow('issueReview', 'gwIssueType'),
+      flow('gwIssueType', 'refundFull', { share: 38, ru: 'полный возврат', en: 'full refund' }),
+      flow('gwIssueType', 'refundPart', { share: 42, ru: 'частичный кредит', en: 'partial credit' }),
+      flow('gwIssueType', 'rejectIssue', { share: 20, ru: 'отказ', en: 'decline' }),
+      flow('refundFull', 'gwIssueJoin'),
+      flow('refundPart', 'gwIssueJoin'),
+      flow('rejectIssue', 'gwIssueJoin'),
+      flow('gwIssueJoin', 'rate'),
+      flow('rate', 'rating'),
+      flow('rating', 'end'),
+      { source: 'place', target: 'orderData', type: 'dataAssociation' },
+      { source: 'fraud', target: 'riskData', type: 'dataAssociation' },
+      { source: 'ledger', target: 'ledgerData', type: 'dataAssociation' },
+      { source: 'idle', target: 'idleNote', type: 'association' },
+      { source: 'arrive', target: 'addrNote', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { LANES, uberAsIs });
+
+});
+__fm_define('app/library/ubereats/tobe.js', function (__exports) {
+/**
+ * Uber Eats, Dubai - ordering from McDonald's, TO-BE (target state).
+ *
+ * Same actors and the same demand as the AS-IS model. What changes is how the
+ * platform handles the restaurant, the courier, the address, the proof of
+ * hand-over and the complaint.
+ */
+const { auto, flow, node, wait, work } = __fm_require('app/library/kit.js');
+const { ORDERS_PER_YEAR, ROLE, conventionsBlock, contextBlock, dataNote, roles } = __fm_require('app/library/ubereats/facts.js');
+const { LANES } = __fm_require('app/library/ubereats/asis.js');
+const uberToBe = {
+  id: 'uber-dubai-order-tobe',
+  order: 1,
+  variant: 'to-be',
+  baselineId: 'uber-dubai-order',
+  name: {
+    ru: 'Заказ еды из McDonald\'s в Дубае — как будет',
+    en: 'Ordering food from McDonald\'s in Dubai — to be',
+  },
+  description: {
+    ru: 'Интеграция с кассой вместо ручного принятия, диспетчеризация к моменту готовности вместо простоя курьера, проверенный адрес Дубая с кодом Makani, QR-сверка пакета и PIN при вручении, проактивный ETA и автоматическое решение по малым жалобам.',
+    en: 'A point-of-sale integration instead of manual acceptance, dispatch timed to food-ready instead of an idle courier, a verified Dubai address with the Makani code, a QR bag check and a PIN at hand-over, a proactive ETA and automatic resolution of small complaints.',
+  },
+  analysis: {
+    currency: 'AED',
+    volumePerYear: ORDERS_PER_YEAR,
+    hoursPerFte: 1800,
+    workingDays: 365,
+    roles: roles('support', 'fraud', 'courier', 'settlements'),
+  },
+  documentation: {
+    ru: `Заказ еды из McDonald's в Дубае через Uber Eats — целевое состояние (TO-BE), описанное со стороны платформы.
+
+${dataNote('ru')}
+
+${conventionsBlock('ru')}
+
+Что меняется по сравнению с «как есть».
+1) Приём заказа. Заказ передаётся напрямую в кассовую систему McDonald's (интеграция POS) и на экран кухни, остатки и загрузка сверяются до отправки. Ответ приходит автоматически: принято 97 % вместо 90 %, отказ 1,5 %, тишина 1,5 % вместо 6 %, и ждать больше 1,5 минут не нужно. Звонков в ресторан становится меньше, а доля договорённостей при звонке выше (45 % вместо 35 %), потому что причина уже видна в данных.
+2) Диспетчеризация к готовности. Платформа прогнозирует время готовности по загрузке кухни и составу заказа и откладывает вызов курьера до момента «готовность минус время в пути». Курьер приезжает к выдаче, а не к очереди: простой у стойки падает с 4 до 1 минуты, а время до отправки курьера он свободен для другого заказа. Срок доставки при этом почти не меняется — кухня готовит те же 12,5 минут. Выигрыш — в занятом времени курьера.
+3) Адрес. Сохранённые адреса и проверка пина по коду Makani с подсказками по зданию (вход, парковка, консьерж). Ввод адреса занимает 0,9 минуты вместо 1,8, поиск входа — 2 вместо 3,5, недозвонов 4 % вместо 9 %, а доля вышедших после звонка выше (78 % вместо 70 %).
+4) Оплата. Карта или Apple Pay предлагаются по умолчанию с небольшим кэшбэком за счёт Uber (затрата 0,9 AED на заказ): наличных 15 % вместо 28 %, меньше времени курьера на сдачу и учёт. Мягкие отказы карты повторяются автоматически: возвращаются к выбору способа 3 % вместо 6 %.
+5) Выдача и вручение. QR-код на пломбе пакета и сверка по списку вместо проверки на глаз; PIN в приложении при вручении вместо фото. Доля жалоб падает с 6,5 до 4 %.
+6) ETA. Предиктивный ETA с поправкой на трафик и жару и проактивные уведомления об изменениях: вопросов «где мой заказ» 4 % вместо 11 %, и на ответ уходит 2,2 минуты вместо 3,2.
+7) Жалобы. Решения по малым суммам (до 40 AED) принимаются автоматически по фото, GPS курьера, QR-сверке и оценке риска злоупотребления: 65 % случаев закрываются без человека, у остальных разбор занимает 5,5 минуты вместо 7,5.
+8) Антифрод. Модель точнее: ручная проверка у 1,5 % заказов вместо 3 %, и она короче (4,5 минуты вместо 6).
+
+Чего я НЕ засчитываю как улучшение — это сделано намеренно, как и в моделях WEG.
+• Спрос и конверсия: доля закрытых или перегруженных ресторанов (6 %), время, которое клиент тратит на выбор блюд и корзину, и стоимость акций остаются прежними. Рост конверсии поднял бы стоимость «на один начатый заказ» только потому, что больше заказов доходило бы до дорогих шагов, и сравнение перестало бы показывать эффективность процесса.
+• Дорога и кухня: 8 + 14 минут пути и почти все 12,5 минут готовки — физика процесса.
+• Групповая доставка: два заказа одному курьеру могли бы снизить занятое время ещё сильнее, но она не смоделирована, поэтому выгода от неё не включена.
+
+Новые затраты тоже учтены: интеграция с кассой, прогноз готовности, проверка адреса, кэшбэк за оплату картой, автоматическое решение по жалобам.
+
+${contextBlock('ru')}`,
+    en: `Ordering food from McDonald's in Dubai through Uber Eats - the target state (TO-BE), described from the platform's side.
+
+${dataNote('en')}
+
+${conventionsBlock('en')}
+
+What changes against the as-is model. 1) Order acceptance: the order goes straight into McDonald's point-of-sale system and the kitchen display, with stock and kitchen load checked before sending; the answer comes automatically - 97% accepted instead of 90%, 1.5% rejected, 1.5% silence instead of 6%, and the wait is at most 1.5 minutes; fewer calls to the restaurant, and a higher resolution rate on a call (45% instead of 35%) because the cause is already visible in the data. 2) Dispatch timed to readiness: the platform predicts the ready time from kitchen load and basket and delays the courier call until "ready minus travel time"; the courier arrives at the hand-over, not at a queue, so idling at the counter falls from 4 to 1 minute and the courier is free for another order until then; the delivery lead time hardly moves - the kitchen cooks for the same 12.5 minutes - and the gain is in the courier's occupied time. 3) Address: saved addresses and pin checks against the Makani code with building hints (entrance, parking, concierge); address entry takes 0.9 minutes instead of 1.8, finding the entrance 2 instead of 3.5, unreachable customers fall to 4% from 9% and the share who come out after a call rises to 78% from 70%. 4) Payment: card or Apple Pay is the default with a small Uber-funded cashback (0.9 AED an order); cash falls to 15% from 28%, which saves courier time on change and accounting; soft card declines are retried automatically, so 3% return to the payment step instead of 6%. 5) Hand-over: a QR code on the bag seal and a check against the list instead of a look; a PIN in the app instead of a photo; complaints fall from 6.5% to 4%. 6) ETA: a predictive ETA corrected for traffic and heat and proactive notifications; "where is my order" falls to 4% from 11% and takes 2.2 minutes instead of 3.2. 7) Complaints: decisions on small amounts (up to 40 AED) are made automatically from the photo, the courier GPS, the QR check and an abuse-risk score; 65% of cases close without a person and the rest take 5.5 minutes instead of 7.5. 8) Fraud: a sharper model - manual review on 1.5% of orders instead of 3%, and it is shorter (4.5 minutes instead of 6).
+
+What I do NOT count as an improvement - deliberately, as in the WEG models. Demand and conversion: the share of closed or overloaded restaurants (6%), the time the customer spends choosing and building the basket, and the cost of promotions stay as they were; a higher conversion would raise the cost per started order only because more orders reach the expensive steps, and the comparison would stop measuring process efficiency. The road and the kitchen: the 8 + 14 minutes of riding and almost all of the 12.5 minutes of cooking are the physics of the process. Batched delivery: two orders to one courier could cut the occupied time further, but it is not modelled, so its gain is not included.
+
+The new costs are counted too: the POS integration, the ready-time prediction, the address check, the cashback for card payment and the automatic complaint resolution.
+
+${contextBlock('en')}`,
+  },
+  spec: {
+    notation: 'bpmn',
+    name: { ru: 'Заказ из McDonald\'s в Дубае — как будет', en: 'McDonald\'s order in Dubai — to be' },
+    lanes: LANES,
+    nodes: [
+      /* 1. availability - unchanged */
+      node('start', 'startEvent', 'customer', 'Клиент открыл приложение Uber Eats в Дубае', 'Customer opens the Uber Eats app in Dubai'),
+      node('zone', 'businessRuleTask', 'platform', 'Определить зону доставки по геопозиции и показать доступные рестораны', 'Resolve the delivery zone from the location and show available restaurants', auto(0.1, { cost: 0.03 })),
+      node('gwOpen', 'exclusiveGateway', 'platform', 'McDonald\'s принимает заказы по этому адресу?', 'Does McDonald\'s take orders for this address?'),
+      node('closed', 'serviceTask', 'platform', 'Показать «ресторан закрыт или перегружен» и предложить альтернативы', 'Show "restaurant closed or busy" and suggest alternatives', auto(0.1)),
+      node('endClosed', 'endEvent', 'platform', 'Заказ не оформлен: McDonald\'s недоступен', 'No order: McDonald\'s unavailable'),
+
+      /* 2. basket and price - customer behaviour unchanged */
+      node('browse', 'userTask', 'customer', 'Выбрать McDonald\'s, просмотреть меню и состав позиций', 'Pick McDonald\'s and browse the menu and item details', wait(2.5)),
+      node('cart', 'userTask', 'customer', 'Собрать корзину, выбрать модификаторы, ввести промокод', 'Build the basket, choose modifiers, enter a promo code', wait(2)),
+      node('promo', 'serviceTask', 'platform', 'Применить промокод и скидки Uber One (за счёт Uber)', 'Apply the promo code and Uber One discounts (funded by Uber)', auto(0.1, { cost: 4.2 })),
+      node('price', 'businessRuleTask', 'platform', 'Рассчитать итог: позиции, доставка, сервисный сбор, малый заказ, динамика цены, VAT 5 %', 'Compute the total: items, delivery, service fee, small order, dynamic price, 5% VAT', auto(0.2, { cost: 0.05 })),
+
+      /* 3. address and fraud */
+      node('checkout', 'userTask', 'customer', 'Подтвердить сохранённый адрес и способ оплаты (Apple Pay по умолчанию)', 'Confirm the saved address and payment method (Apple Pay by default)', wait(0.9)),
+      node('geocode', 'businessRuleTask', 'platform', 'Проверить пин по коду Makani, подставить вход, парковку и подсказки по зданию', 'Check the pin against the Makani code, add entrance, parking and building hints', auto(0.2, { cost: 0.05 })),
+      node('fraud', 'businessRuleTask', 'platform', 'Антифрод-скоринг: устройство, история, адрес, состав заказа', 'Fraud scoring: device, history, address, basket', auto(0.2, { cost: 0.06 })),
+      node('gwFraud', 'exclusiveGateway', 'platform', 'Заказ выглядит подозрительным?', 'Does the order look suspicious?'),
+      node('review', 'userTask', 'support', 'Проверить заказ вручную по подготовленной сводке риска', 'Review manually from the prepared risk summary', work(4.5, ROLE.fraud)),
+      node('gwReview', 'exclusiveGateway', 'support', 'Заказ допустим?', 'Order acceptable?'),
+      node('blocked', 'endErrorEvent', 'support', 'Заказ заблокирован антифродом', 'Order blocked by fraud control'),
+
+      /* 4. payment */
+      node('nudge', 'serviceTask', 'platform', 'Предложить оплату картой или Apple Pay с кэшбэком вместо наличных', 'Suggest card or Apple Pay with cashback instead of cash', auto(0.1, { cost: 0.9 })),
+      node('gwPay', 'exclusiveGateway', 'platform', 'Способ оплаты?', 'Payment method?'),
+      node('card', 'serviceTask', 'platform', 'Авторизовать карту или Apple Pay; при мягком отказе повторить автоматически', 'Authorise the card or Apple Pay; retry automatically on a soft decline', auto(0.4, { cost: 0.4 })),
+      node('gwAuth', 'exclusiveGateway', 'platform', 'Авторизация прошла?', 'Authorisation approved?'),
+      node('cod', 'businessRuleTask', 'platform', 'Проверить лимит наличных для клиента и района', 'Check the cash limit for the customer and area', auto(0.1)),
+      node('gwCod', 'exclusiveGateway', 'platform', 'Наличные разрешены?', 'Cash allowed?'),
+      node('payFail', 'userTask', 'customer', 'Выбрать другую карту или способ оплаты', 'Choose another card or payment method', wait(1.6)),
+      node('gwPayJoin', 'exclusiveGateway', 'platform', 'Оплата обеспечена', 'Payment secured'),
+
+      /* 5. hand-off to the restaurant */
+      node('place', 'serviceTask', 'platform', 'Передать заказ в кассу McDonald\'s и на экран кухни (интеграция POS), сверить остатки', 'Send the order to McDonald\'s POS and the kitchen display, check stock', auto(0.25, { cost: 0.16 })),
+      node('gwResp', 'eventBasedGateway', 'platform', 'Ожидание ответа ресторана', 'Waiting for the restaurant\'s answer'),
+      node('accepted', 'intermediateMessageCatchEvent', 'merchant', 'Касса принимает заказ автоматически', 'The POS accepts the order automatically', wait(0.15)),
+      node('rejected', 'intermediateMessageCatchEvent', 'merchant', 'Ресторан отклонил заказ', 'Restaurant rejects the order', wait(0.15)),
+      node('timeout', 'intermediateTimerEvent', 'platform', 'Нет ответа 1,5 минуты', 'No answer for 1.5 minutes', wait(1.5)),
+      node('callRest', 'userTask', 'support', 'Позвонить в ресторан: причина уже видна в данных кассы', 'Call the restaurant: the cause is already visible in the POS data', work(3.5, ROLE.support)),
+      node('gwCall', 'exclusiveGateway', 'support', 'Удалось договориться?', 'Resolved with the restaurant?'),
+      node('cancel', 'serviceTask', 'platform', 'Отменить заказ, извиниться и выдать кредит клиенту', 'Cancel the order, apologise and give the customer a credit', auto(0.2, { cost: 3.2 })),
+      node('refund', 'serviceTask', 'finance', 'Снять холд по карте', 'Release the card hold', auto(0.3)),
+      node('endCancel', 'endEvent', 'platform', 'Заказ отменён: ресторан не принял', 'Order cancelled: restaurant did not accept'),
+      node('gwAcceptJoin', 'exclusiveGateway', 'platform', 'Ресторан принял заказ', 'Restaurant has the order'),
+
+      /* 6. kitchen and dispatch in parallel */
+      node('pgSplit', 'parallelGateway', 'platform', 'Кухня и доставка запускаются параллельно', 'Kitchen and delivery start in parallel'),
+      node('prepare', 'manualTask', 'merchant', 'Кухня собирает заказ по экрану кухни', 'The kitchen prepares the order from the kitchen display', wait(12.5)),
+      node('predict', 'businessRuleTask', 'platform', 'Спрогнозировать время готовности по загрузке кухни и составу заказа', 'Predict the ready time from kitchen load and basket', auto(0.2, { cost: 0.04 })),
+      node('hold', 'intermediateTimerEvent', 'platform', 'Отложить вызов курьера до «готовность минус время в пути»', 'Hold the courier call until "ready minus travel time"', wait(2.4)),
+      node('dispatch', 'businessRuleTask', 'platform', 'Диспетчеризация: подобрать курьера по расстоянию, загрузке и рейтингу', 'Dispatch: pick a courier by distance, load and rating', auto(0.4, { cost: 0.08 })),
+      node('gwFound', 'exclusiveGateway', 'platform', 'Курьер найден?', 'Courier found?'),
+      node('boost', 'serviceTask', 'platform', 'Расширить радиус поиска и поднять бонус за заказ', 'Widen the search radius and raise the order bonus', auto(0.2, { waitTime: 3, cost: 4.5 })),
+      node('offer', 'userTask', 'courier', 'Курьер получает предложение с прогнозом заработка', 'The courier gets the offer with an earnings forecast', wait(0.5)),
+      node('gwOffer', 'exclusiveGateway', 'courier', 'Курьер принял?', 'Courier accepted?'),
+      node('redispatch', 'serviceTask', 'platform', 'Отметить отказ и передать предложение следующему курьеру', 'Record the decline and pass the offer to the next courier', auto(0.1)),
+      node('toRest', 'manualTask', 'courier', 'Ехать к McDonald\'s (трафик, жара, ограничения RTA)', 'Ride to McDonald\'s (traffic, heat, RTA restrictions)', work(8, ROLE.courier)),
+      node('idle', 'manualTask', 'courier', 'Дождаться выдачи заказа у стойки (короткий простой)', 'Wait briefly for the hand-over at the counter', work(1, ROLE.courier)),
+      node('pgJoin', 'parallelGateway', 'merchant', 'Заказ готов и курьер на месте', 'Order ready and courier present'),
+
+      /* 7. pickup */
+      node('verify', 'manualTask', 'courier', 'Забрать заказ: сканировать QR пломбы пакета, сверить по списку', 'Collect the order: scan the bag-seal QR, check against the list', work(1.3, ROLE.courier)),
+      node('picked', 'serviceTask', 'platform', 'Зафиксировать выдачу, построить маршрут, рассчитать предиктивный ETA', 'Record the pickup, build the route, compute the predictive ETA', auto(0.2, { cost: 0.27 })),
+      node('notifyTransit', 'sendTask', 'platform', 'Проактивно сообщить клиенту ETA и любые изменения', 'Proactively tell the customer the ETA and any change', auto(0.1, { cost: 0.03 })),
+
+      /* 8. delivery */
+      node('gwWismo', 'exclusiveGateway', 'platform', 'Клиент спрашивает «где мой заказ»?', 'Does the customer ask "where is my order"?'),
+      node('wismo', 'userTask', 'support', 'Ответить клиенту: положение курьера, причина задержки', 'Answer the customer: courier position, reason for the delay', work(2.2, ROLE.support)),
+      node('gwWismoJoin', 'exclusiveGateway', 'platform', 'Доставка продолжается', 'Delivery continues'),
+      node('toCust', 'manualTask', 'courier', 'Везти заказ клиенту (жара, пробки, парковка)', 'Carry the order to the customer (heat, traffic, parking)', work(14, ROLE.courier)),
+      node('arrive', 'manualTask', 'courier', 'Пройти к входу по подсказкам: код Makani, парковка, консьерж, этаж', 'Reach the entrance from the hints: Makani code, parking, concierge, floor', work(2, ROLE.courier)),
+      node('gwReach', 'exclusiveGateway', 'courier', 'Клиент на связи и встречает?', 'Customer reachable and meeting the courier?'),
+      node('callCust', 'userTask', 'courier', 'Позвонить клиенту и ждать у входа', 'Call the customer and wait at the entrance', work(2, ROLE.courier)),
+      node('gwReach2', 'exclusiveGateway', 'courier', 'Клиент вышел?', 'Customer came out?'),
+      node('noShow', 'serviceTask', 'platform', 'Зафиксировать неудачную доставку, удержать оплату, вернуть заказ', 'Record the failed delivery, retain payment, return the order', auto(0.3, { cost: 6 })),
+      node('endNoShow', 'endEvent', 'platform', 'Заказ не вручён: клиент недоступен, оплата удержана', 'Not delivered: customer unreachable, payment retained'),
+
+      /* 9. hand-over and payment */
+      node('handoff', 'manualTask', 'courier', 'Передать заказ клиенту, проверить PIN в приложении', 'Hand the order over, check the PIN in the app', work(0.9, ROLE.courier)),
+      node('gwCash', 'exclusiveGateway', 'courier', 'Оплата наличными?', 'Paid in cash?'),
+      node('cash', 'manualTask', 'courier', 'Принять наличные, выдать сдачу, подтвердить в приложении', 'Take the cash, give change, confirm in the app', work(1.6, ROLE.courier)),
+      node('cashSettle', 'serviceTask', 'finance', 'Учесть наличные у курьера и удержать из его выплаты', 'Book the cash against the courier\'s earnings', auto(0.3)),
+      node('capture', 'serviceTask', 'finance', 'Списать сумму с карты (capture), комиссия эквайера', 'Capture the card amount, acquirer fee', auto(0.3, { cost: 2.15 })),
+      node('gwPaid', 'exclusiveGateway', 'finance', 'Расчёт с клиентом завершён', 'Customer payment settled'),
+
+      /* 10. close and accruals */
+      node('complete', 'serviceTask', 'platform', 'Закрыть заказ: статус «доставлен», время и GPS', 'Close the order: "delivered", time and GPS', auto(0.2)),
+      node('ledger', 'serviceTask', 'finance', 'Начислить комиссию ресторана, выплату курьеру и VAT 5 %', 'Accrue the restaurant commission, the courier earnings and 5% VAT', auto(0.4, { cost: 0.3 })),
+
+      /* 11. after delivery */
+      node('gwIssue', 'exclusiveGateway', 'platform', 'Клиент сообщил о проблеме с заказом?', 'Did the customer report a problem?'),
+      node('issueChat', 'userTask', 'customer', 'Заполнить форму в чате: что не так, фото по подсказке', 'Fill in the chat form: what is wrong, a photo as prompted', wait(1.5)),
+      node('autoRule', 'businessRuleTask', 'platform', 'Решить по правилам: фото, GPS курьера, QR-сверка, сумма до 40 AED, риск злоупотребления', 'Decide by rule: photo, courier GPS, QR check, amount up to 40 AED, abuse risk', auto(0.3, { cost: 0.06 })),
+      node('gwAuto', 'exclusiveGateway', 'platform', 'Решено автоматически?', 'Resolved automatically?'),
+      node('refundAuto', 'serviceTask', 'finance', 'Выдать возврат или кредит по правилу', 'Issue the refund or credit by rule', auto(0.3, { cost: 16 })),
+      node('issueReview', 'userTask', 'support', 'Разобрать обращение по подготовленной сводке: фото, состав, маршрут, история', 'Review the case from the prepared summary: photo, basket, route, history', work(5.5, ROLE.support)),
+      node('gwIssueType', 'exclusiveGateway', 'support', 'Решение по обращению?', 'Case decision?'),
+      node('refundFull', 'serviceTask', 'finance', 'Вернуть полную сумму заказа', 'Refund the full order amount', auto(0.3, { cost: 62 })),
+      node('refundPart', 'serviceTask', 'finance', 'Выдать частичный возврат или кредит', 'Give a partial refund or a credit', auto(0.3, { cost: 18 })),
+      node('rejectIssue', 'sendTask', 'support', 'Отказать с объяснением', 'Decline with an explanation', work(2, ROLE.support)),
+      node('gwIssueJoin', 'exclusiveGateway', 'support', 'Обращение закрыто', 'Case closed'),
+      node('rate', 'userTask', 'customer', 'Оценить заказ и курьера', 'Rate the order and the courier', wait(0.8)),
+      node('rating', 'serviceTask', 'platform', 'Обновить рейтинги ресторана и курьера', 'Update the restaurant and courier ratings', auto(0.1)),
+      node('end', 'endEvent', 'platform', 'Заказ доставлен и закрыт', 'Order delivered and closed', { completes: true }),
+
+      /* data and notes */
+      node('orderData', 'dataObject', 'platform', 'Заказ и состояние: статусы, ETA, GPS, прогноз готовности', 'Order and its state: statuses, ETA, GPS, ready-time forecast'),
+      node('riskData', 'dataStore', 'platform', 'Правила антифрода и профили клиентов', 'Fraud rules and customer profiles'),
+      node('addrData', 'dataStore', 'platform', 'Сохранённые адреса, коды Makani и подсказки по зданиям', 'Saved addresses, Makani codes and building hints'),
+      node('ledgerData', 'dataStore', 'finance', 'Книга расчётов: заказы, комиссии, выплаты, VAT', 'Settlement ledger: orders, commissions, payouts, VAT'),
+      node('holdNote', 'textAnnotation', 'platform', 'Курьер вызывается к готовности: он свободен, пока заказ готовится, а срок доставки почти не меняется', 'The courier is called at readiness: free while the order cooks, and the delivery lead time hardly moves'),
+      node('qrNote', 'textAnnotation', 'courier', 'QR пломбы и PIN при вручении дают данные для автоматического решения по жалобам', 'The seal QR and the PIN at hand-over give the data for automatic complaint decisions'),
+    ],
+    edges: [
+      flow('start', 'zone'),
+      flow('zone', 'gwOpen'),
+      flow('gwOpen', 'browse', { share: 94, ru: 'принимает', en: 'open' }),
+      flow('gwOpen', 'closed', { share: 6, ru: 'закрыт или перегружен', en: 'closed or busy' }),
+      flow('closed', 'endClosed'),
+      flow('browse', 'cart'),
+      flow('cart', 'promo'),
+      flow('promo', 'price'),
+      flow('price', 'checkout'),
+      flow('checkout', 'geocode'),
+      flow('geocode', 'fraud'),
+      flow('fraud', 'gwFraud'),
+      flow('gwFraud', 'nudge', { share: 98.5, ru: 'нет', en: 'no' }),
+      flow('gwFraud', 'review', { share: 1.5, ru: 'да', en: 'yes' }),
+      flow('review', 'gwReview'),
+      flow('gwReview', 'nudge', { share: 55, ru: 'допустим', en: 'acceptable' }),
+      flow('gwReview', 'blocked', { share: 45, ru: 'блок', en: 'block' }),
+      flow('nudge', 'gwPay'),
+      flow('gwPay', 'card', { share: 85, ru: 'карта или Apple Pay', en: 'card or Apple Pay' }),
+      flow('gwPay', 'cod', { share: 15, ru: 'наличные', en: 'cash' }),
+      flow('card', 'gwAuth'),
+      flow('gwAuth', 'gwPayJoin', { share: 97, ru: 'одобрено', en: 'approved' }),
+      flow('gwAuth', 'payFail', { share: 3, ru: 'отказ', en: 'declined' }),
+      flow('cod', 'gwCod'),
+      flow('gwCod', 'gwPayJoin', { share: 92, ru: 'разрешены', en: 'allowed' }),
+      flow('gwCod', 'payFail', { share: 8, ru: 'лимит', en: 'limit' }),
+      flow('payFail', 'gwPay'),
+      flow('gwPayJoin', 'place'),
+      flow('place', 'gwResp'),
+      flow('gwResp', 'accepted', { share: 97, ru: 'принято кассой', en: 'accepted by POS' }),
+      flow('gwResp', 'rejected', { share: 1.5, ru: 'отклонил', en: 'rejected' }),
+      flow('gwResp', 'timeout', { share: 1.5, ru: 'тишина', en: 'silence' }),
+      flow('accepted', 'gwAcceptJoin'),
+      flow('rejected', 'callRest'),
+      flow('timeout', 'callRest'),
+      flow('callRest', 'gwCall'),
+      flow('gwCall', 'gwAcceptJoin', { share: 45, ru: 'принял или замена', en: 'accepted or substituted' }),
+      flow('gwCall', 'cancel', { share: 55, ru: 'не вышло', en: 'failed' }),
+      flow('cancel', 'refund'),
+      flow('refund', 'endCancel'),
+      flow('gwAcceptJoin', 'pgSplit'),
+      flow('pgSplit', 'prepare'),
+      flow('pgSplit', 'predict'),
+      flow('prepare', 'pgJoin'),
+      flow('predict', 'hold'),
+      flow('hold', 'dispatch'),
+      flow('dispatch', 'gwFound'),
+      flow('gwFound', 'offer', { share: 97, ru: 'найден', en: 'found' }),
+      flow('gwFound', 'boost', { share: 3, ru: 'нет свободных', en: 'none free' }),
+      flow('boost', 'dispatch'),
+      flow('offer', 'gwOffer'),
+      flow('gwOffer', 'toRest', { share: 86, ru: 'принял', en: 'accepted' }),
+      flow('gwOffer', 'redispatch', { share: 14, ru: 'отказ или тишина', en: 'declined or silent' }),
+      flow('redispatch', 'dispatch'),
+      flow('toRest', 'idle'),
+      flow('idle', 'pgJoin'),
+      flow('pgJoin', 'verify'),
+      flow('verify', 'picked'),
+      flow('picked', 'notifyTransit'),
+      flow('notifyTransit', 'gwWismo'),
+      flow('gwWismo', 'wismo', { share: 4, ru: 'спрашивает', en: 'asks' }),
+      flow('gwWismo', 'gwWismoJoin', { share: 96, ru: 'нет', en: 'no' }),
+      flow('wismo', 'gwWismoJoin'),
+      flow('gwWismoJoin', 'toCust'),
+      flow('toCust', 'arrive'),
+      flow('arrive', 'gwReach'),
+      flow('gwReach', 'handoff', { share: 96, ru: 'встречает', en: 'meets' }),
+      flow('gwReach', 'callCust', { share: 4, ru: 'не отвечает', en: 'no answer' }),
+      flow('callCust', 'gwReach2'),
+      flow('gwReach2', 'handoff', { share: 78, ru: 'вышел', en: 'came out' }),
+      flow('gwReach2', 'noShow', { share: 22, ru: 'не вышел', en: 'did not' }),
+      flow('noShow', 'endNoShow'),
+      flow('handoff', 'gwCash'),
+      flow('gwCash', 'cash', { share: 14, ru: 'наличные', en: 'cash' }),
+      flow('gwCash', 'capture', { share: 86, ru: 'карта', en: 'card' }),
+      flow('cash', 'cashSettle'),
+      flow('cashSettle', 'gwPaid'),
+      flow('capture', 'gwPaid'),
+      flow('gwPaid', 'complete'),
+      flow('complete', 'ledger'),
+      flow('ledger', 'gwIssue'),
+      flow('gwIssue', 'rate', { share: 96, ru: 'нет', en: 'no' }),
+      flow('gwIssue', 'issueChat', { share: 4, ru: 'есть проблема', en: 'problem' }),
+      flow('issueChat', 'autoRule'),
+      flow('autoRule', 'gwAuto'),
+      flow('gwAuto', 'refundAuto', { share: 65, ru: 'решено правилом', en: 'resolved by rule' }),
+      flow('gwAuto', 'issueReview', { share: 35, ru: 'нужен человек', en: 'needs a person' }),
+      flow('refundAuto', 'gwIssueJoin'),
+      flow('issueReview', 'gwIssueType'),
+      flow('gwIssueType', 'refundFull', { share: 30, ru: 'полный возврат', en: 'full refund' }),
+      flow('gwIssueType', 'refundPart', { share: 40, ru: 'частичный кредит', en: 'partial credit' }),
+      flow('gwIssueType', 'rejectIssue', { share: 30, ru: 'отказ', en: 'decline' }),
+      flow('refundFull', 'gwIssueJoin'),
+      flow('refundPart', 'gwIssueJoin'),
+      flow('rejectIssue', 'gwIssueJoin'),
+      flow('gwIssueJoin', 'rate'),
+      flow('rate', 'rating'),
+      flow('rating', 'end'),
+      { source: 'place', target: 'orderData', type: 'dataAssociation' },
+      { source: 'fraud', target: 'riskData', type: 'dataAssociation' },
+      { source: 'geocode', target: 'addrData', type: 'dataAssociation' },
+      { source: 'ledger', target: 'ledgerData', type: 'dataAssociation' },
+      { source: 'hold', target: 'holdNote', type: 'association' },
+      { source: 'verify', target: 'qrNote', type: 'association' },
+    ],
+  },
+};
+
+Object.assign(__exports, { uberToBe });
+
+});
+__fm_define('app/library/ubereats/index.js', function (__exports) {
+/**
+ * Uber Eats library: ordering McDonald's food in Dubai, seen from the platform.
+ *
+ * One business process in two versions - the current state (AS-IS) and the
+ * target state (TO-BE) - built by the same pipeline as every other shipped
+ * library. See `facts.js` for why every number here is an assumption.
+ */
+const { buildLibraryDiagram, buildLibraryDiagrams, localizeSpec: localizeWithRoles, pick, variantFolder } = __fm_require('app/library/shared.js');
+const { contextBlock, dataNote, roleLabel } = __fm_require('app/library/ubereats/facts.js');
+const { uberAsIs } = __fm_require('app/library/ubereats/asis.js');
+const { uberToBe } = __fm_require('app/library/ubereats/tobe.js');
+/** Root folder shown in the model explorer; the variants are its sub-folders. */
+const UBER_FOLDER = 'Uber Eats';
+
+function uberFolder(variant, locale = 'ru') {
+  return variantFolder(UBER_FOLDER, variant, locale);
+}
+
+const UBER_AS_IS = [uberAsIs];
+const UBER_TO_BE = [uberToBe];
+const UBER_PROCESSES = [...UBER_AS_IS, ...UBER_TO_BE];
+
+const UBER_BUILD = {
+  library: 'ubereats',
+  // nothing here comes from the company's own disclosure
+  author: 'FiberModeler — modelling assumptions',
+  roleName: roleLabel,
+};
+
+/** Resolves every `{ ru, en }` pair of a specification into one language. */
+function localizeSpec(spec, locale = 'ru') {
+  return localizeWithRoles(spec, locale, roleLabel);
+}
+
+function buildUberDiagram(process, locale = 'ru') {
+  return buildLibraryDiagram(process, locale, { ...UBER_BUILD, folder: uberFolder(process.variant, locale) });
+}
+
+function buildUberDiagrams(locale = 'ru') {
+  return buildLibraryDiagrams(UBER_PROCESSES, locale, UBER_BUILD, (process) => uberFolder(process.variant, locale));
+}
+
+function uberProjectDocumentation(locale = 'ru') {
+  const ru = locale === 'ru';
+  const head = ru
+    ? `Uber Eats, Дубай — заказ еды из McDonald's со стороны платформы: ${UBER_PROCESSES.length} модели BPMN 2.0 (как есть и как будет) с рассчитываемыми параметрами времени, ресурсов и стоимости в AED.`
+    : `Uber Eats, Dubai - ordering McDonald's food from the platform's side: ${UBER_PROCESSES.length} BPMN 2.0 models (as is and to be) with calculable time, resource and cost parameters in AED.`;
+  const list = UBER_PROCESSES.map((process) => `• ${pick(process.name, locale)} — ${pick(process.description, locale)}`).join('\n');
+  return `${head}\n\n${list}\n\n${dataNote(locale)}\n\n${contextBlock(locale)}`;
+}
+
+Object.assign(__exports, { UBER_FOLDER, uberFolder, UBER_AS_IS, UBER_TO_BE, UBER_PROCESSES, localizeSpec, buildUberDiagram, buildUberDiagrams, uberProjectDocumentation });
+
+});
+__fm_define('app/library/index.js', function (__exports) {
+/**
+ * Every process library shipped with the application.
+ *
+ * The program opens on all of them, each in its own explorer folder, so every
+ * user sees the diagrams on entering. A library is a list of processes plus a
+ * builder; this module only combines them, so adding a company means adding a
+ * folder next to `weg/` and one line here.
+ */
+const { createProject } = __fm_require('app/core/model.js');
+const { WEG_PROCESSES, buildWegDiagrams, wegProjectDocumentation } = __fm_require('app/library/weg/index.js');
+const { UBER_PROCESSES, buildUberDiagrams, uberProjectDocumentation } = __fm_require('app/library/ubereats/index.js');
+/** `meta.library` values of the shipped libraries. */
+const LIBRARY_IDS = ['weg', 'ubereats'];
+
+function isLibraryDiagram(diagram) {
+  return LIBRARY_IDS.includes(diagram?.meta?.library);
+}
+
+const LIBRARY_PROCESS_COUNT = WEG_PROCESSES.length + UBER_PROCESSES.length;
+
+/** All shipped diagrams, in explorer order: WEG first, then Uber Eats. */
+function buildAllLibraryDiagrams(locale = 'ru') {
+  return [...buildWegDiagrams(locale), ...buildUberDiagrams(locale)];
+}
+
+function librariesProjectName(locale = 'ru') {
+  return locale === 'en' ? 'Process libraries — WEG and Uber Eats' : 'Библиотеки процессов — WEG и Uber Eats';
+}
+
+function librariesProjectDocumentation(locale = 'ru') {
+  const rule = '\n\n' + '─'.repeat(40) + '\n\n';
+  return `${wegProjectDocumentation(locale)}${rule}${uberProjectDocumentation(locale)}`;
+}
+
+/** The libraries as one project - what the application opens on start. */
+function createLibrariesProject(locale = 'ru') {
+  const project = createProject({
+    name: librariesProjectName(locale),
+    company: 'WEG S.A.; Uber Eats',
+    author: 'FiberModeler',
+    description:
+      locale === 'en'
+        ? 'BPMN 2.0 process libraries with calculable parameters: WEG (eight processes) and Uber Eats in Dubai (ordering from McDonald\'s), each as is and to be.'
+        : 'Библиотеки процессов BPMN 2.0 с рассчитываемыми параметрами: WEG (восемь процессов) и Uber Eats в Дубае (заказ из McDonald\'s), каждый как есть и как будет.',
+  });
+  project.documentation = librariesProjectDocumentation(locale);
+  project.diagrams = buildAllLibraryDiagrams(locale);
+  return project;
+}
+
+Object.assign(__exports, { LIBRARY_IDS, isLibraryDiagram, LIBRARY_PROCESS_COUNT, buildAllLibraryDiagrams, librariesProjectName, librariesProjectDocumentation, createLibrariesProject });
 
 });
 __fm_define('app/storage/db.js', function (__exports) {
@@ -16977,7 +17880,7 @@ function commandList(app) {
     { id: 'file.save', group: 'file', icon: 'save', shortcut: 'Mod+s', label: t('file.save'), run: () => app.saveProject() },
     { id: 'file.saveAs', group: 'file', icon: 'save', shortcut: 'Mod+Shift+s', label: t('file.saveAs'), run: () => app.saveProject({ as: true }) },
     { id: 'file.demo', group: 'file', icon: 'sparkles', label: t('file.demo'), run: () => app.openDemoProject() },
-    { id: 'file.weg', group: 'file', icon: 'folder', label: t('weg.open'), run: () => app.openWegLibrary() },
+    { id: 'file.libraries', group: 'file', icon: 'folder', label: t('library.open'), run: () => app.openLibraries() },
     { id: 'file.projectInfo', group: 'file', icon: 'file', label: t('file.projectInfo'), run: () => app.openProjectProperties() },
     { id: 'file.print', group: 'file', icon: 'print', shortcut: 'Mod+p', label: t('file.print'), enabled: hasDiagram, run: () => app.openPrint() },
 
@@ -17234,7 +18137,7 @@ function menuDefinitions(app) {
             : [{ label: t('welcome.noRecent'), disabled: true }],
         },
         item('file.demo'),
-        item('file.weg'),
+        item('file.libraries'),
         { separator: true },
         item('file.save'),
         item('file.saveAs'),
@@ -17406,7 +18309,7 @@ function renderWelcome(host, app) {
           <button class="btn primary" data-action="new">${icon('new', 15)}${t('welcome.new')}</button>
           <button class="btn" data-action="open">${icon('open', 15)}${t('welcome.open')}</button>
           <button class="btn" data-action="demo">${icon('sparkles', 15)}${t('welcome.demo')}</button>
-          <button class="btn" data-action="weg">${icon('folder', 15)}${t('weg.library')}</button>
+          <button class="btn" data-action="libraries">${icon('folder', 15)}${t('library.title')}</button>
         </div>
         <div class="welcome-steps">
           <div class="welcome-step"><span class="n">1</span><span>${t('welcome.step1')}</span></div>
@@ -17436,7 +18339,7 @@ function renderWelcome(host, app) {
   host.querySelector('[data-action="new"]').addEventListener('click', () => app.newProject());
   host.querySelector('[data-action="open"]').addEventListener('click', () => app.openProjectFile());
   host.querySelector('[data-action="demo"]').addEventListener('click', () => app.openDemoProject());
-  host.querySelector('[data-action="weg"]').addEventListener('click', () => app.openWegLibrary());
+  host.querySelector('[data-action="libraries"]').addEventListener('click', () => app.openLibraries());
   for (const item of host.querySelectorAll('.recent-item')) {
     item.addEventListener('click', () => app.openRecent(item.dataset.id));
   }
@@ -19747,7 +20650,7 @@ const { autoLayout: computeLayout, alignNodes, distributeNodes, equalizeSize, fi
 const { buildDiagrams } = __fm_require('app/ai/schema.js');
 const { generateModel } = __fm_require('app/ai/index.js');
 const { createDemoProject } = __fm_require('app/demo.js');
-const { buildWegDiagrams, createWegProject, wegProjectDocumentation, wegProjectName } = __fm_require('app/library/weg/index.js');
+const { buildAllLibraryDiagrams, createLibrariesProject, isLibraryDiagram, librariesProjectDocumentation, librariesProjectName } = __fm_require('app/library/index.js');
 const { Autosave, recoveryInfo } = __fm_require('app/storage/autosave.js');
 const { deleteProjectRecord, listProjectRecords, loadProjectRecord, saveProjectRecord, storageAvailable } = __fm_require('app/storage/db.js');
 const { forgetProject, rememberProject } = __fm_require('app/storage/recent.js');
@@ -20118,7 +21021,7 @@ class App {
   setLanguage(locale) {
     this.settings.set('language', locale);
     i18n.setLocale(locale);
-    this._relocalizeWegLibrary();
+    this._relocalizeLibraries();
     localizeDom(this.root);
     this.palette.localize();
     this.explorer.render();
@@ -20130,19 +21033,22 @@ class App {
   }
 
   /**
-   * The shipped WEG diagrams are generated content, so switching the interface
-   * language regenerates them - but only while they are untouched, so an edited
-   * copy is never overwritten.
+   * The shipped library diagrams are generated content, so switching the
+   * interface language regenerates them - but only while they are untouched,
+   * so an edited copy is never overwritten.
    */
-  _relocalizeWegLibrary() {
-    const library = this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg');
+  _relocalizeLibraries() {
+    const library = this.doc.project.diagrams.filter(isLibraryDiagram);
     if (!library.length || this.history.canUndo) return;
     const active = this.activeDiagram?.meta?.processId || null;
-    const fresh = buildWegDiagrams(i18n.locale);
+    const fresh = buildAllLibraryDiagrams(i18n.locale);
     for (const stale of library) this.doc.removeDiagram(stale.id);
     for (const diagram of fresh) this.doc.addDiagram(diagram);
-    this.doc.project.name = wegProjectName(i18n.locale);
-    this.doc.project.documentation = wegProjectDocumentation(i18n.locale);
+    // the project's own name and notes follow only when it is nothing but the libraries
+    if (this.doc.project.diagrams.every(isLibraryDiagram)) {
+      this.doc.project.name = librariesProjectName(i18n.locale);
+      this.doc.project.documentation = librariesProjectDocumentation(i18n.locale);
+    }
     this.openTabs = [];
     this.activeDiagramId = null;
     const next = fresh.find((d) => d.meta.processId === active) || fresh[0];
@@ -20796,27 +21702,27 @@ class App {
   }
 
   /**
-   * Shipped WEG process library. Opened as its own project when the current one
-   * is untouched, otherwise the eight diagrams are added to the open project so
-   * nothing the user made is thrown away.
+   * Shipped process libraries (WEG, Uber Eats). Opened as their own project when
+   * the current one is untouched, otherwise the diagrams are added to the open
+   * project so nothing the user made is thrown away.
    */
-  openWegLibrary() {
+  openLibraries() {
     const project = this.doc.project;
-    const untouched = !project.diagrams.length || project.diagrams.every((d) => d.meta?.library === 'weg');
+    const untouched = !project.diagrams.length || project.diagrams.every(isLibraryDiagram);
     if (untouched && !this.history.canUndo) {
-      this._loadProject(createWegProject(i18n.locale), { fresh: true });
+      this._loadProject(createLibrariesProject(i18n.locale), { fresh: true });
     } else {
       this.history.run('library', '*', (doc) => {
-        for (const stale of doc.project.diagrams.filter((d) => d.meta?.library === 'weg')) doc.removeDiagram(stale.id);
-        for (const diagram of buildWegDiagrams(i18n.locale)) doc.addDiagram(diagram);
+        for (const stale of doc.project.diagrams.filter(isLibraryDiagram)) doc.removeDiagram(stale.id);
+        for (const diagram of buildAllLibraryDiagrams(i18n.locale)) doc.addDiagram(diagram);
       });
       this.openTabs = this.openTabs.filter((id) => this.doc.diagram(id));
       this.explorer.render();
     }
-    const first = this.doc.project.diagrams.find((d) => d.meta?.library === 'weg');
+    const first = this.doc.project.diagrams.find(isLibraryDiagram);
     if (first) this.openDiagram(first.id);
     this.refreshChrome();
-    toastSuccess(t('weg.loaded', { count: this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg').length }));
+    toastSuccess(t('library.loaded', { count: this.doc.project.diagrams.filter(isLibraryDiagram).length }));
   }
 
   _loadProject(project, { fresh = false } = {}) {
@@ -21397,8 +22303,8 @@ class App {
         return;
       }
     }
-    // every user sees the shipped WEG process library on entering the program
-    this._loadProject(createWegProject(i18n.locale), { fresh: true });
+    // every user sees the shipped process libraries on entering the program
+    this._loadProject(createLibrariesProject(i18n.locale), { fresh: true });
     this.openDiagram(this.doc.project.diagrams[0].id);
     this.history.clear();
     this.refreshChrome();

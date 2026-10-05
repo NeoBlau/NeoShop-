@@ -3,7 +3,7 @@
  * the failure, parts are staged from the forecast, most cases close remotely.
  */
 import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, auto, flow, node, reported, work } from '../kit.js';
+import { DAY, auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'fleet', label: { ru: 'Мониторинг парка оборудования', en: 'Equipment fleet monitoring' } },

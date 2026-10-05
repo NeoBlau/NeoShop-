@@ -6,7 +6,7 @@
  * what this model describes.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, derived, flow, node, reported, wait, work } from '../kit.js';
+import { DAY, derived, flow, node, reported, wait, work } from '../../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент / дистрибьютор', en: 'Customer / distributor' } },

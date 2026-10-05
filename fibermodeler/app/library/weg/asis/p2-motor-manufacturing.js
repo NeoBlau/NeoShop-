@@ -6,7 +6,7 @@
  * motor plant in the world. The model follows one motor through the line.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { flow, node, reported, wait, work } from '../kit.js';
+import { flow, node, reported, wait, work } from '../../kit.js';
 
 const LANES = [
   { id: 'plan', label: { ru: 'Планирование производства', en: 'Production planning' } },

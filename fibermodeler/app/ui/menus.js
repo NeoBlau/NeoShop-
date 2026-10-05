@@ -38,7 +38,7 @@ export function menuDefinitions(app) {
             : [{ label: t('welcome.noRecent'), disabled: true }],
         },
         item('file.demo'),
-        item('file.weg'),
+        item('file.libraries'),
         { separator: true },
         item('file.save'),
         item('file.saveAs'),

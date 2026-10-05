@@ -2,7 +2,7 @@
  * 6. After-sales service and repair through the authorised network (ASTEC).
  */
 import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, flow, node, reported, wait, work } from '../kit.js';
+import { DAY, flow, node, reported, wait, work } from '../../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент', en: 'Customer' } },

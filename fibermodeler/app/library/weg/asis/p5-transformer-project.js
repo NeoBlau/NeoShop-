@@ -5,7 +5,7 @@
  * the company is putting R$ 1.2 billion into transformer capacity.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, flow, node, reported, wait, work } from '../kit.js';
+import { DAY, WEEK, flow, node, reported, wait, work } from '../../kit.js';
 
 const LANES = [
   { id: 'utility', label: { ru: 'Заказчик (энергокомпания)', en: 'Customer (utility)' } },

@@ -3,7 +3,7 @@
  * and procurement, expanded capacity and a remote type test.
  */
 import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, auto, flow, node, reported, work } from '../kit.js';
+import { DAY, WEEK, auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'utility', label: { ru: 'Заказчик (энергокомпания)', en: 'Customer (utility)' } },

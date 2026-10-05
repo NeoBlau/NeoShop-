@@ -6,7 +6,7 @@
  * classified as sustainable.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, flow, node, reported, wait, work } from '../kit.js';
+import { DAY, WEEK, flow, node, reported, wait, work } from '../../kit.js';
 
 const LANES = [
   { id: 'market', label: { ru: 'Маркетинг и продукт', en: 'Marketing & product' } },

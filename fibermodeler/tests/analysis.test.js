@@ -199,3 +199,24 @@ test('an unconnected end event does not become a second start', () => {
   assert.equal(result.totals.workMinutes, 60);
   assert.includes(result.issues.map((issue) => issue.code), 'unreachable');
 });
+
+
+test('a task that only waits is not reported as missing its processing time', () => {
+  const diagram = build(
+    [
+      ['s', 'startEvent', 'Start'],
+      ['cook', 'manualTask', 'Kitchen prepares', { waitTime: 12 }],
+      ['empty', 'userTask', 'Nothing set'],
+      ['e', 'endEvent', 'End'],
+    ],
+    [
+      ['f1', 's', 'cook'],
+      ['f2', 'cook', 'empty'],
+      ['f3', 'empty', 'e'],
+    ]
+  );
+  const issue = analyzeProcess(diagram).issues.find((item) => item.code === 'noDuration');
+  assert.ok(issue, 'the task with nothing set is still reported');
+  assert.equal(issue.params.count, 1, 'only the task with neither work nor waiting is counted');
+  assert.equal(issue.elementId, 'empty', 'and it is the right one');
+});

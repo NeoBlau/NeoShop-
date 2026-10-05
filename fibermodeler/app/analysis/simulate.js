@@ -309,7 +309,9 @@ export function analyzeProcess(diagram, overrides = {}) {
       });
     }
   }
-  const missing = activityRows.filter((row) => !row.duration);
+  // a task that only waits (a customer choosing, a kitchen cooking) has elapsed
+  // time but no labour - that is a legitimate description, not a missing value
+  const missing = activityRows.filter((row) => !row.duration && !row.wait);
   if (missing.length) {
     issues.push({
       severity: 'info',

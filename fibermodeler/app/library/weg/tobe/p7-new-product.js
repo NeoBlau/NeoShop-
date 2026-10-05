@@ -3,7 +3,7 @@
  * design, additive tooling for the pilot and certification run in parallel.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, auto, flow, node, reported, work } from '../kit.js';
+import { DAY, WEEK, auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'market', label: { ru: 'Маркетинг и продукт', en: 'Marketing and product' } },

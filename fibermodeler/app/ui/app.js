@@ -21,7 +21,7 @@ import { autoLayout as computeLayout, alignNodes, distributeNodes, equalizeSize,
 import { buildDiagrams } from '../ai/schema.js';
 import { generateModel } from '../ai/index.js';
 import { createDemoProject } from '../demo.js';
-import { buildWegDiagrams, createWegProject, wegProjectDocumentation, wegProjectName } from '../library/weg/index.js';
+import { buildAllLibraryDiagrams, createLibrariesProject, isLibraryDiagram, librariesProjectDocumentation, librariesProjectName } from '../library/index.js';
 import { Autosave, recoveryInfo } from '../storage/autosave.js';
 import { deleteProjectRecord, listProjectRecords, loadProjectRecord, saveProjectRecord, storageAvailable } from '../storage/db.js';
 import { forgetProject, rememberProject } from '../storage/recent.js';
@@ -393,7 +393,7 @@ export class App {
   setLanguage(locale) {
     this.settings.set('language', locale);
     i18n.setLocale(locale);
-    this._relocalizeWegLibrary();
+    this._relocalizeLibraries();
     localizeDom(this.root);
     this.palette.localize();
     this.explorer.render();
@@ -405,19 +405,22 @@ export class App {
   }
 
   /**
-   * The shipped WEG diagrams are generated content, so switching the interface
-   * language regenerates them - but only while they are untouched, so an edited
-   * copy is never overwritten.
+   * The shipped library diagrams are generated content, so switching the
+   * interface language regenerates them - but only while they are untouched,
+   * so an edited copy is never overwritten.
    */
-  _relocalizeWegLibrary() {
-    const library = this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg');
+  _relocalizeLibraries() {
+    const library = this.doc.project.diagrams.filter(isLibraryDiagram);
     if (!library.length || this.history.canUndo) return;
     const active = this.activeDiagram?.meta?.processId || null;
-    const fresh = buildWegDiagrams(i18n.locale);
+    const fresh = buildAllLibraryDiagrams(i18n.locale);
     for (const stale of library) this.doc.removeDiagram(stale.id);
     for (const diagram of fresh) this.doc.addDiagram(diagram);
-    this.doc.project.name = wegProjectName(i18n.locale);
-    this.doc.project.documentation = wegProjectDocumentation(i18n.locale);
+    // the project's own name and notes follow only when it is nothing but the libraries
+    if (this.doc.project.diagrams.every(isLibraryDiagram)) {
+      this.doc.project.name = librariesProjectName(i18n.locale);
+      this.doc.project.documentation = librariesProjectDocumentation(i18n.locale);
+    }
     this.openTabs = [];
     this.activeDiagramId = null;
     const next = fresh.find((d) => d.meta.processId === active) || fresh[0];
@@ -1071,27 +1074,27 @@ export class App {
   }
 
   /**
-   * Shipped WEG process library. Opened as its own project when the current one
-   * is untouched, otherwise the eight diagrams are added to the open project so
-   * nothing the user made is thrown away.
+   * Shipped process libraries (WEG, Uber Eats). Opened as their own project when
+   * the current one is untouched, otherwise the diagrams are added to the open
+   * project so nothing the user made is thrown away.
    */
-  openWegLibrary() {
+  openLibraries() {
     const project = this.doc.project;
-    const untouched = !project.diagrams.length || project.diagrams.every((d) => d.meta?.library === 'weg');
+    const untouched = !project.diagrams.length || project.diagrams.every(isLibraryDiagram);
     if (untouched && !this.history.canUndo) {
-      this._loadProject(createWegProject(i18n.locale), { fresh: true });
+      this._loadProject(createLibrariesProject(i18n.locale), { fresh: true });
     } else {
       this.history.run('library', '*', (doc) => {
-        for (const stale of doc.project.diagrams.filter((d) => d.meta?.library === 'weg')) doc.removeDiagram(stale.id);
-        for (const diagram of buildWegDiagrams(i18n.locale)) doc.addDiagram(diagram);
+        for (const stale of doc.project.diagrams.filter(isLibraryDiagram)) doc.removeDiagram(stale.id);
+        for (const diagram of buildAllLibraryDiagrams(i18n.locale)) doc.addDiagram(diagram);
       });
       this.openTabs = this.openTabs.filter((id) => this.doc.diagram(id));
       this.explorer.render();
     }
-    const first = this.doc.project.diagrams.find((d) => d.meta?.library === 'weg');
+    const first = this.doc.project.diagrams.find(isLibraryDiagram);
     if (first) this.openDiagram(first.id);
     this.refreshChrome();
-    toastSuccess(t('weg.loaded', { count: this.doc.project.diagrams.filter((d) => d.meta?.library === 'weg').length }));
+    toastSuccess(t('library.loaded', { count: this.doc.project.diagrams.filter(isLibraryDiagram).length }));
   }
 
   _loadProject(project, { fresh = false } = {}) {
@@ -1672,8 +1675,8 @@ export class App {
         return;
       }
     }
-    // every user sees the shipped WEG process library on entering the program
-    this._loadProject(createWegProject(i18n.locale), { fresh: true });
+    // every user sees the shipped process libraries on entering the program
+    this._loadProject(createLibrariesProject(i18n.locale), { fresh: true });
     this.openDiagram(this.doc.project.diagrams[0].id);
     this.history.clear();
     this.refreshChrome();

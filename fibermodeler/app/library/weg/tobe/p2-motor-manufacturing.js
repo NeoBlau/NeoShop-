@@ -3,7 +3,7 @@
  * statistical process control instead of end-of-line sorting.
  */
 import { DERIVED, WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { auto, flow, node, reported, work } from '../kit.js';
+import { auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'plan', label: { ru: 'Планирование производства', en: 'Production planning' } },

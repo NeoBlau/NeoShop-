@@ -3,7 +3,7 @@
  * scoring, available-to-promise from stock, early-payment discount.
  */
 import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, auto, flow, node, reported, work } from '../kit.js';
+import { DAY, auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Клиент / дистрибьютор', en: 'Customer / distributor' } },

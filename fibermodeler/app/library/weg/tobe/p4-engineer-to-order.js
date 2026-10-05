@@ -3,7 +3,7 @@
  * validated executions, modular design, a digital twin and a virtual FAT.
  */
 import { WEG, dataNote, roles, sourceBlock } from '../facts.js';
-import { DAY, WEEK, auto, flow, node, reported, work } from '../kit.js';
+import { DAY, WEEK, auto, flow, node, reported, work } from '../../kit.js';
 
 const LANES = [
   { id: 'customer', label: { ru: 'Заказчик', en: 'Customer' } },
