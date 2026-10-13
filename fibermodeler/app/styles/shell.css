@@ -299,6 +299,12 @@
 .workspace.no-left.no-right {
   grid-template-columns: 0 1fr 0;
 }
+/* a hidden panel is display:none and drops out of the grid, so the remaining
+   blocks would slide one column to the left (the canvas into a 0-wide column);
+   pinning every block to its own column keeps the layout stable */
+.workspace > .sidebar.left { grid-column: 1; }
+.workspace > .center { grid-column: 2; }
+.workspace > .sidebar.right { grid-column: 3; }
 
 .sidebar {
   display: flex;
