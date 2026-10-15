@@ -11,6 +11,7 @@ import { BPMN_TYPES } from '../notations/bpmn/types.js';
 import { IDEF0_EDGE_TYPES, IDEF0_TYPES } from '../notations/idef0/types.js';
 import { layeredLayout } from '../layout/layered.js';
 import { idef0Layout } from '../layout/idef0layout.js';
+import { buildSheetDiagrams } from '../notations/sheet/build.js';
 
 const LANE_PADDING = 44;
 const SATELLITE_TYPES = ['dataObject', 'dataStore', 'dataInput', 'dataOutput', 'textAnnotation'];
@@ -456,6 +457,7 @@ export function applyIdef0Layout(diagram) {
 /** Turns any specification into diagrams ready to be added to a project. */
 export function buildDiagrams(spec, options = {}) {
   if (!spec) return [];
+  if (spec.notation === 'sheet') return buildSheetDiagrams(spec, options);
   if (spec.notation === 'idef0' || spec.context || spec.functions) return buildIdef0Diagrams(spec, options);
   return [buildBpmnDiagram(spec, options)];
 }

@@ -9,6 +9,9 @@ import { validateBpmn } from './bpmn/validate.js';
 import { IDEF0_CONVERT_GROUPS, IDEF0_EDGE_TYPES, IDEF0_PALETTE, IDEF0_TYPES, nextIcomCode, nextNodeNumber } from './idef0/types.js';
 import * as idef0Rules from './idef0/rules.js';
 import { validateIdef0 } from './idef0/validate.js';
+import { SHEET_CONVERT_GROUPS, SHEET_EDGE_TYPES, SHEET_PALETTE, SHEET_TYPES } from './sheet/types.js';
+import * as sheetRules from './sheet/rules.js';
+import { validateSheet } from './sheet/validate.js';
 import { createNode } from '../core/model.js';
 import { localName } from './shared.js';
 
@@ -58,6 +61,33 @@ define({
     }
     if (node.type === 'idef0Anchor' && !node.props.icom) {
       node.props.icom = nextIcomCode(diagram, node.props.role || 'input');
+    }
+    return node;
+  },
+});
+
+define({
+  id: 'sheet',
+  name: { en: 'Worksheets', ru: 'Рабочие листы' },
+  nodeTypes: SHEET_TYPES,
+  edgeTypes: SHEET_EDGE_TYPES,
+  paletteGroups: SHEET_PALETTE,
+  convertGroups: SHEET_CONVERT_GROUPS,
+  defaultNodeType: 'sheetItem',
+  defaultEdgeType: () => sheetRules.defaultEdgeType(),
+  canConnect: () => sheetRules.canConnect(),
+  containerAt: (diagram, rect, exclude) => sheetRules.containerAt(diagram, rect, exclude),
+  sidesFor: () => sheetRules.sidesFor(),
+  validate: validateSheet,
+  rules: sheetRules,
+  // a worksheet has no connections, so the "next element" arrows make no sense
+  quickConnect: false,
+  onCreateNode(node, diagram) {
+    if (node.type === 'sheetItem' && !node.props.no) {
+      const used = new Set(diagram.nodes.filter((item) => item.type === 'sheetItem').map((item) => String(item.props?.no)));
+      let next = 1;
+      while (used.has(String(next))) next++;
+      node.props.no = String(next);
     }
     return node;
   },

@@ -42,6 +42,7 @@ app/
     shared.js           SVG-примитивы, перенос текста, измерение
     bpmn/               types, glyphs, rules, validate, templates
     idef0/              types, rules, validate, templates
+    sheet/              types, rules, validate, build, templates (рабочие листы: матрица, риски, путь клиента)
     index.js            реестр нотаций
   canvas/               canvas, renderer, routing, interactions, minimap, rulers
   layout/               layered (Сугияма), idef0layout, align
@@ -50,12 +51,13 @@ app/
   analysis/             parameters (схема и форматирование), simulate (расчёт), compare (AS-IS/TO-BE)
   library/              kit, shared (сборка схем, сравнение), index (все библиотеки)
     weg/                facts, asis/p1…p8, tobe/p1…p8, index
+    weg/sheets/         engine (измерение вклада изменений), matrices, risks, journey, index
     ubereats/           facts, asis, tobe, index
   storage/              db (IndexedDB), recent, autosave
   ui/                   app, commands, menus, panels/, dialogs/, icons, menu, dialog, toast
   i18n/                 ru, en
   assets/fonts/         подмножество DejaVu Sans для PDF
-tests/                  103 теста, свой раннер
+tests/                  116 тестов, свой раннер
 tools/                  сборка одного файла, subsetting шрифта
 ```
 

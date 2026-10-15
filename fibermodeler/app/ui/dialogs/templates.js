@@ -1,9 +1,12 @@
-/** Template gallery for both notations. */
+/** Template gallery for every notation: diagrams and fill-in worksheets. */
 import { i18n, t } from '../../i18n/index.js';
 import { buttonRow, openDialog } from '../dialog.js';
 import { BPMN_TEMPLATES } from '../../notations/bpmn/templates.js';
 import { IDEF0_TEMPLATES } from '../../notations/idef0/templates.js';
+import { SHEET_TEMPLATES } from '../../notations/sheet/templates.js';
 import { localName } from '../../notations/index.js';
+
+const TEMPLATES = { bpmn: BPMN_TEMPLATES, idef0: IDEF0_TEMPLATES, sheet: SHEET_TEMPLATES };
 
 export function openTemplates(app, notation = 'bpmn') {
   let current = notation;
@@ -22,6 +25,7 @@ export function openTemplates(app, notation = 'bpmn') {
     for (const option of [
       { value: 'bpmn', label: t('templates.bpmn') },
       { value: 'idef0', label: t('templates.idef0') },
+      { value: 'sheet', label: t('templates.sheet') },
     ]) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -38,7 +42,7 @@ export function openTemplates(app, notation = 'bpmn') {
   };
 
   const renderGrid = () => {
-    const list = current === 'bpmn' ? BPMN_TEMPLATES : IDEF0_TEMPLATES;
+    const list = TEMPLATES[current] || BPMN_TEMPLATES;
     grid.innerHTML = '';
     for (const template of list) {
       const card = document.createElement('div');
@@ -68,7 +72,7 @@ export function openTemplates(app, notation = 'bpmn') {
     buttonRow([
       'spacer',
       { label: t('dialog.cancel'), action: () => dialog.close() },
-      { label: t('templates.insert'), variant: 'primary', action: () => insert(selected || (current === 'bpmn' ? BPMN_TEMPLATES : IDEF0_TEMPLATES)[0]) },
+      { label: t('templates.insert'), variant: 'primary', action: () => insert(selected || (TEMPLATES[current] || BPMN_TEMPLATES)[0]) },
     ])
   );
   renderTabs();

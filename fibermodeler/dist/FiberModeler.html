@@ -2320,7 +2320,7 @@ function createProject(options = {}) {
 function createDiagram(options = {}) {
   const ts = nowIso();
   return {
-    id: options.id || uid(options.notation === 'idef0' ? 'idef0' : 'bpmn'),
+    id: options.id || uid({ idef0: 'idef0', sheet: 'sheet' }[options.notation] || 'bpmn'),
     notation: options.notation || 'bpmn',
     name: options.name || 'Diagram',
     nodes: [],
@@ -2629,7 +2629,7 @@ function normalizeProject(raw) {
     const diagram = createDiagram({
       id: d.id,
       name: d.name,
-      notation: d.notation === 'idef0' ? 'idef0' : 'bpmn',
+      notation: ['idef0', 'sheet'].includes(d.notation) ? d.notation : 'bpmn',
       parentDiagramId: d.parentDiagramId || null,
       parentNodeId: d.parentNodeId || null,
     });
@@ -3492,6 +3492,7 @@ const en = {
   'model.newDiagram': 'New diagram',
   'model.newBpmn': 'New BPMN diagram',
   'model.newIdef0': 'New IDEF0 diagram',
+  'model.newSheet': 'New worksheet…',
   'model.templates': 'From template…',
   'model.decompose': 'Decompose',
   'model.openChild': 'Open decomposition',
@@ -3526,6 +3527,7 @@ const en = {
   'explorer.title': 'Project',
   'explorer.bpmn': 'BPMN models',
   'explorer.idef0': 'IDEF0 models',
+  'explorer.sheet': 'Worksheets',
   'explorer.documentation': 'Documentation',
   'explorer.empty': 'No diagrams yet',
   'explorer.add': 'Add diagram',
@@ -3625,6 +3627,7 @@ const en = {
   'templates.title': 'Templates',
   'templates.bpmn': 'BPMN templates',
   'templates.idef0': 'IDEF0 templates',
+  'templates.sheet': 'Worksheets',
   'templates.insert': 'Insert',
   'templates.hint': 'A template creates a ready-made diagram you can edit freely.',
 
@@ -3820,7 +3823,7 @@ const en = {
   'compare.completion': '{from}% of cases reach a successful end in the baseline model and {to}% in the target one. When a process stops rejecting late, the cost per started case can rise while the cost per completed one falls.',
   'library.title': 'Process libraries',
   'library.open': 'Open the process libraries',
-  'library.loaded': 'Process libraries loaded: {count} models',
+  'library.loaded': 'Libraries loaded: {count} diagrams and worksheets',
   'guide.title': 'Quick start',
   'canvas.empty': 'Drag an element from the palette, or press ⌘K / Ctrl+K',
   'canvas.emptyNoDiagram': 'Create a diagram in the left panel to start modelling',
@@ -3898,6 +3901,7 @@ const ru = {
   'model.newDiagram': 'Новая диаграмма',
   'model.newBpmn': 'Новая диаграмма BPMN',
   'model.newIdef0': 'Новая диаграмма IDEF0',
+  'model.newSheet': 'Новый рабочий лист…',
   'model.templates': 'Из шаблона…',
   'model.decompose': 'Декомпозировать',
   'model.openChild': 'Открыть декомпозицию',
@@ -3932,6 +3936,7 @@ const ru = {
   'explorer.title': 'Проект',
   'explorer.bpmn': 'Модели BPMN',
   'explorer.idef0': 'Модели IDEF0',
+  'explorer.sheet': 'Рабочие листы',
   'explorer.documentation': 'Документация',
   'explorer.empty': 'Диаграмм пока нет',
   'explorer.add': 'Добавить диаграмму',
@@ -4031,6 +4036,7 @@ const ru = {
   'templates.title': 'Шаблоны',
   'templates.bpmn': 'Шаблоны BPMN',
   'templates.idef0': 'Шаблоны IDEF0',
+  'templates.sheet': 'Рабочие листы',
   'templates.insert': 'Вставить',
   'templates.hint': 'Шаблон создаёт готовую диаграмму, которую можно свободно править.',
 
@@ -4226,7 +4232,7 @@ const ru = {
   'compare.completion': 'До успешного завершения доходит {from} % случаев в исходной модели и {to} % в целевой. Если процесс перестаёт отбраковывать поздно, стоимость «на один запущенный случай» может вырасти, пока стоимость «на один доведённый до конца» падает.',
   'library.title': 'Библиотеки процессов',
   'library.open': 'Открыть библиотеки процессов',
-  'library.loaded': 'Загружены библиотеки процессов: моделей — {count}',
+  'library.loaded': 'Загружены библиотеки: схем и рабочих листов — {count}',
   'guide.title': 'Быстрый старт',
   'canvas.empty': 'Перетащите элемент из палитры или нажмите ⌘K / Ctrl+K',
   'canvas.emptyNoDiagram': 'Создайте диаграмму в левой панели, чтобы начать',
@@ -6461,6 +6467,674 @@ function validateIdef0(diagram, doc) {
 Object.assign(__exports, { validateIdef0 });
 
 });
+__fm_define('app/notations/sheet/types.js', function (__exports) {
+/**
+ * Worksheet element catalogue.
+ *
+ * Worksheets are the fill-in documents of a process workshop: the
+ * impact / effort matrix for ranking changes, the implementation-risk sheet and
+ * the customer journey map. They live on the same canvas as diagrams, so they
+ * can be dragged, resized, searched, exported and saved like everything else -
+ * but they have no connections: what matters is where a card sits.
+ */
+const { esc, n, rect, textBlock } = __fm_require('app/notations/shared.js');
+/** Quadrant tones of the impact / effort matrix (also used by the checks). */
+const QUADRANTS = {
+  win: { id: 'win', color: '#2a9d8f', fill: 'rgba(42,157,143,0.13)' },
+  big: { id: 'big', color: '#4f7cd6', fill: 'rgba(79,124,214,0.13)' },
+  fill: { id: 'fill', color: '#c98a1b', fill: 'rgba(201,138,27,0.12)' },
+  drop: { id: 'drop', color: '#d0504a', fill: 'rgba(208,80,74,0.11)' },
+};
+
+const TONES = {
+  teal: '#5fb8a6',
+  orange: '#e0a070',
+  violet: '#9aa7e0',
+};
+
+const AXIS_W = 56; // strip with the vertical axis label
+const AXIS_H = 44; // strip with the horizontal axis label
+
+/** Plot area of a matrix board and its four quadrants, in the board's own coordinates. */
+function matrixGeometry(board) {
+  const x = AXIS_W;
+  const y = 0;
+  const w = Math.max(40, board.w - AXIS_W);
+  const h = Math.max(40, board.h - AXIS_H);
+  const hw = w / 2;
+  const hh = h / 2;
+  return {
+    area: { x, y, w, h },
+    quadrants: {
+      win: { x, y, w: hw, h: hh },
+      big: { x: x + hw, y, w: hw, h: hh },
+      fill: { x, y: y + hh, w: hw, h: hh },
+      drop: { x: x + hw, y: y + hh, w: hw, h: hh },
+    },
+  };
+}
+
+/**
+ * Quadrant a rectangle (in diagram coordinates) sits in, or null when its
+ * centre is off the plot area. High impact is the top half, high effort the
+ * right half - the layout of the classic matrix.
+ */
+function matrixQuadrant(board, rectangle) {
+  const geometry = matrixGeometry(board);
+  const cx = rectangle.x + rectangle.w / 2 - board.x;
+  const cy = rectangle.y + rectangle.h / 2 - board.y;
+  const { area } = geometry;
+  if (cx < area.x || cx > area.x + area.w || cy < area.y || cy > area.y + area.h) return null;
+  const top = cy < area.y + area.h / 2;
+  const left = cx < area.x + area.w / 2;
+  if (top) return left ? 'win' : 'big';
+  return left ? 'fill' : 'drop';
+}
+
+/** "1, 0, -1" -> [1, 0, -1]; anything unreadable is dropped. */
+function parseScores(text) {
+  return String(text ?? '')
+    .split(/[;,\s]+/)
+    .filter((part) => part !== '')
+    .map(Number)
+    .filter((value) => Number.isFinite(value));
+}
+
+function textOf(node) {
+  return node.style?.textColor || 'var(--el-text)';
+}
+
+const P = {
+  name: (en, ru, type = 'textarea') => ({ key: 'label', type, rows: 3, label: { en, ru }, group: 'general' }),
+  id: { key: 'id', type: 'id', label: { en: 'ID', ru: 'Идентификатор' }, group: 'general' },
+  documentation: { key: 'documentation', type: 'textarea', label: { en: 'Documentation', ru: 'Документация' }, group: 'documentation', rows: 4 },
+};
+
+const SHEET_TYPES = {};
+
+function register(type) {
+  SHEET_TYPES[type.id] = type;
+  return type;
+}
+
+/* ------------------------------------------------------------------ matrix */
+
+register({
+  id: 'sheetBoard',
+  category: 'board',
+  name: { en: 'Impact / effort matrix', ru: 'Матрица «эффект — усилия»' },
+  palette: true,
+  group: 'matrix',
+  defaultSize: { w: 940, h: 600 },
+  paletteSize: { w: 110, h: 62 },
+  minSize: { w: 420, h: 300 },
+  resizable: true,
+  container: true,
+  zIndex: -20,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const { area, quadrants } = matrixGeometry(node);
+    const titles = {
+      win: node.props?.qWin || '',
+      big: node.props?.qBig || '',
+      fill: node.props?.qFill || '',
+      drop: node.props?.qDrop || '',
+    };
+    let markup = '';
+    for (const [id, box] of Object.entries(quadrants)) {
+      const tone = QUADRANTS[id];
+      markup += rect(box.x, box.y, box.w, box.h, 0, `fill="${tone.fill}" stroke="rgba(100,116,139,0.38)" stroke-width="1"`);
+      markup += `<text class="el-label" x="${n(box.x + 14)}" y="${n(box.y + 24)}" font-size="14" font-weight="700" fill="${tone.color}">${esc(titles[id])}</text>`;
+    }
+    // the outer frame sits on top of the quadrant edges
+    markup += rect(area.x + 0.5, area.y + 0.5, area.w - 1, area.h - 1, 0, 'fill="none" stroke="rgba(100,116,139,0.6)" stroke-width="1.4"');
+    markup += `<g transform="translate(${n(AXIS_W / 2 - 2)},${n(area.h / 2)}) rotate(-90)">${textBlock(node.props?.yAxis || '', {
+      x: -area.h / 2,
+      y: -12,
+      width: area.h,
+      height: 24,
+      fontSize: 13,
+      bold: true,
+      color: 'var(--el-text)',
+      maxLines: 1,
+    })}</g>`;
+    markup += textBlock(node.props?.xAxis || '', {
+      x: area.x,
+      y: area.h + 6,
+      width: area.w,
+      height: AXIS_H - 10,
+      fontSize: 13,
+      bold: true,
+      color: 'var(--el-text)',
+      maxLines: 1,
+    });
+    return markup;
+  },
+  props: [
+    P.id,
+    { key: 'yAxis', type: 'text', label: { en: 'Vertical axis', ru: 'Вертикальная ось' }, group: 'general' },
+    { key: 'xAxis', type: 'text', label: { en: 'Horizontal axis', ru: 'Горизонтальная ось' }, group: 'general' },
+    { key: 'qWin', type: 'text', label: { en: 'Top left', ru: 'Левый верхний' }, group: 'general' },
+    { key: 'qBig', type: 'text', label: { en: 'Top right', ru: 'Правый верхний' }, group: 'general' },
+    { key: 'qFill', type: 'text', label: { en: 'Bottom left', ru: 'Левый нижний' }, group: 'general' },
+    { key: 'qDrop', type: 'text', label: { en: 'Bottom right', ru: 'Правый нижний' }, group: 'general' },
+    P.documentation,
+  ],
+});
+
+register({
+  id: 'sheetItem',
+  category: 'card',
+  name: { en: 'Change card', ru: 'Карточка изменения' },
+  palette: true,
+  group: 'matrix',
+  defaultSize: { w: 188, h: 66 },
+  paletteSize: { w: 86, h: 40 },
+  minSize: { w: 120, h: 48 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const stroke = node.style?.stroke || 'var(--accent)';
+    const no = node.props?.no || '';
+    let markup = rect(1, 1, node.w - 2, node.h - 2, 10, `fill="var(--el-fill)" stroke="${stroke}" stroke-width="1.5"`);
+    markup += `<circle cx="22" cy="${n(node.h / 2)}" r="13" fill="${stroke}"/>`;
+    markup += `<text class="el-label" x="22" y="${n(node.h / 2 + 4.5)}" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">${esc(no)}</text>`;
+    markup += textBlock(node.label || '…', {
+      x: 42,
+      y: 4,
+      width: node.w - 50,
+      height: node.h - 8,
+      align: 'left',
+      fontSize: 12,
+      color: node.label ? textOf(node) : 'var(--el-muted, #94a3b8)',
+      maxLines: 4,
+    });
+    return markup;
+  },
+  props: [
+    P.name('Change', 'Изменение'),
+    P.id,
+    { key: 'no', type: 'text', label: { en: 'Number', ru: 'Номер' }, group: 'general' },
+    { key: 'basis', type: 'textarea', rows: 3, label: { en: 'Why this position', ru: 'Почему здесь' }, group: 'general' },
+    P.documentation,
+  ],
+});
+
+register({
+  id: 'sheetText',
+  category: 'text',
+  name: { en: 'Text block', ru: 'Текстовый блок' },
+  palette: true,
+  group: 'matrix',
+  defaultSize: { w: 340, h: 160 },
+  paletteSize: { w: 90, h: 48 },
+  minSize: { w: 140, h: 60 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const stroke = node.style?.stroke || 'rgba(100,116,139,0.5)';
+    const title = node.props?.title || '';
+    const titleH = title ? 26 : 0;
+    let markup = rect(0.5, 0.5, node.w - 1, node.h - 1, 10, `fill="var(--el-fill)" stroke="${stroke}" stroke-width="1.2"`);
+    if (title) {
+      markup += textBlock(title, {
+        x: 14,
+        y: 8,
+        width: node.w - 28,
+        height: 20,
+        align: 'left',
+        fontSize: 13,
+        bold: true,
+        color: 'var(--accent)',
+        maxLines: 2,
+      });
+    }
+    markup += textBlock(node.label || '…', {
+      x: 14,
+      y: 10 + titleH,
+      width: node.w - 28,
+      height: node.h - 20 - titleH,
+      align: 'left',
+      valign: 'top',
+      fontSize: 12.5,
+      color: node.label ? textOf(node) : 'var(--el-muted, #94a3b8)',
+      maxLines: 14,
+    });
+    return markup;
+  },
+  props: [
+    { key: 'title', type: 'text', label: { en: 'Heading', ru: 'Заголовок' }, group: 'general' },
+    P.name('Text', 'Текст'),
+    P.id,
+    { key: 'role', type: 'text', label: { en: 'Role (why / hint)', ru: 'Роль (why / hint)' }, group: 'advanced' },
+    P.documentation,
+  ],
+});
+
+register({
+  id: 'sheetTitle',
+  category: 'text',
+  name: { en: 'Sheet title', ru: 'Заголовок листа' },
+  palette: true,
+  group: 'questions',
+  defaultSize: { w: 900, h: 70 },
+  paletteSize: { w: 100, h: 40 },
+  minSize: { w: 240, h: 44 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const kicker = node.props?.kicker || '';
+    let markup = '';
+    if (kicker) {
+      markup += `<text class="el-label" x="2" y="14" font-size="11.5" font-weight="700" letter-spacing="1.4" fill="var(--accent)">${esc(kicker.toUpperCase())}</text>`;
+    }
+    markup += textBlock(node.label, {
+      x: 2,
+      y: kicker ? 20 : 0,
+      width: node.w - 4,
+      height: node.h - (kicker ? 20 : 0),
+      align: 'left',
+      valign: 'top',
+      fontSize: 24,
+      bold: true,
+      color: textOf(node),
+      maxLines: 2,
+    });
+    return markup;
+  },
+  props: [P.name('Title', 'Заголовок', 'text'), { key: 'kicker', type: 'text', label: { en: 'Small line above', ru: 'Строка над заголовком' }, group: 'general' }, P.id],
+});
+
+/* --------------------------------------------------------------- questions */
+
+register({
+  id: 'sheetQuestion',
+  category: 'card',
+  name: { en: 'Question with an answer', ru: 'Вопрос с ответом' },
+  palette: true,
+  group: 'questions',
+  defaultSize: { w: 900, h: 176 },
+  paletteSize: { w: 110, h: 52 },
+  minSize: { w: 300, h: 90 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const bar = TONES[node.props?.tone] || TONES.teal;
+    const question = node.props?.question || '';
+    let markup = rect(0.5, 0.5, node.w - 1, node.h - 1, 8, 'fill="var(--el-fill)" stroke="rgba(100,116,139,0.4)" stroke-width="1"');
+    markup += rect(0, 0, 9, node.h, 4, `fill="${bar}"`);
+    markup += textBlock(question, {
+      x: 26,
+      y: 10,
+      width: node.w - 44,
+      height: 40,
+      align: 'left',
+      valign: 'top',
+      fontSize: 14,
+      bold: true,
+      color: textOf(node),
+      maxLines: 2,
+    });
+    markup += `<line x1="26" y1="56" x2="${n(node.w - 18)}" y2="56" stroke="rgba(100,116,139,0.25)" stroke-width="1"/>`;
+    markup += textBlock(node.label || '…', {
+      x: 26,
+      y: 64,
+      width: node.w - 44,
+      height: node.h - 74,
+      align: 'left',
+      valign: 'top',
+      fontSize: 13,
+      color: node.label ? textOf(node) : 'var(--el-muted, #94a3b8)',
+      maxLines: 9,
+    });
+    return markup;
+  },
+  props: [
+    { key: 'question', type: 'textarea', rows: 2, label: { en: 'Question', ru: 'Вопрос' }, group: 'general' },
+    P.name('Answer', 'Ответ'),
+    P.id,
+    {
+      key: 'tone',
+      type: 'select',
+      label: { en: 'Colour bar', ru: 'Цвет полосы' },
+      group: 'general',
+      options: [
+        { value: 'teal', label: { en: 'Teal', ru: 'Бирюзовый' } },
+        { value: 'orange', label: { en: 'Orange', ru: 'Оранжевый' } },
+        { value: 'violet', label: { en: 'Violet', ru: 'Фиолетовый' } },
+      ],
+    },
+    P.documentation,
+  ],
+});
+
+/* ------------------------------------------------------------ customer path */
+
+register({
+  id: 'journeyStage',
+  category: 'journey',
+  name: { en: 'Journey stage', ru: 'Этап пути' },
+  palette: true,
+  group: 'journey',
+  defaultSize: { w: 196, h: 60 },
+  paletteSize: { w: 92, h: 40 },
+  minSize: { w: 100, h: 40 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const no = node.props?.no || '';
+    let markup = rect(0.5, 0.5, node.w - 1, node.h - 1, 8, 'fill="rgba(10,108,241,0.12)" stroke="var(--accent)" stroke-width="1.3"');
+    if (no) {
+      markup += `<circle cx="20" cy="${n(node.h / 2)}" r="11" fill="var(--accent)"/>`;
+      markup += `<text class="el-label" x="20" y="${n(node.h / 2 + 4)}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${esc(no)}</text>`;
+    }
+    markup += textBlock(node.label || '…', {
+      x: no ? 36 : 8,
+      y: 2,
+      width: node.w - (no ? 44 : 16),
+      height: node.h - 4,
+      align: no ? 'left' : 'center',
+      fontSize: 12.5,
+      bold: true,
+      color: textOf(node),
+      maxLines: 3,
+    });
+    return markup;
+  },
+  props: [P.name('Stage', 'Этап', 'text'), P.id, { key: 'no', type: 'text', label: { en: 'Number', ru: 'Номер' }, group: 'general' }, P.documentation],
+});
+
+register({
+  id: 'journeyRow',
+  category: 'journey',
+  name: { en: 'Journey row heading', ru: 'Заголовок строки пути' },
+  palette: true,
+  group: 'journey',
+  defaultSize: { w: 150, h: 96 },
+  paletteSize: { w: 92, h: 40 },
+  minSize: { w: 80, h: 36 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) =>
+    rect(0.5, 0.5, node.w - 1, node.h - 1, 8, 'fill="rgba(100,116,139,0.16)" stroke="rgba(100,116,139,0.45)" stroke-width="1"') +
+    textBlock(node.label || '…', {
+      x: 10,
+      y: 2,
+      width: node.w - 20,
+      height: node.h - 4,
+      align: 'left',
+      fontSize: 12,
+      bold: true,
+      color: textOf(node),
+      maxLines: 5,
+    }),
+  props: [P.name('Heading', 'Заголовок', 'text'), P.id, P.documentation],
+});
+
+const CELL_TONES = {
+  pain: { fill: 'rgba(208,80,74,0.10)', stroke: 'rgba(208,80,74,0.45)' },
+  gain: { fill: 'rgba(42,157,143,0.12)', stroke: 'rgba(42,157,143,0.5)' },
+  neutral: { fill: 'var(--el-fill)', stroke: 'rgba(100,116,139,0.38)' },
+};
+
+register({
+  id: 'journeyCell',
+  category: 'journey',
+  name: { en: 'Journey cell', ru: 'Ячейка пути' },
+  palette: true,
+  group: 'journey',
+  defaultSize: { w: 196, h: 96 },
+  paletteSize: { w: 92, h: 40 },
+  minSize: { w: 80, h: 36 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const tone = CELL_TONES[node.props?.tone] || CELL_TONES.neutral;
+    return (
+      rect(0.5, 0.5, node.w - 1, node.h - 1, 8, `fill="${tone.fill}" stroke="${tone.stroke}" stroke-width="1"`) +
+      textBlock(node.label || '…', {
+        x: 9,
+        y: 7,
+        width: node.w - 18,
+        height: node.h - 12,
+        align: 'left',
+        valign: 'top',
+        fontSize: 11.5,
+        color: node.label ? textOf(node) : 'var(--el-muted, #94a3b8)',
+        maxLines: 12,
+      })
+    );
+  },
+  props: [
+    P.name('Text', 'Текст'),
+    P.id,
+    {
+      key: 'tone',
+      type: 'select',
+      label: { en: 'Meaning', ru: 'Смысл' },
+      group: 'general',
+      options: [
+        { value: 'neutral', label: { en: 'Neutral', ru: 'Нейтрально' } },
+        { value: 'pain', label: { en: 'Pain point', ru: 'Боль' } },
+        { value: 'gain', label: { en: 'Improvement', ru: 'Улучшение' } },
+      ],
+    },
+    P.documentation,
+  ],
+});
+
+register({
+  id: 'journeyCurve',
+  category: 'journey',
+  name: { en: 'Emotion curve', ru: 'Кривая эмоций' },
+  palette: true,
+  group: 'journey',
+  defaultSize: { w: 760, h: 150 },
+  paletteSize: { w: 100, h: 44 },
+  minSize: { w: 200, h: 90 },
+  resizable: true,
+  labelPlacement: 'inside',
+  draw: (node) => {
+    const scores = parseScores(node.props?.scores);
+    const pad = 22;
+    const mid = node.h / 2;
+    const span = node.h / 2 - pad;
+    let markup = rect(0.5, 0.5, node.w - 1, node.h - 1, 8, 'fill="var(--el-fill)" stroke="rgba(100,116,139,0.38)" stroke-width="1"');
+    markup += `<line x1="8" y1="${n(mid)}" x2="${n(node.w - 8)}" y2="${n(mid)}" stroke="rgba(100,116,139,0.5)" stroke-width="1" stroke-dasharray="4 4"/>`;
+    markup += `<text class="el-label" x="10" y="14" font-size="10" fill="#2a9d8f">+2</text>`;
+    markup += `<text class="el-label" x="10" y="${n(node.h - 6)}" font-size="10" fill="#d0504a">−2</text>`;
+    if (!scores.length) return markup;
+    const step = node.w / scores.length;
+    const points = scores.map((value, i) => ({
+      x: step * (i + 0.5),
+      y: mid - (Math.max(-2, Math.min(2, value)) / 2) * span,
+      value,
+    }));
+    markup += `<polyline points="${points.map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+    for (const p of points) {
+      const color = p.value > 0 ? '#2a9d8f' : p.value < 0 ? '#d0504a' : '#64748b';
+      markup += `<circle cx="${n(p.x)}" cy="${n(p.y)}" r="7" fill="${color}" stroke="var(--el-fill)" stroke-width="2"/>`;
+      const sign = p.value > 0 ? '+' : p.value < 0 ? '−' : '';
+      const above = p.value >= 0;
+      markup += `<text class="el-label" x="${n(p.x)}" y="${n(above ? p.y - 12 : p.y + 20)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${color}">${sign}${Math.abs(p.value)}</text>`;
+    }
+    return markup;
+  },
+  props: [
+    { key: 'scores', type: 'text', label: { en: 'Emotion by stage (-2 … +2)', ru: 'Эмоция по этапам (−2 … +2)' }, group: 'general', placeholder: '1, 0, -1, 2' },
+    P.id,
+    P.documentation,
+  ],
+});
+
+const SHEET_EDGE_TYPES = {};
+
+const SHEET_PALETTE = [
+  { id: 'matrix', name: { en: 'Matrix', ru: 'Матрица' } },
+  { id: 'questions', name: { en: 'Questions', ru: 'Вопросы' } },
+  { id: 'journey', name: { en: 'Customer journey', ru: 'Путь клиента' } },
+];
+
+const SHEET_CONVERT_GROUPS = {
+  card: ['sheetItem', 'sheetQuestion'],
+  text: ['sheetText', 'sheetTitle'],
+  journey: ['journeyStage', 'journeyRow', 'journeyCell'],
+};
+
+Object.assign(__exports, { QUADRANTS, TONES, matrixGeometry, matrixQuadrant, parseScores, SHEET_TYPES, SHEET_EDGE_TYPES, SHEET_PALETTE, SHEET_CONVERT_GROUPS });
+
+});
+__fm_define('app/notations/sheet/rules.js', function (__exports) {
+/**
+ * Worksheet rules.
+ *
+ * Worksheets have no connections - a card's meaning is its place on the board -
+ * so the only rule that matters is containment: a card dropped on a matrix
+ * board becomes the board's child and travels with it.
+ */
+const { SHEET_TYPES } = __fm_require('app/notations/sheet/types.js');
+function canConnect() {
+  return { ok: false, reason: 'noConnections' };
+}
+
+function defaultEdgeType() {
+  return null;
+}
+
+function sidesFor() {
+  return { sourceSide: null, targetSide: null };
+}
+
+function containerAt(diagram, rectangle, exclude = new Set()) {
+  let best = null;
+  for (const node of diagram.nodes) {
+    if (exclude.has(node.id)) continue;
+    if (!SHEET_TYPES[node.type]?.container) continue;
+    const cx = rectangle.x + rectangle.w / 2;
+    const cy = rectangle.y + rectangle.h / 2;
+    const inside = cx >= node.x && cx <= node.x + node.w && cy >= node.y && cy <= node.y + node.h;
+    if (!inside) continue;
+    if (!best || node.w * node.h < best.w * best.h) best = node;
+  }
+  return best;
+}
+
+Object.assign(__exports, { canConnect, defaultEdgeType, sidesFor, containerAt });
+
+});
+__fm_define('app/notations/sheet/validate.js', function (__exports) {
+/**
+ * Worksheet checks.
+ *
+ * They read as a to-do list for whoever fills the sheet in: what is still
+ * empty, what is outside the matrix, what the instructions ask for but the
+ * sheet does not have yet. Nothing here is a hard error - a half-filled
+ * worksheet is a normal state - so everything is a warning or a note.
+ */
+const { matrixQuadrant, parseScores } = __fm_require('app/notations/sheet/types.js');
+const MSG = {
+  itemEmpty: { en: 'Change card {no} is still empty', ru: 'Карточка изменения {no} пока пустая' },
+  fewItems: { en: 'The sheet asks for 3–5 changes, there are {count}', ru: 'В листе нужно 3–5 изменений, сейчас {count}' },
+  manyItems: { en: 'The sheet is built for 3–5 changes, there are {count}: pick the strongest', ru: 'Лист рассчитан на 3–5 изменений, сейчас {count}: оставьте самые сильные' },
+  outside: { en: '“{name}” is outside the matrix: place it in one of the four quadrants', ru: '«{name}» лежит вне матрицы: поставьте в один из четырёх квадрантов' },
+  noBoard: { en: 'There are change cards but no matrix board to place them on', ru: 'Есть карточки изменений, но нет доски матрицы' },
+  whyMissing: {
+    en: 'There are “quick wins” but no explanation of why to implement the first one first',
+    ru: 'Есть «быстрые победы», но нет пояснения, почему внедрять первой именно эту',
+  },
+  whyEmpty: { en: 'Explain in one sentence why the quick win goes first', ru: 'Объясните одним предложением, почему быстрая победа идёт первой' },
+  duplicateNo: { en: 'Number {no} is used by more than one card', ru: 'Номер {no} стоит у нескольких карточек' },
+  answerEmpty: { en: 'Answer the question: “{question}”', ru: 'Ответьте на вопрос: «{question}»' },
+  stageEmpty: { en: 'A journey stage has no name', ru: 'У этапа пути нет названия' },
+  cellsEmpty: { en: '{count} journey cell(s) are still empty', ru: 'Пустых ячеек пути: {count}' },
+  curveCount: {
+    en: 'The emotion curve has {scores} value(s) for {stages} stage(s)',
+    ru: 'В кривой эмоций {scores} знач., а этапов {stages}',
+  },
+  curveRange: { en: 'Emotion scores must be between −2 and +2', ru: 'Оценки эмоций должны быть от −2 до +2' },
+  duplicateId: { en: 'Duplicate identifier “{id}”', ru: 'Идентификатор «{id}» дублируется' },
+};
+
+function problem(severity, key, params, target) {
+  return { severity, messageKey: key, message: MSG[key], params: params || {}, ...target };
+}
+
+const rectOf = (node) => ({ x: node.x, y: node.y, w: node.w, h: node.h });
+
+function validateSheet(diagram) {
+  const problems = [];
+  const add = (severity, key, params, element) =>
+    problems.push(problem(severity, key, params, { diagramId: diagram.id, elementId: element?.id }));
+  const nodes = diagram.nodes;
+
+  const seen = new Set();
+  for (const node of nodes) {
+    if (seen.has(node.id)) add('error', 'duplicateId', { id: node.id }, node);
+    seen.add(node.id);
+  }
+
+  const ofType = (type) => nodes.filter((node) => node.type === type);
+
+  /* impact / effort matrix */
+  const items = ofType('sheetItem');
+  const board = ofType('sheetBoard')[0];
+  if (items.length && !board) add('warning', 'noBoard', {}, items[0]);
+  if (items.length || board) {
+    const filled = items.filter((item) => (item.label || '').trim());
+    for (const item of items) {
+      if (!(item.label || '').trim()) add('warning', 'itemEmpty', { no: item.props?.no || '' }, item);
+    }
+    if (items.length < 3) add('warning', 'fewItems', { count: items.length }, items[0] || board);
+    if (items.length > 5) add('info', 'manyItems', { count: items.length }, items[5]);
+
+    const numbers = new Map();
+    for (const item of items) {
+      const no = item.props?.no;
+      if (!no) continue;
+      numbers.set(no, (numbers.get(no) || 0) + 1);
+    }
+    for (const [no, count] of numbers) if (count > 1) add('info', 'duplicateNo', { no }, items.find((item) => item.props?.no === no));
+
+    if (board) {
+      let quickWins = 0;
+      for (const item of filled) {
+        const quadrant = matrixQuadrant(board, rectOf(item));
+        if (!quadrant) add('warning', 'outside', { name: item.label.split('\n')[0].slice(0, 60) }, item);
+        if (quadrant === 'win') quickWins++;
+      }
+      if (quickWins) {
+        const why = nodes.find((node) => node.type === 'sheetText' && node.props?.role === 'why');
+        if (!why) add('warning', 'whyMissing', {}, board);
+        else if (!(why.label || '').trim()) add('warning', 'whyEmpty', {}, why);
+      }
+    }
+  }
+
+  /* question sheets */
+  for (const question of ofType('sheetQuestion')) {
+    if (!(question.label || '').trim()) {
+      add('warning', 'answerEmpty', { question: (question.props?.question || '').slice(0, 70) }, question);
+    }
+  }
+
+  /* customer journey */
+  const stages = ofType('journeyStage');
+  if (stages.length) {
+    for (const stage of stages) if (!(stage.label || '').trim()) add('warning', 'stageEmpty', {}, stage);
+    const empty = ofType('journeyCell').filter((cell) => !(cell.label || '').trim());
+    if (empty.length) add('warning', 'cellsEmpty', { count: empty.length }, empty[0]);
+    for (const curve of ofType('journeyCurve')) {
+      const scores = parseScores(curve.props?.scores);
+      if (scores.length !== stages.length) add('warning', 'curveCount', { scores: scores.length, stages: stages.length }, curve);
+      if (scores.some((value) => value < -2 || value > 2)) add('warning', 'curveRange', {}, curve);
+    }
+  }
+  return problems;
+}
+
+Object.assign(__exports, { validateSheet });
+
+});
 __fm_define('app/notations/index.js', function (__exports) {
 /**
  * Notation registry - the single place the rest of the app asks
@@ -6473,6 +7147,9 @@ const { validateBpmn } = __fm_require('app/notations/bpmn/validate.js');
 const { IDEF0_CONVERT_GROUPS, IDEF0_EDGE_TYPES, IDEF0_PALETTE, IDEF0_TYPES, nextIcomCode, nextNodeNumber } = __fm_require('app/notations/idef0/types.js');
 const idef0Rules = __fm_require('app/notations/idef0/rules.js');
 const { validateIdef0 } = __fm_require('app/notations/idef0/validate.js');
+const { SHEET_CONVERT_GROUPS, SHEET_EDGE_TYPES, SHEET_PALETTE, SHEET_TYPES } = __fm_require('app/notations/sheet/types.js');
+const sheetRules = __fm_require('app/notations/sheet/rules.js');
+const { validateSheet } = __fm_require('app/notations/sheet/validate.js');
 const { createNode } = __fm_require('app/core/model.js');
 const { localName } = __fm_require('app/notations/shared.js');
 const notations = new Map();
@@ -6521,6 +7198,33 @@ define({
     }
     if (node.type === 'idef0Anchor' && !node.props.icom) {
       node.props.icom = nextIcomCode(diagram, node.props.role || 'input');
+    }
+    return node;
+  },
+});
+
+define({
+  id: 'sheet',
+  name: { en: 'Worksheets', ru: 'Рабочие листы' },
+  nodeTypes: SHEET_TYPES,
+  edgeTypes: SHEET_EDGE_TYPES,
+  paletteGroups: SHEET_PALETTE,
+  convertGroups: SHEET_CONVERT_GROUPS,
+  defaultNodeType: 'sheetItem',
+  defaultEdgeType: () => sheetRules.defaultEdgeType(),
+  canConnect: () => sheetRules.canConnect(),
+  containerAt: (diagram, rect, exclude) => sheetRules.containerAt(diagram, rect, exclude),
+  sidesFor: () => sheetRules.sidesFor(),
+  validate: validateSheet,
+  rules: sheetRules,
+  // a worksheet has no connections, so the "next element" arrows make no sense
+  quickConnect: false,
+  onCreateNode(node, diagram) {
+    if (node.type === 'sheetItem' && !node.props.no) {
+      const used = new Set(diagram.nodes.filter((item) => item.type === 'sheetItem').map((item) => String(item.props?.no)));
+      let next = 1;
+      while (used.has(String(next))) next++;
+      node.props.no = String(next);
     }
     return node;
   },
@@ -7454,7 +8158,7 @@ class DiagramCanvas extends Emitter {
             );
           }
         }
-        if (this.settings.get('canvas.quickHandles', true) && descriptor?.category !== 'swimlane') {
+        if (this.settings.get('canvas.quickHandles', true) && descriptor?.category !== 'swimlane' && getNotation(this.diagram.notation).quickConnect !== false) {
           for (const q of quickHandlePositions(r)) {
             parts.push(
               `<g class="ov-quick" data-quick="${q.id}" transform="translate(${q.x},${q.y})">` +
@@ -9057,6 +9761,7 @@ const { layeredLayout, fitContainers } = __fm_require('app/layout/layered.js');
 const { idef0Layout } = __fm_require('app/layout/idef0layout.js');
 /** Chooses the right algorithm for the notation and returns position changes. */
 function autoLayout(diagram, options = {}) {
+  if (diagram.notation === 'sheet') return [];
   if (diagram.notation === 'idef0') return idef0Layout(diagram, options);
   const changes = layeredLayout(diagram, options);
   return changes;
@@ -9065,6 +9770,294 @@ function autoLayout(diagram, options = {}) {
 
 Object.assign(__exports, __fm_require('app/layout/align.js'));
 Object.assign(__exports, { layeredLayout, idef0Layout, fitContainers, autoLayout });
+
+});
+__fm_define('app/notations/sheet/build.js', function (__exports) {
+/**
+ * Worksheet specification -> diagram.
+ *
+ * A specification says what is on the sheet (changes with their impact and
+ * effort scores, questions with answers, journey stages with cells); this
+ * module gives it identity and geometry. The same pipeline builds the empty
+ * templates a user starts from and the filled sheets shipped in a library.
+ */
+const { createDiagram, createNode } = __fm_require('app/core/model.js');
+const { matrixGeometry } = __fm_require('app/notations/sheet/types.js');
+function pick(value, locale) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  return value[locale] || value.en || value.ru || '';
+}
+
+/** The captions every matrix carries, in both languages. */
+const STRINGS = {
+  quadrants: {
+    win: { ru: 'Быстрые победы', en: 'Quick wins' },
+    big: { ru: 'Крупные проекты', en: 'Major projects' },
+    fill: { ru: 'По возможности', en: 'When possible' },
+    drop: { ru: 'Отказаться', en: 'Drop' },
+  },
+  yAxis: { ru: 'Эффект (Impact) ↑ выше', en: 'Impact ↑ higher' },
+  xAxis: { ru: 'Усилия (Effort) → выше', en: 'Effort → higher' },
+  hintTitle: { ru: 'Как заполнять', en: 'How to fill it in' },
+  hint: {
+    ru: 'Впишите 3–5 изменений из своей TO-BE (можно просто номерами 1, 2, 3…) и отметьте точкой их место на матрице слева.\n\nЗатем для изменения, которое попало в «Быстрые победы», одним предложением объясните, почему это логично внедрить первым.',
+    en: 'Write down 3–5 changes from your TO-BE (numbers 1, 2, 3… are enough) and mark their place on the matrix on the left.\n\nThen, for the change that landed in “Quick wins”, explain in one sentence why it makes sense to implement it first.',
+  },
+  whyTitle: { ru: 'Почему внедрять первым', en: 'Why implement it first' },
+  basisTitle: { ru: 'Как оценено', en: 'How it was scored' },
+  changeTitle: { ru: 'Изменение, которое вы внедряете', en: 'The change you are implementing' },
+};
+
+const CARD = { w: 188, h: 66 };
+const SLOT_GAP = 8;
+const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+
+/** Quadrant a pair of 1–10 scores belongs to: impact ≥ 6 is the top half, effort ≤ 5 the left half. */
+function quadrantForScores(impact, effort) {
+  const top = impact >= 6;
+  const left = effort <= 5;
+  if (top) return left ? 'win' : 'big';
+  return left ? 'fill' : 'drop';
+}
+
+/** Evenly spaced card slots inside a quadrant (a grid, so cards never overlap). */
+function quadrantSlots(box) {
+  const low = { x: box.x + 10, y: box.y + 38 };
+  const high = { x: box.x + box.w - 10 - CARD.w, y: box.y + box.h - 10 - CARD.h };
+  const cols = Math.max(1, Math.floor((high.x - low.x + CARD.w + SLOT_GAP) / (CARD.w + SLOT_GAP)));
+  const rows = Math.max(1, Math.floor((high.y - low.y + CARD.h + SLOT_GAP) / (CARD.h + SLOT_GAP)));
+  const slots = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      slots.push({
+        x: cols === 1 ? low.x : low.x + (c * (high.x - low.x)) / (cols - 1),
+        y: rows === 1 ? low.y : low.y + (r * (high.y - low.y)) / (rows - 1),
+        w: CARD.w,
+        h: CARD.h,
+      });
+    }
+  }
+  return { slots, low, high };
+}
+
+/**
+ * Positions of the cards, relative to the board's top-left corner. A card goes
+ * to the free slot of its quadrant that is closest to the point its scores ask
+ * for, so the position always agrees with the scores and no two cards overlap
+ * (a quadrant holds six; beyond that the extra cards stack on the nearest slot).
+ */
+function placeCards(items, board) {
+  const geometry = matrixGeometry(board);
+  const used = new Map(); // quadrant -> set of slot indexes
+  const out = new Map();
+  const order = [...items.keys()].sort((a, b) => items[b].impact - items[a].impact || items[a].effort - items[b].effort);
+  for (const index of order) {
+    const item = items[index];
+    const impact = clamp(item.impact, 1, 10);
+    const effort = clamp(item.effort, 1, 10);
+    const quadrant = quadrantForScores(impact, effort);
+    const { slots, low, high } = quadrantSlots(geometry.quadrants[quadrant]);
+    // where inside its quadrant the scores point: 0 = left / top edge, 1 = right / bottom edge
+    const fx = effort <= 5 ? (effort - 0.5) / 5 : (effort - 5.5) / 5;
+    const fy = impact >= 6 ? 1 - (impact - 5.5) / 5 : 1 - (impact - 0.5) / 5;
+    const want = { x: low.x + clamp(fx, 0, 1) * (high.x - low.x), y: low.y + clamp(fy, 0, 1) * (high.y - low.y) };
+    const taken = used.get(quadrant) || new Set();
+    let best = -1;
+    let bestDistance = Infinity;
+    slots.forEach((slot, i) => {
+      const distance = Math.hypot(slot.x - want.x, slot.y - want.y) + (taken.has(i) ? 1e6 : 0);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = i;
+      }
+    });
+    taken.add(best);
+    used.set(quadrant, taken);
+    out.set(index, slots[best]);
+  }
+  return out;
+}
+
+function node(diagram, type, options) {
+  const made = createNode({ type, ...options });
+  diagram.nodes.push(made);
+  return made;
+}
+
+/* ------------------------------------------------------------------ matrix */
+
+function buildMatrix(diagram, spec, locale) {
+  const title = pick(spec.title, locale);
+  node(diagram, 'sheetTitle', {
+    x: 0,
+    y: 0,
+    w: 1320,
+    h: 70,
+    label: title,
+    props: { kicker: pick(spec.kicker, locale) },
+  });
+
+  const boardBox = { x: 0, y: 96, w: 940, h: 600 };
+  const board = node(diagram, 'sheetBoard', {
+    ...boardBox,
+    props: {
+      yAxis: pick(STRINGS.yAxis, locale),
+      xAxis: pick(STRINGS.xAxis, locale),
+      qWin: pick(STRINGS.quadrants.win, locale),
+      qBig: pick(STRINGS.quadrants.big, locale),
+      qFill: pick(STRINGS.quadrants.fill, locale),
+      qDrop: pick(STRINGS.quadrants.drop, locale),
+    },
+  });
+
+  const items = spec.items || [];
+  const scored = items.filter((item) => item.placed !== false);
+  const positions = placeCards(scored, board);
+  let scoredIndex = 0;
+  items.forEach((item, index) => {
+    const no = String(item.no ?? index + 1);
+    const common = {
+      w: CARD.w,
+      h: CARD.h,
+      label: pick(item.label, locale),
+      props: { no, ...(item.basis ? { basis: pick(item.basis, locale) } : {}) },
+    };
+    if (item.placed === false) {
+      // a blank card waits below the board until its owner decides where it goes
+      node(diagram, 'sheetItem', { ...common, x: boardBox.x + 60 + index * (CARD.w + 20), y: boardBox.y + boardBox.h + 30 });
+      return;
+    }
+    const spot = positions.get(scoredIndex++);
+    node(diagram, 'sheetItem', { ...common, x: board.x + spot.x, y: board.y + spot.y, parent: board.id });
+  });
+
+  const column = 980;
+  node(diagram, 'sheetText', {
+    x: column,
+    y: 96,
+    w: 340,
+    h: 218,
+    label: pick(spec.hint ?? STRINGS.hint, locale),
+    props: { title: pick(STRINGS.hintTitle, locale), role: 'hint' },
+  });
+  node(diagram, 'sheetText', {
+    x: column,
+    y: 334,
+    w: 340,
+    h: boardBox.y + boardBox.h - 334,
+    label: pick(spec.why, locale),
+    props: { title: pick(STRINGS.whyTitle, locale), role: 'why' },
+  });
+  if (spec.note) {
+    // how the scores were obtained, under the whole sheet
+    node(diagram, 'sheetText', {
+      x: 0,
+      y: boardBox.y + boardBox.h + 24,
+      w: 1320,
+      h: spec.noteHeight || 150,
+      label: pick(spec.note, locale),
+      props: { title: pick(STRINGS.basisTitle, locale), role: 'basis' },
+    });
+  }
+}
+
+/* ------------------------------------------------------------------- risks */
+
+function buildRisks(diagram, spec, locale) {
+  node(diagram, 'sheetTitle', { x: 0, y: 0, w: 900, h: 70, label: pick(spec.title, locale), props: { kicker: pick(spec.kicker, locale) } });
+  node(diagram, 'sheetText', {
+    x: 0,
+    y: 90,
+    w: 900,
+    h: spec.changeHeight || 96,
+    label: pick(spec.change, locale),
+    props: { title: pick(STRINGS.changeTitle, locale), role: 'change' },
+  });
+  let y = 90 + (spec.changeHeight || 96) + 22;
+  const tones = ['teal', 'orange', 'violet'];
+  (spec.questions || []).forEach((entry, index) => {
+    const height = entry.height || 176;
+    node(diagram, 'sheetQuestion', {
+      x: 0,
+      y,
+      w: 900,
+      h: height,
+      label: pick(entry.answer, locale),
+      props: { question: pick(entry.question, locale), tone: entry.tone || tones[index % tones.length] },
+    });
+    y += height + 20;
+  });
+}
+
+/* ----------------------------------------------------------------- journey */
+
+const JOURNEY = { head: 150, stage: 196, gap: 8, stageH: 60 };
+
+function buildJourney(diagram, spec, locale) {
+  const stages = spec.stages || [];
+  const width = JOURNEY.head + JOURNEY.gap + stages.length * (JOURNEY.stage + JOURNEY.gap) - JOURNEY.gap;
+  node(diagram, 'sheetTitle', { x: 0, y: 0, w: Math.min(width, 1400), h: 70, label: pick(spec.title, locale), props: { kicker: pick(spec.kicker, locale) } });
+
+  const left = (index) => JOURNEY.head + JOURNEY.gap + index * (JOURNEY.stage + JOURNEY.gap);
+  let y = 92;
+  stages.forEach((stage, index) => {
+    node(diagram, 'journeyStage', {
+      x: left(index),
+      y,
+      w: JOURNEY.stage,
+      h: JOURNEY.stageH,
+      label: pick(stage.name, locale),
+      props: { no: String(index + 1) },
+    });
+  });
+  y += JOURNEY.stageH + JOURNEY.gap;
+
+  for (const row of spec.rows || []) {
+    const height = row.height || 96;
+    node(diagram, 'journeyRow', { x: 0, y, w: JOURNEY.head, h: height, label: pick(row.label, locale) });
+    if (row.curve) {
+      node(diagram, 'journeyCurve', {
+        x: left(0),
+        y,
+        w: stages.length * (JOURNEY.stage + JOURNEY.gap) - JOURNEY.gap,
+        h: height,
+        props: { scores: stages.map((stage) => stage.emotion).join(', ') },
+      });
+    } else {
+      stages.forEach((stage, index) => {
+        const cell = (row.cells || [])[index] || {};
+        node(diagram, 'journeyCell', {
+          x: left(index),
+          y,
+          w: JOURNEY.stage,
+          h: height,
+          label: pick(cell.text ?? cell, locale),
+          props: { tone: cell.tone || row.tone || 'neutral' },
+        });
+      });
+    }
+    y += height + JOURNEY.gap;
+  }
+}
+
+/* ------------------------------------------------------------------- entry */
+
+const BUILDERS = { matrix: buildMatrix, risks: buildRisks, journey: buildJourney };
+
+function buildSheetDiagrams(spec, options = {}) {
+  const locale = options.locale || 'ru';
+  const build = BUILDERS[spec.kind];
+  if (!build) return [];
+  const diagram = createDiagram({ notation: 'sheet', name: options.name || pick(spec.name, locale) || 'Worksheet' });
+  build(diagram, spec, locale);
+  diagram.meta.sheet = { kind: spec.kind };
+  if (spec.description) diagram.meta.description = pick(spec.description, locale);
+  if (spec.documentation) diagram.meta.documentation = pick(spec.documentation, locale);
+  return [diagram];
+}
+
+Object.assign(__exports, { pick, STRINGS, quadrantForScores, placeCards, buildSheetDiagrams });
 
 });
 __fm_define('app/ai/schema.js', function (__exports) {
@@ -9081,6 +10074,7 @@ const { BPMN_TYPES } = __fm_require('app/notations/bpmn/types.js');
 const { IDEF0_EDGE_TYPES, IDEF0_TYPES } = __fm_require('app/notations/idef0/types.js');
 const { layeredLayout } = __fm_require('app/layout/layered.js');
 const { idef0Layout } = __fm_require('app/layout/idef0layout.js');
+const { buildSheetDiagrams } = __fm_require('app/notations/sheet/build.js');
 const LANE_PADDING = 44;
 const SATELLITE_TYPES = ['dataObject', 'dataStore', 'dataInput', 'dataOutput', 'textAnnotation'];
 const LANE_MIN_HEIGHT = 130;
@@ -9525,6 +10519,7 @@ function applyIdef0Layout(diagram) {
 /** Turns any specification into diagrams ready to be added to a project. */
 function buildDiagrams(spec, options = {}) {
   if (!spec) return [];
+  if (spec.notation === 'sheet') return buildSheetDiagrams(spec, options);
   if (spec.notation === 'idef0' || spec.context || spec.functions) return buildIdef0Diagrams(spec, options);
   return [buildBpmnDiagram(spec, options)];
 }
@@ -11600,17 +12595,6 @@ function comparisonBlock(baseline, current, locale) {
   return `${head}\n${lines.join('\n')}${foot}`;
 }
 
-/** Every library process as diagrams, in the documented order. */
-function buildWegDiagrams(locale = 'ru') {
-  const diagrams = WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
-  const byProcessId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
-  for (const diagram of diagrams) {
-    const baseline = diagram.meta.baselineId ? byProcessId.get(diagram.meta.baselineId) : null;
-    if (baseline) diagram.meta.documentation += comparisonBlock(baseline, diagram, locale);
-  }
-  return diagrams;
-}
-
 /**
  * Builds every process of a library and appends the computed comparison to the
  * documentation of each target-state model. `folderOf(process, locale)` gives
@@ -11639,7 +12623,7 @@ function variantFolder(root, variant, locale = 'ru') {
   return `${root}/${name[locale] || name.en}`;
 }
 
-Object.assign(__exports, { pick, localizeSpec, localizeAnalysis, buildLibraryDiagram, comparisonBlock, buildWegDiagrams, buildLibraryDiagrams, variantFolder });
+Object.assign(__exports, { pick, localizeSpec, localizeAnalysis, buildLibraryDiagram, comparisonBlock, buildLibraryDiagrams, variantFolder });
 
 });
 __fm_define('app/library/kit.js', function (__exports) {
@@ -13232,7 +14216,7 @@ ${sourceBlock(['fy2025', 'verticalization', 'numbers'], 'en')}`,
       node('hedge', 'serviceTask', 'treasury', 'Захеджировать пакетом за день', 'Hedge in the daily batch', work(6, 'Казначейство', { cost: 380 })),
       node('po', 'serviceTask', 'portal', 'Разместить заказ в портале поставщика', 'Place the order in the supplier portal', auto(0.4)),
       node('confirm', 'receiveTask', 'portal', 'Автоматическое подтверждение поставщика', 'Automatic supplier confirmation', auto(0.3, { waitTime: 120 })),
-      node('leadTime', 'intermediateTimerEvent', 'buy', 'Срок поставки по контракту', 'Contractual lead time', { waitTime: WEEK * 2, dataSource: 'assumption' }),
+      node('leadTime', 'intermediateTimerEvent', 'buy', 'Срок поставки по контракту', 'Contractual lead time', { waitTime: DAY * 21, dataSource: 'assumption' }),
       node('asn', 'serviceTask', 'portal', 'Принять уведомление об отгрузке и сертификат', 'Receive the despatch advice and the certificate', auto(0.3)),
       node('receive', 'manualTask', 'wh', 'Принять груз сканированием по ASN', 'Receive the goods by scanning against the ASN', work(12, 'Логист')),
       node('gwSample', 'exclusiveGateway', 'qa', 'Партия попала в выборку контроля?', 'Batch selected for inspection?'),
@@ -13350,7 +14334,7 @@ const engineerToOrderToBe = {
 
    Конверсия в модели намеренно оставлена прежней — 32 %. Ответ в тот же день почти наверняка поднимает выигрыш, но тогда стоимость «на один запрос» выросла бы просто потому, что больше заказов доходит до производства, и сравнение перестало бы показывать эффективность процесса. Выигрыш по конверсии — это дополнительная выручка сверх того, что видно в таблице, а не то, что здесь измеряется.
 3. **Проектирование.** Модульная конструкция из проверенных узлов: 2400 → 1200 мин, доля замечаний заказчика по чертежам падает с 28 до 14 %, потому что он видит 3D-модель в конфигураторе на этапе предложения.
-4. **Параллельность.** Заказ длинных позиций запускается сразу после договора, параллельно рабочему проектированию, а не после него. Это главный выигрыш по сроку.
+4. **Параллельность.** Заказ длинных позиций запускается сразу после договора, параллельно рабочему проектированию, а не после него. Срок определяет более длинная из двух веток, и проектирование перестаёт добавляться к ожиданию поставки.
 5. **Испытания.** Цифровой двойник прогоняет режимы до сборки, поэтому доля непринятых FAT падает с 8 до 3 %. Сам FAT проводится удалённо с трансляцией — заказчику не нужно ехать, ожидание сокращается.
 6. **Пусконаладка.** Предварительная настройка на стенде по цифровому двойнику сокращает работу на площадке.
 
@@ -13395,7 +14379,7 @@ ${sourceBlock(['profile', 'numbers', 'annual2025'], 'en')}`,
       node('pgSplit', 'parallelGateway', 'plan', 'Проектирование и закупка параллельно', 'Design and procurement in parallel'),
       node('bom', 'serviceTask', 'plan', 'Выгрузить спецификацию длинных позиций из конфигуратора', 'Export the long-lead bill of material from the configurator', auto(3)),
       node('order', 'serviceTask', 'plan', 'Разместить заказы на длинные позиции', 'Place the long-lead orders', work(45, 'Планировщик')),
-      node('longlead', 'intermediateTimerEvent', 'plan', 'Поставка длинных позиций', 'Long-lead delivery', { waitTime: WEEK * 10, dataSource: 'assumption' }),
+      node('longlead', 'intermediateTimerEvent', 'plan', 'Поставка длинных позиций', 'Long-lead delivery', { waitTime: WEEK * 12, dataSource: 'assumption' }),
       node('design', 'userTask', 'eng', 'Рабочее проектирование из проверенных модулей', 'Detailed design from validated modules', work(1200, 'Инженер-конструктор')),
       node('twin', 'serviceTask', 'eng', 'Прогнать режимы на цифровом двойнике', 'Run the duty points on the digital twin', work(240, 'Ведущий инженер', { cost: 9000 })),
       node('review', 'sendTask', 'eng', 'Согласовать чертежи с заказчиком в портале', 'Review the drawings with the customer in the portal', work(30, 'Инженер-конструктор', { waitTime: DAY * 3 })),
@@ -13516,7 +14500,7 @@ const transformerProjectToBe = {
 2. **Решение об участии.** Платформенная себестоимость известна заранее, поэтому отказ от заведомо убыточных тендеров происходит раньше и дешевле: доля участия снижается с 58 до 52 %, и расходы на подготовку заявки не тратятся впустую.
 
    Доля побед в модели оставлена прежней — 25 %. Играя там, где компания конкурентна, выигрывать логично чаще, но рост конверсии поднял бы стоимость «на один тендер» просто потому, что больше проектов доходит до производства. Это дополнительная выручка сверх таблицы, а не то, что таблица измеряет.
-3. **Параллельность.** Заказ сердечника, провода и масла запускается сразу после контракта по платформенной спецификации, не дожидаясь окончания рабочего проекта. Это главный выигрыш по сроку.
+3. **Параллельность.** Заказ сердечника, провода и масла запускается сразу после контракта по платформенной спецификации, не дожидаясь окончания рабочего проекта. Срок определяет более длинная из двух веток, и проектирование перестаёт добавляться к ожиданию поставки.
 4. **Производство.** Расширенные мощности убирают очередь между переделами: сушка и заливка начинаются по готовности, а не по слоту.
 5. **Испытания.** Типовые испытания выполнены для платформы один раз; на экземпляре остаются приёмо-сдаточные плюс сокращённая программа с удалённым участием заказчика. Доля полной программы типовых испытаний падает с 100 до 36 % (только нестандартные исполнения).
 6. **Площадка.** Удалённая поддержка пусконаладки из инжинирингового центра сокращает работу бригады на подстанции.
@@ -13561,7 +14545,7 @@ ${sourceBlock(['transformers', 'fy2025', 'profile'], 'en')}`,
       node('contract', 'userTask', 'bid', 'Подписать контракт и график', 'Sign the contract and the schedule', work(180, 'Менеджер по продажам', { waitTime: DAY * 6 })),
       node('pgSplit', 'parallelGateway', 'plan', 'Проект и закупка параллельно', 'Design and procurement in parallel'),
       node('order', 'serviceTask', 'plan', 'Заказать сердечник, провод и масло по платформе', 'Order core, wire and oil from the platform BOM', work(90, 'Планировщик')),
-      node('longlead', 'intermediateTimerEvent', 'plan', 'Поставка длинных позиций', 'Long-lead delivery', { waitTime: WEEK * 8, dataSource: 'assumption' }),
+      node('longlead', 'intermediateTimerEvent', 'plan', 'Поставка длинных позиций', 'Long-lead delivery', { waitTime: WEEK * 10, dataSource: 'assumption' }),
       node('design2', 'userTask', 'eng', 'Рабочий проект и согласование с заказчиком', 'Detailed design and customer approval', work(1680, 'Инженер-конструктор', { waitTime: DAY * 5 })),
       node('pgJoin', 'parallelGateway', 'prod', 'Материал и проект готовы', 'Material and design ready'),
       node('core', 'manualTask', 'prod', 'Собрать магнитопровод', 'Build the core', work(2100, 'Сборщик', { resourceQty: 3, cost: 172000 })),
@@ -15064,6 +16048,1726 @@ function uberProjectDocumentation(locale = 'ru') {
 Object.assign(__exports, { UBER_FOLDER, uberFolder, UBER_AS_IS, UBER_TO_BE, UBER_PROCESSES, localizeSpec, buildUberDiagram, buildUberDiagrams, uberProjectDocumentation });
 
 });
+__fm_define('app/library/weg/sheets/matrices.js', function (__exports) {
+/**
+ * Impact / effort worksheets for the eight WEG processes.
+ *
+ * Each sheet lists five changes taken from the TO-BE model. What the model can
+ * say about a change is *measured* (see `engine.js`): impact is the change's
+ * share of the process gain, so it comes from the models. Effort is an expert
+ * judgement - the models know nothing about contracts, IT or people - and is
+ * flagged as such on the sheet.
+ *
+ * A change is described by:
+ *   label    text of the card
+ *   effort   1-10, expert assumption (≤ 5 is the left half of the matrix)
+ *   measure  how the engine measures it: { revert } or { steps, by }
+ *   impact   optional fixed score for a change the models cannot measure
+ *   caveat   what the numbers do not capture
+ */
+
+const MATRICES = [
+  /* --------------------------------------------------------- 1. order to cash */
+  {
+    processId: 'weg-o2c-tobe',
+    weights: { lead: 1, cost: 1, work: 0.5 },
+    first: 'early',
+    why: {
+      ru: 'Ранняя оплата стоит пункта в договоре и согласования с финансами, а не разработки, и по модели без неё срок до денег длиннее на {lead}: это больше всего выигрыша процесса по сроку ({leadShare}). Цена видна сразу, скидка обходится ≈ {year} в год, поэтому её запускают пилотом на части клиентов.',
+      en: 'Early payment costs a contract clause and a finance sign-off, not development, and in the model the time to cash is {lead} longer without it: that is more than the whole lead-time gain of the process ({leadShare}). The price is visible at once, the discount costs ≈ {year} a year, so it starts as a pilot with some customers.',
+    },
+    items: [
+      {
+        id: 'early',
+        label: { ru: 'Ранняя оплата: скидка 1,5 % за оплату в 7 дней', en: 'Early payment: 1.5% off for paying in 7 days' },
+        effort: 3,
+        measure: { revert: { edges: [['gwEarly', 'early', 0], ['gwEarly', 'terms', 100]] } },
+        caveat: {
+          ru: 'Доля берущих скидку (45 %) — допущение. Скидка — прямая уступка в цене: в стоимости случая она учтена.',
+          en: 'The share taking the discount (45%) is an assumption. The discount is a straight price concession and is already inside the cost per case.',
+        },
+      },
+      {
+        id: 'docs',
+        label: { ru: 'NF-e, трек-номер, счёт и закрытие без ручного ввода', en: 'NF-e, tracking, invoice and closing without re-keying' },
+        effort: 2,
+        measure: { revert: { nodes: ['nfe', 'notify', 'invoice', 'close'] } },
+        caveat: {
+          ru: 'Это настройка ERP; время шагов — допущение, прямая экономия мала.',
+          en: 'This is ERP configuration; step times are assumptions and the direct saving is small.',
+        },
+      },
+      {
+        id: 'scoring',
+        label: { ru: 'Кредитный скоринг по правилам вместо ручной проверки', en: 'Rule-based credit scoring instead of a manual check' },
+        effort: 5,
+        measure: { steps: ['credit'], by: ['score', 'review'] },
+        caveat: {
+          ru: 'Ручной разбор остаётся для 4 % заказов; правила скоринга нужно подтвердить на истории платежей.',
+          en: 'Manual review stays for 4% of orders; the scoring rules still need to be checked against payment history.',
+        },
+      },
+      {
+        id: 'portal',
+        label: { ru: 'Заказы из портала и EDI, проверка правилами', en: 'Orders from the portal and EDI, checked by rules' },
+        effort: 7,
+        measure: { steps: ['register', 'check'], by: ['validate', 'fix'] },
+        caveat: {
+          ru: 'Нужны интеграции на стороне клиентов; это условие для скоринга и расчёта срока отгрузки, поэтому его низкая доля — не повод отказаться.',
+          en: 'Needs integrations on the customers’ side; it is a precondition for scoring and the ship-date promise, so its small share is no reason to drop it.',
+        },
+      },
+      {
+        id: 'atp',
+        label: { ru: 'Срок отгрузки сразу и склад по спросу портала', en: 'Ship date at once, stock planned on portal demand' },
+        effort: 8,
+        measure: { revert: { nodes: ['mrp', 'waitProd'], edges: [['gwStock', 'pick', 78], ['gwStock', 'mrp', 22]] } },
+        caveat: {
+          ru: 'Рост доли отгрузок со склада с 78 до 92 % — допущение; требует прогноза спроса и больших остатков.',
+          en: 'The rise in shipments from stock from 78% to 92% is an assumption; it needs demand forecasting and larger stock.',
+        },
+      },
+    ],
+  },
+
+  /* ------------------------------------------------------------ 2. the motor */
+  {
+    processId: 'weg-make-motor-tobe',
+    weights: { lead: 0.3, cost: 1, work: 1 },
+    first: 'spc',
+    why: {
+      ru: 'Быстрых побед нет: крупные эффекты требуют станков и остановки линий (намотка ≈ {winding:year} в год, порошковая окраска ≈ {powder:year}). Ближе всего к быстрой победе контроль по телеметрии (≈ {spc:year} в год) и импульсный тест (≈ {surge:year}), их можно запускать на одной линии, пока остальные работают как обычно.',
+      en: 'There are no quick wins: the large effects need machines and line stoppages (winding ≈ {winding:year} a year, powder coating ≈ {powder:year}). Closest to a quick win are control on telemetry (≈ {spc:year} a year) and the surge test (≈ {surge:year}); either can start on one line while the others run as usual.',
+    },
+    items: [
+      {
+        id: 'winding',
+        label: { ru: 'Автоматическая намотка катушек', en: 'Automated coil winding' },
+        effort: 9,
+        measure: { revert: { nodes: ['coil'] } },
+        caveat: {
+          ru: 'Нужны станки и переналадка линий; окупаемость считается на объёме 19 млн двигателей в год.',
+          en: 'Needs machines and line changeovers; payback is counted on 19 million motors a year.',
+        },
+      },
+      {
+        id: 'uv',
+        label: { ru: 'УФ-полимеризация вместо печи при пропитке', en: 'UV curing instead of the oven when impregnating' },
+        effort: 8,
+        measure: { revert: { nodes: ['impreg'] } },
+        caveat: {
+          ru: 'Выигрыш в основном по ожиданию (40 → 12 мин): в деньгах он мал, потому что у минут на линии нет цены.',
+          en: 'The gain is mostly waiting (40 → 12 min): small in money, because minutes on a line carry no price.',
+        },
+      },
+      {
+        id: 'powder',
+        label: { ru: 'Порошковая окраска вместо жидкой', en: 'Powder coating instead of liquid paint' },
+        effort: 7,
+        measure: { revert: { nodes: ['paint'] } },
+        caveat: {
+          ru: 'Новая линия окраски; ожидание 25 → 8 мин и меньший расход материала — допущения.',
+          en: 'A new paint line; waiting 25 → 8 min and lower material use are assumptions.',
+        },
+      },
+      {
+        id: 'surge',
+        label: { ru: 'Импульсный тест изоляции прямо в линии', en: 'In-line surge test of the insulation' },
+        effort: 4,
+        measure: { revert: { nodes: ['surge', 'rewind'], edges: [['gwWind', 'impreg', 97], ['gwWind', 'rewind', 3]] } },
+        caveat: {
+          ru: 'Дефект ловится до пропитки: перемотки 3 → 1,2 %. Стоимость брака вне модели не учтена.',
+          en: 'A defect is caught before impregnation: rewinds 3% → 1.2%. The cost of scrapped motors is outside the model.',
+        },
+      },
+      {
+        id: 'spc',
+        label: { ru: 'Статистический контроль по телеметрии линии', en: 'Statistical process control on line telemetry' },
+        effort: 3,
+        measure: {
+          revert: {
+            zero: ['spc'],
+            edges: [['gwSpc', 'routine', 100], ['gwSpc', 'adjust', 0], ['gwTest', 'sample', 97.5], ['gwTest', 'repair', 2.5]],
+          },
+        },
+        caveat: {
+          ru: 'Предполагает, что телеметрия линии уже собирается; несоответствия по КПД 2,5 → 1 % — допущение.',
+          en: 'Assumes line telemetry is already collected; efficiency non-conformities 2.5% → 1% is an assumption.',
+        },
+      },
+    ],
+  },
+
+  /* ------------------------------------------------------------ 3. sourcing */
+  {
+    processId: 'weg-procurement-tobe',
+    weights: { lead: 0.5, cost: 1, work: 0.5 },
+    first: 'vmi',
+    why: {
+      ru: 'Быстрых побед нет, а единственное крупное изменение, консигнация класса C ({leadShare} выигрыша по сроку, ≈ {year} в год), зависит от договоров с поставщиками, которые занимают время; поэтому начинать надо с неё, а четыре дешёвых правила вводить параллельно.',
+      en: 'There are no quick wins, and the one large change, consignment for C-class items ({leadShare} of the lead-time gain, ≈ {year} a year), depends on supplier contracts that take time; so it starts first, with the four cheap rules introduced in parallel.',
+    },
+    items: [
+      {
+        id: 'vmi',
+        label: { ru: 'Консигнация для класса C: крепёж, расходники, упаковка', en: 'Consignment stock for C-class items (fasteners, packaging)' },
+        effort: 6,
+        measure: { revert: { edges: [['gwClass', 'vmi', 0], ['gwClass', 'gwContract', 100]] } },
+        caveat: {
+          ru: 'Доля класса C (34 % позиций) — допущение. Срок короче потому, что эти позиции уже лежат на складе; запас у себя держит поставщик, и это отразится в цене.',
+          en: 'The C-class share (34% of lines) is an assumption. The lead time is shorter because these items are already on the shelf; the supplier carries the stock, which will show in the price.',
+        },
+      },
+      {
+        id: 'hedge',
+        label: { ru: 'Хедж меди и алюминия по правилу, пакетом', en: 'Hedge copper and aluminium by rule, in one batch' },
+        effort: 4,
+        measure: { revert: { nodes: ['hedge'], zero: ['hedgeRule'] } },
+        caveat: {
+          ru: 'Модель считает затраты на оформление сделок. Защиту маржи от скачка цены металла она не оценивает — а ради неё хедж и нужен.',
+          en: 'The model counts the cost of processing the deals. It does not value protecting the margin from a metal price jump, which is what the hedge is for.',
+        },
+      },
+      {
+        id: 'sample',
+        label: { ru: 'Выборочный входной контроль по электронному сертификату', en: 'Sampled inspection on an electronic certificate' },
+        effort: 4,
+        measure: { revert: { edges: [['gwSample', 'inspect', 100], ['gwSample', 'stock', 0]] } },
+        caveat: {
+          ru: 'Контроль 30 % партий вместо 100 % — допущение; риск пропущенного брака в модели не оценён.',
+          en: 'Inspecting 30% of batches instead of 100% is an assumption; the risk of a missed defect is not priced.',
+        },
+      },
+      {
+        id: 'match',
+        label: { ru: 'Автоматическая сверка заказ — приёмка — счёт и оплата', en: 'Automatic order–receipt–invoice match and payment' },
+        effort: 4,
+        measure: { revert: { nodes: ['match', 'pay', 'stock'] } },
+        caveat: {
+          ru: 'Выигрыш — в минутах работы финансов и склада; 7 % расхождений уходят на ручной разбор.',
+          en: 'The gain is minutes of finance and warehouse work; 7% of mismatches still go to manual review.',
+        },
+      },
+      {
+        id: 'qualify',
+        label: { ru: 'Квалификация поставщика один раз при входе в реестр', en: 'Qualify a supplier once, on entry to the register' },
+        effort: 3,
+        measure: { revert: { nodes: ['audit'], edges: [['gwRegister', 'audit', 12], ['gwRegister', 'hedgeRule', 88]] } },
+        caveat: {
+          ru: 'Полный аудит падает с 12 до 4 % заказов; условие — надёжный реестр с повторной проверкой по расписанию.',
+          en: 'Full audits fall from 12% to 4% of orders; this requires a reliable register that is re-checked on a schedule.',
+        },
+      },
+    ],
+  },
+
+  /* ----------------------------------------------------- 4. engineer to order */
+  {
+    processId: 'weg-eto-tobe',
+    weights: { lead: 1, cost: 1, work: 0.5 },
+    first: 'fat',
+    why: {
+      ru: 'Удалённые FAT и ввод в эксплуатацию требуют видеоканала и согласия заказчика, а не новой конструкции, и при принятых допущениях по стоимости дают {costShare} экономии на заказ (≈ {year} в год), больше любого другого изменения листа.',
+      en: 'Remote FAT and commissioning need a video link and the customer’s consent, not a new design, and with the cost assumptions used they give {costShare} of the saving per order (≈ {year} a year), more than any other change on the sheet.',
+    },
+    items: [
+      {
+        id: 'parallel',
+        label: { ru: 'Длинные позиции заказываются сразу после договора', en: 'Long-lead items ordered right after the contract' },
+        effort: 3,
+        measure: { revert: { rewire: { remove: [['pgSplit', 'design'], ['longlead', 'pgJoin']], add: [['longlead', 'design']] } } },
+        caveat: {
+          ru: 'Дисциплина планирования, не система. Риск: заказ ушёл, а проект изменился, — поэтому в состав входят только позиции, не зависящие от замечаний заказчика.',
+          en: 'A planning discipline, not a system. The risk: the order is placed and then the design changes, so only items that do not depend on customer comments are included.',
+        },
+      },
+      {
+        id: 'fat',
+        label: { ru: 'Удалённые FAT и ввод в эксплуатацию с поддержкой из центра', en: 'Remote FAT and commissioning with support from the centre' },
+        effort: 4,
+        measure: { revert: { nodes: ['fat', 'commission', 'handover'] } },
+        caveat: {
+          ru: 'Стоимость FAT (8,5 → 3,2 тыс.) и ввода — допущения; заказчик должен согласиться на удалённый приём.',
+          en: 'The FAT (R$ 8.5k → 3.2k) and commissioning costs are assumptions; the customer must agree to remote acceptance.',
+        },
+      },
+      {
+        id: 'configurator',
+        label: { ru: 'Конфигуратор исполнений: расчёт и цена за минуты', en: 'Execution configurator: calculation and price in minutes' },
+        effort: 8,
+        measure: {
+          revert: {
+            nodes: ['cost', 'clarify', 'concept', 'qualify', 'approve', 'quote'],
+            zero: ['configure'],
+            edges: [['gwFit', 'cost', 0], ['gwFit', 'clarify', 100]],
+          },
+        },
+        caveat: {
+          ru: 'Доля запросов из библиотеки (68 %) — допущение; библиотеку исполнений нужно собрать из прошлых проектов.',
+          en: 'The share of enquiries covered by the library (68%) is an assumption; the library has to be assembled from past projects.',
+        },
+      },
+      {
+        id: 'modular',
+        label: { ru: 'Модульная конструкция из проверенных узлов', en: 'Modular design from proven units' },
+        effort: 8,
+        measure: { revert: { nodes: ['design', 'review'], edges: [['gwReview', 'rework', 28], ['gwReview', 'pgJoin', 72]] } },
+        caveat: {
+          ru: 'Проектирование 2400 → 1200 мин и замечания 28 → 14 % — допущения; нужна ревизия конструкций.',
+          en: 'Design 2400 → 1200 min and comments 28% → 14% are assumptions; the designs have to be revised.',
+        },
+      },
+      {
+        id: 'twin',
+        label: { ru: 'Цифровой двойник: режимы до сборки', en: 'Digital twin: duty points before assembly' },
+        effort: 8,
+        measure: { revert: { zero: ['twin', 'preset'], edges: [['gwFat', 'fix', 8], ['gwFat', 'preset', 92]] } },
+        caveat: {
+          ru: 'В модели двойник стоит больше, чем экономит на процессе: 240 мин ведущего инженера и R$ 9 тыс. на заказ против снижения непринятых FAT с 8 до 3 %. Его выгода — качество поставки — в процесс не входит.',
+          en: 'In the model the twin costs more than it saves inside the process: 240 min of a senior engineer plus R$ 9k per order against FAT failures falling from 8% to 3%. Its benefit, delivery quality, is outside the process.',
+        },
+      },
+    ],
+  },
+
+  /* ----------------------------------------------------------- 5. transformer */
+  {
+    processId: 'weg-gtd-tobe',
+    weights: { lead: 1, cost: 1, work: 0.5 },
+    first: 'typetests',
+    why: {
+      ru: 'Типовые испытания на платформу выполняются один раз, на заказе остаётся сокращённая программа, и это {costShare} экономии на проект (≈ {year} в год): самая большая доля среди недорогих изменений листа, при условии что заказчик примет протоколы платформы.',
+      en: 'Type tests are run once per platform and only a short programme remains on the order, which is {costShare} of the saving per project (≈ {year} a year): the largest share among the inexpensive changes on the sheet, provided the customer accepts the platform records.',
+    },
+    items: [
+      {
+        id: 'parallel',
+        label: { ru: 'Сердечник, провод и масло — сразу после контракта', en: 'Core, wire and oil ordered right after the contract' },
+        effort: 3,
+        measure: { revert: { rewire: { remove: [['pgSplit', 'design2'], ['longlead', 'pgJoin']], add: [['longlead', 'design2']] } } },
+        caveat: {
+          ru: 'Возможно потому, что платформенная спецификация фиксирует материалы заранее. Для нестандартных исполнений заказ остаётся после согласования.',
+          en: 'Possible because the platform specification fixes the materials early. For non-standard executions the order still waits for approval.',
+        },
+      },
+      {
+        id: 'commission',
+        label: { ru: 'Удалённая поддержка пусконаладки из инжинирингового центра', en: 'Remote commissioning support from the engineering centre' },
+        effort: 4,
+        measure: { revert: { nodes: ['commission', 'handover'] } },
+        caveat: {
+          ru: 'Нужны защищённый канал и согласие сети на удалённый приём; бригада остаётся на площадке.',
+          en: 'Needs a secure channel and the utility’s consent to remote acceptance; the crew stays on site.',
+        },
+      },
+      {
+        id: 'typetests',
+        label: { ru: 'Типовые испытания один раз на платформу', en: 'Type tests once per platform' },
+        effort: 5,
+        measure: { revert: { nodes: ['typeTest'], zero: ['shortTest'], edges: [['gwType', 'typeTest', 100], ['gwType', 'shortTest', 0]] } },
+        caveat: {
+          ru: 'Доля полной программы 100 → 36 % — допущение; зависит от того, примет ли заказчик протоколы платформы по IEC 60076.',
+          en: 'Full programme share 100% → 36% is an assumption; it depends on the customer accepting the platform’s IEC 60076 records.',
+        },
+      },
+      {
+        id: 'platform',
+        label: { ru: 'Библиотека платформ закрывает 64 % тендеров', en: 'A platform library covers 64% of tenders' },
+        effort: 8,
+        measure: {
+          revert: {
+            nodes: ['design1', 'techSpec', 'cost', 'screen'],
+            zero: ['platform'],
+            edges: [['gwPlatform', 'platform', 0], ['gwPlatform', 'techSpec', 100]],
+          },
+        },
+        caveat: {
+          ru: 'Доля 64 % — допущение; платформы нужно рассчитать и испытать заранее.',
+          en: 'The 64% share is an assumption; the platforms have to be designed and tested in advance.',
+        },
+      },
+      {
+        id: 'capacity',
+        label: { ru: 'Расширенные мощности: сушка и заливка без очереди', en: 'Expanded capacity: drying and filling without queues' },
+        effort: 10,
+        measure: { revert: { nodes: ['dryout', 'core', 'windings', 'tank'] } },
+        caveat: {
+          ru: 'Для самого процесса вклад умеренный. Решение о мощностях принимается по росту спроса (публично объявлено R$ 1,2 млрд), а не по эффекту на один процесс.',
+          en: 'Inside this process the contribution is moderate. A capacity decision follows demand growth (R$ 1.2bn publicly announced), not the effect on one process.',
+        },
+      },
+    ],
+  },
+
+  /* ---------------------------------------------------------------- 6. service */
+  {
+    processId: 'weg-service-tobe',
+    weights: { lead: 1, cost: 1, work: 0.5 },
+    first: 'remote',
+    why: {
+      ru: 'Удалённая диагностика закрывает без выезда 58 % случаев вместо 35 % и даёт {costShare} экономии на обращение (≈ {year} в год), а работает она на той части парка, где телеметрия уже подключена, так что начинать можно с неё.',
+      en: 'Remote diagnosis closes 58% of cases without a visit instead of 35% and gives {costShare} of the saving per case (≈ {year} a year); it works on the part of the installed base where telemetry is already connected, so it can start there.',
+    },
+    items: [
+      {
+        id: 'remote',
+        label: { ru: 'Удалённая диагностика: 58 % случаев без выезда', en: 'Remote diagnosis: 58% of cases without a visit' },
+        effort: 5,
+        measure: { revert: { nodes: ['remote', 'closeRemote'], edges: [['gwRemote', 'closeRemote', 35], ['gwRemote', 'warranty', 65]] } },
+        caveat: {
+          ru: 'Доля 58 % — допущение; работает там, где телеметрия уже подключена, поэтому начинать стоит с этого парка.',
+          en: 'The 58% share is an assumption; it works where telemetry is already connected, so start with that part of the installed base.',
+        },
+      },
+      {
+        id: 'warranty',
+        label: { ru: 'Гарантийный статус по цифровому паспорту оборудования', en: 'Warranty status from the digital equipment passport' },
+        effort: 3,
+        measure: { revert: { nodes: ['warranty'] } },
+        caveat: {
+          ru: 'Выигрыш мал, зато это основа для остальных шагов: паспорт нужен и для прогноза запчастей.',
+          en: 'The gain is small, but it is the base for the other steps: the passport is also needed for the parts forecast.',
+        },
+      },
+      {
+        id: 'parts',
+        label: { ru: 'Запчасти на региональном складе по прогнозу отказов', en: 'Spare parts on a regional shelf from the failure forecast' },
+        effort: 6,
+        measure: { steps: ['parts'], by: ['stage'] },
+        caveat: {
+          ru: 'Ожидание запчастей 4 дня → 1 — допущение; запас на региональном складе — замороженные деньги.',
+          en: 'Parts waiting 4 days → 1 is an assumption; stock on a regional shelf is tied-up money.',
+        },
+      },
+      {
+        id: 'quote',
+        label: { ru: 'Смета в портале клиента с готовой калькуляцией', en: 'Quotation in the customer portal with its calculation' },
+        effort: 4,
+        measure: { revert: { nodes: ['quote'], edges: [['gwAccept', 'gwScope', 78], ['gwAccept', 'return', 22]] } },
+        caveat: {
+          ru: 'Ускоряет согласование, но дороже в расчёте на случай: больше смет принимается, и больше случаев доходит до ремонта.',
+          en: 'It speeds up approval but costs more per case: more quotations are accepted, so more cases reach a repair.',
+        },
+      },
+      {
+        id: 'monitoring',
+        label: { ru: 'Мониторинг сам открывает обращения (62 % работ)', en: 'Monitoring opens the cases itself (62% of the work)' },
+        effort: 7,
+        impact: 7,
+        caveat: {
+          ru: 'Модель не измеряет этот пункт: объём обращений в ней фиксирован, а простой клиента и аварийная наценка не учтены. Оценка эффекта — экспертная.',
+          en: 'The model does not measure this item: the case volume is fixed and the customer’s downtime and emergency premium are not priced. The impact score is a judgement.',
+        },
+      },
+    ],
+  },
+
+  /* ---------------------------------------------------------- 7. new product */
+  {
+    processId: 'weg-npd-tobe',
+    weights: { lead: 1, cost: 0.5, work: 0.5 },
+    first: 'cert',
+    why: {
+      ru: 'Подача сертификации параллельно испытаниям меняет порядок работ, а не требует инвестиций, и сокращает срок разработки на {lead}: это {leadShare} выигрыша по сроку; плата за это — риск править досье, если расчёт и испытание разойдутся (в модели 12 % случаев).',
+      en: 'Filing certification in parallel with testing changes the order of work and needs no investment, and it shortens development by {lead}, which is {leadShare} of the lead-time gain; the price is the risk of amending the dossier if calculation and test disagree (12% of cases in the model).',
+    },
+    items: [
+      {
+        id: 'tooling',
+        label: { ru: 'Слот у изготовителя оснастки бронируется до ворот 3', en: 'Tooling slot reserved before Gate 3' },
+        effort: 2,
+        measure: { revert: { nodes: ['tooling'], zero: ['reserve'] } },
+        caveat: {
+          ru: 'Бронь стоит R$ 12 тыс.; сам заказ на R$ 340 тыс. по-прежнему после ворот 3. Если проект закрывают, бронь теряется.',
+          en: 'The reservation costs R$ 12k; the R$ 340k order itself still follows Gate 3. If the project is stopped, the reservation is lost.',
+        },
+      },
+      {
+        id: 'cert',
+        label: { ru: 'Сертификация подаётся параллельно испытаниям', en: 'Certification filed in parallel with testing' },
+        effort: 3,
+        measure: {
+          revert: {
+            rewire: {
+              remove: [['gwConfirm', 'pgJoin'], ['cert', 'pgJoin'], ['reserve', 'pgJoin'], ['pgSplit', 'certPrep'], ['pgSplit', 'reserve']],
+              add: [['gwConfirm', 'certPrep', 88], ['cert', 'reserve'], ['reserve', 'pgJoin']],
+            },
+          },
+        },
+        caveat: {
+          ru: 'Риск: если расчёт и испытание разойдутся, досье придётся править; в модели таких случаев 12 % (допущение), правка модели и конструкции оценена в R$ 24 тыс.',
+          en: 'The risk: if calculation and test disagree the dossier has to be amended; the model uses 12% of cases (an assumption) and prices the model and design correction at R$ 24k.',
+        },
+      },
+      {
+        id: 'market',
+        label: { ru: 'Ворота 1 по данным продаж и сервиса парка', en: 'Gate 1 on sales and service data from the installed base' },
+        effort: 4,
+        measure: { revert: { nodes: ['screen', 'business'] } },
+        caveat: {
+          ru: 'Нужны очищенные данные CRM и сервиса. Доля прохождения ворот (45 %) намеренно не менялась.',
+          en: 'Needs clean CRM and service data. The gate pass share (45%) was deliberately left unchanged.',
+        },
+      },
+      {
+        id: 'calc',
+        label: { ru: 'Класс КПД решается численной оптимизацией, а не испытанием', en: 'Efficiency class settled by calculation, not by test' },
+        effort: 8,
+        measure: { revert: { nodes: ['tune'], like: { optimise: 'simulate' }, edges: [['gwClass', 'gate2', 70], ['gwClass', 'tune', 30]] } },
+        caveat: {
+          ru: 'Доводки после испытаний 30 → 12 % — допущение; нужны откалиброванные модели и время инженеров.',
+          en: 'Refinements after tests 30% → 12% is an assumption; it needs calibrated models and engineers’ time.',
+        },
+      },
+      {
+        id: 'modules',
+        label: { ru: 'Концепция собирается из модулей платформы', en: 'The concept is assembled from platform modules' },
+        effort: 8,
+        measure: { revert: { nodes: ['concept', 'redesign'], edges: [['gate2', 'redesign', 22], ['gate2', 'pgSplit', 78]] } },
+        caveat: {
+          ru: 'Модульная платформа создаётся годами; доработки после ворот 2 с 22 до 10 % — допущение.',
+          en: 'A modular platform takes years to build; rework after Gate 2 from 22% to 10% is an assumption.',
+        },
+      },
+    ],
+  },
+
+  /* ---------------------------------------------------------------- 8. export */
+  {
+    processId: 'weg-export-tobe',
+    weights: { lead: 1, cost: 1, work: 0.5 },
+    first: 'freight',
+    why: {
+      ru: 'Годовой контракт на фрахт и генеральный полис — это переговоры с перевозчиком и страховщиком, а не интеграция, и при принятых ставках они дают {costShare} экономии на отгрузку (≈ {year} в год) и убирают ожидание букинга.',
+      en: 'An annual freight contract and an open policy are negotiations with a carrier and an insurer, not an integration, and at the assumed rates they give {costShare} of the saving per shipment (≈ {year} a year) and remove the wait for a booking.',
+    },
+    items: [
+      {
+        id: 'preclear',
+        label: { ru: 'Импорт в стране назначения декларируется до прихода судна', en: 'Import declared at the destination before the ship arrives' },
+        effort: 4,
+        measure: { revert: { nodes: ['destClear'], zero: ['preClear'] } },
+        caveat: {
+          ru: 'Нужны локальный брокер и документы заранее; ожидание 4 → 1,5 дня — допущение.',
+          en: 'Needs a local broker and the documents in advance; waiting 4 → 1.5 days is an assumption.',
+        },
+      },
+      {
+        id: 'freight',
+        label: { ru: 'Годовой контракт на фрахт и генеральный полис', en: 'An annual freight contract and an open insurance policy' },
+        effort: 3,
+        measure: { revert: { nodes: ['booking', 'insure'] } },
+        caveat: {
+          ru: 'Ставки по контракту (R$ 12 → 10,4 тыс. за отгрузку) — допущение; контракт фиксирует объём и теряет гибкость рынка.',
+          en: 'The contract rates (R$ 12k → 10.4k per shipment) are an assumption; a contract fixes the volume and loses market flexibility.',
+        },
+      },
+      {
+        id: 'ebl',
+        label: { ru: 'Электронный коносамент уходит банку и заказчику сразу', en: 'Electronic bill of lading sent to bank and customer at once' },
+        effort: 5,
+        measure: { revert: { nodes: ['sendDocs', 'payment'] } },
+        caveat: {
+          ru: 'Банк и заказчик должны принимать электронный BL; ожидание оплаты 12 → 10 раб. дн. — допущение.',
+          en: 'The bank and the customer must accept the electronic BL; waiting for payment 12 → 10 working days is an assumption.',
+        },
+      },
+      {
+        id: 'docs',
+        label: { ru: 'Инвойс, packing list и сертификат из ERP одним пакетом', en: 'Invoice, packing list and certificate from ERP as one set' },
+        effort: 3,
+        measure: { revert: { nodes: ['proforma', 'docs', 'nfe'] } },
+        caveat: {
+          ru: 'Настройка ERP и шаблонов; прямая экономия на печати и курьере (R$ 320 → 160) — допущение.',
+          en: 'ERP and template configuration; the direct saving on printing and couriers (R$ 320 → 160) is an assumption.',
+        },
+      },
+      {
+        id: 'oea',
+        label: { ru: 'Статус OEA: приоритет «зелёного» канала', en: 'AEO (OEA) status: priority for the green channel' },
+        effort: 8,
+        measure: {
+          revert: {
+            edges: [['gwChannel', 'gwChannelJoin', 84], ['gwChannel', 'yellow', 11], ['gwChannel', 'red', 5]],
+            nodes: ['yellow', 'red', 'channel'],
+          },
+        },
+        caveat: {
+          ru: 'В среднем эффект мал, ведь и сегодня 84 % отгрузок идут по зелёному каналу. Основная ценность статуса — предсказуемость срока, а её в среднем по модели не видно.',
+          en: 'On average the effect is small, since 84% of shipments already clear the green channel today. The main value of the status is a predictable lead time, which an average does not show.',
+        },
+      },
+    ],
+  },
+];
+
+Object.assign(__exports, { MATRICES });
+
+});
+__fm_define('app/library/weg/sheets/risks.js', function (__exports) {
+/**
+ * Implementation-risk worksheets: one change per WEG process, three questions.
+ *
+ * The change is the one the impact / effort sheet of the same process put
+ * first. The answers are hypotheses drawn from the logic of the process, not
+ * survey results: nobody at WEG was asked. They say who plausibly loses, what
+ * the resistance would look like and which single measure would reduce it - to
+ * be checked in interviews with the people the change touches.
+ *
+ * `{id:key}` placeholders are filled from the same measurements as the matrix.
+ */
+
+const RISK_QUESTIONS = [
+  {
+    ru: 'Кто теряет от этого изменения и что именно (время / контроль / комфорт / статус)?',
+    en: 'Who loses from this change, and what exactly (time / control / comfort / status)?',
+  },
+  {
+    ru: 'Как будет проявляться сопротивление на практике (конкретно, не абстрактно)?',
+    en: 'How will resistance show up in practice (concretely, not in the abstract)?',
+  },
+  {
+    ru: 'Какая одна мера снизит сопротивление сильнее всего?',
+    en: 'Which single measure would reduce the resistance the most?',
+  },
+];
+
+const RISK_NOTE = {
+  ru: 'Ответы — гипотезы по логике процесса, не итоги опроса. Проверьте их в разговорах с теми, кого изменение касается.',
+  en: 'The answers are hypotheses from the logic of the process, not survey results. Check them in conversations with the people the change touches.',
+};
+
+const RISKS = [
+  {
+    processId: 'weg-o2c-tobe',
+    itemId: 'early',
+    answers: [
+      {
+        ru: 'Финансы и казначейство: скидка 1,5 % — прямая потеря выручки (≈ {early:year} в год по модели), а график поступлений становится менее предсказуемым, то есть уходят контроль и комфорт. Продавцы теряют часть цены, которой они торгуются с клиентом, и тем самым статус переговорщика.',
+        en: 'Finance and treasury: a 1.5% discount is a direct loss of revenue (≈ {early:year} a year in the model) and the cash schedule becomes less predictable, so control and comfort go. Salespeople lose part of the price they bargain with, and with it some standing as negotiators.',
+      },
+      {
+        ru: 'Продавцы не предлагают скидку («и так сложно продавать»); кредитный контроль продолжает слать напоминания тем, кто платит раньше; казначейство закладывает в бюджет полный срок оплаты, поэтому ранние деньги не меняют план. Через квартал в отчёте видно: скидку заплатили, а деньги пришли в обычные сроки.',
+        en: 'Salespeople do not offer the discount (“it is hard enough to sell as it is”); credit control keeps sending reminders to those who pay early; treasury budgets for the full payment term, so early money changes no plan. A quarter later the report shows it plainly: the discount was paid and the cash still came on the usual terms.',
+      },
+      {
+        ru: 'Включить долю заказов с ранней оплатой в премию продавцов и вести скидку отдельной строкой бюджета финансов, а не за счёт маржи продавца: тогда ему выгодно её предлагать, а финансы видят её цену.',
+        en: 'Put the share of early-paid orders into the salespeople’s bonus and book the discount on a separate finance budget line rather than against the seller’s margin: then it pays to offer it and finance sees its price.',
+      },
+    ],
+  },
+  {
+    processId: 'weg-make-motor-tobe',
+    itemId: 'spc',
+    answers: [
+      {
+        ru: 'Операторы и мастера смены: сигнал о выходе за пределы требует остановить линию или вмешаться, и они теряют привычную свободу, то есть контроль и комфорт. Отклонения, которые раньше не фиксировались, становятся видимыми, и это удар по статусу тех, чья линия «шумит» чаще других.',
+        en: 'Operators and shift supervisors: a signal outside the limits means stopping the line or stepping in, and they lose their usual freedom, that is control and comfort. Deviations that used to go unrecorded become visible, which hurts the standing of whoever’s line “beeps” most.',
+      },
+      {
+        ru: 'Сигналы отключают или игнорируют после первых ложных срабатываний («не мигает — не трогаем»); пределы расширяют вручную, пока сигналов почти не остаётся; значения в системе поправляют задним числом.',
+        en: 'The signals get switched off or ignored after the first false alarms (“if it isn’t flashing, don’t touch it”); the limits are widened by hand until almost no signals remain; values in the system are corrected after the fact.',
+      },
+      {
+        ru: 'Запустить на одной линии и в первые недели настраивать пределы вместе с операторами этой линии раз в неделю, показывая только те сигналы, за которыми последовал реальный дефект, — ложные срабатывания не должны стать поводом отключить систему.',
+        en: 'Start on one line and, for the first weeks, tune the limits together with that line’s operators once a week, showing only the signals that were followed by a real defect: false alarms must not become a reason to switch the system off.',
+      },
+    ],
+  },
+  {
+    processId: 'weg-procurement-tobe',
+    itemId: 'vmi',
+    answers: [
+      {
+        ru: 'Закупщики теряют контроль: заказы на позиции класса C (34 % номенклатуры в модели) больше не оформляются, и вместе с ними уходит влияние на цену и поставщика. Склад меняет порядок приёмки, а сами поставщики берут на себя запас и закладывают его стоимость в цену.',
+        en: 'Buyers lose control: orders for C-class items (34% of lines in the model) are no longer placed, and the influence on price and supplier goes with them. The warehouse changes its receiving routine, and the suppliers take on the stock and build its cost into the price.',
+      },
+      {
+        ru: 'Закупщики по привычке оформляют заказы «на всякий случай»; склад держит свой неучтённый запас рядом с консигнационным; поставщики поднимают цену или задерживают пополнение, чтобы вернуть стоимость хранения.',
+        en: 'Buyers keep placing orders “just in case”; the warehouse keeps its own unrecorded stock next to the consignment stock; suppliers raise the price or delay replenishment to recover their storage cost.',
+      },
+      {
+        ru: 'Начать с 3–5 поставщиков, у которых самая большая доля позиций класса C, с фиксированным уровнем запаса и ценой, и измерять нехватки и итоговую цену позиции за квартал; остальных подключать, когда цифры покажут, что цена не выросла.',
+        en: 'Start with the 3–5 suppliers that hold the largest share of C-class items, with a fixed stock level and price, and measure shortages and the resulting item price over a quarter; add the others once the figures show the price has not risen.',
+      },
+    ],
+  },
+  {
+    processId: 'weg-eto-tobe',
+    itemId: 'fat',
+    answers: [
+      {
+        ru: 'Испытатели и сервисные инженеры теряют выезды (дорогу, часть командировочных, личный контакт с заказчиком), то есть комфорт и статус. Заказчик теряет возможность посмотреть на машину вживую и разделить ответственность за приёмку «на месте» — контроль.',
+        en: 'Test and service engineers lose the trips (the travel, part of the allowances, face-to-face contact with the customer), that is comfort and status. The customer loses the chance to see the machine in person and to share responsibility for acceptance on the spot, that is control.',
+      },
+      {
+        ru: 'Заказчик настаивает на присутствии «как в договоре» и приезжает за свой счёт; инженеры всё равно едут вместе с трансляцией; в протокол вносят замечания, которые раньше решались устно, и приёмка затягивается.',
+        en: 'The customer insists on attending “as the contract says” and travels at their own expense; the engineers go anyway alongside the stream; the record fills with remarks that used to be settled verbally, and acceptance drags on.',
+      },
+      {
+        ru: 'Дать заказчику выбор: удалённый FAT с независимой видеофиксацией и правом приехать за счёт WEG по любому спорному пункту. Выезд остаётся страховкой, а не стандартом, и заказчик не чувствует, что у него отняли контроль.',
+        en: 'Offer the customer a choice: a remote FAT with independent video recording and the right to come at WEG’s expense for any disputed point. The trip stays an insurance policy rather than the norm, and the customer does not feel control has been taken away.',
+      },
+    ],
+  },
+  {
+    processId: 'weg-gtd-tobe',
+    itemId: 'typetests',
+    answers: [
+      {
+        ru: 'Лаборатория и испытатели теряют объём: полная программа остаётся лишь для нестандартных исполнений (36 % в модели), а с ней уходят часть сверхурочных и загрузка стенда. Эксперты заказчика теряют роль свидетелей испытания своего трансформатора — статус и контроль.',
+        en: 'The laboratory and test crews lose volume: the full programme stays only for non-standard executions (36% in the model), and part of the overtime and the test-bay load goes with it. The customer’s experts lose their role as witnesses of the test on their own transformer, that is status and control.',
+      },
+      {
+        ru: 'Заказчик вписывает в техзадание «типовые испытания на каждом изделии»; лаборатория находит основания считать исполнение нестандартным и возвращает заказ на полную программу; инженеры платформы не вносят протоколы в библиотеку вовремя.',
+        en: 'The customer writes “type tests on every unit” into the specification; the laboratory finds grounds to call the execution non-standard and sends the order back to the full programme; the platform engineers do not enter the records into the library on time.',
+      },
+      {
+        ru: 'Договориться с 2–3 крупнейшими заказчиками, что протоколы платформы принимаются по рамочному договору, и пригласить их экспертов на испытание самой платформы: они один раз увидят полную программу, зато перестанут требовать её на каждом изделии.',
+        en: 'Agree with the 2–3 largest customers that the platform records are accepted under the framework contract, and invite their experts to the test of the platform itself: they see the full programme once and stop demanding it on every unit.',
+      },
+    ],
+  },
+  {
+    processId: 'weg-service-tobe',
+    itemId: 'remote',
+    answers: [
+      {
+        ru: 'Сервисные партнёры (сеть ASTEC) теряют часть выездов и ремонтов, потому что удалённо закрывается 58 % обращений вместо 35 %, — то есть выручку и загрузку. Клиенты теряют ощущение, что «приехал специалист».',
+        en: 'The service partners (the ASTEC network) lose part of their visits and repairs, because 58% of requests close remotely instead of 35%: revenue and utilisation. Customers lose the feeling that “a specialist came”.',
+      },
+      {
+        ru: 'Партнёры оформляют повторные обращения, чтобы вернуть выезд («по телефону не помогло»); клиенты просят инженера приехать «на всякий случай»; диагносты перестраховываются и при любом сомнении рекомендуют выезд.',
+        en: 'Partners raise repeat requests to get the visit back (“the phone call did not help”); customers ask for an engineer “just in case”; diagnosticians play safe and recommend a visit at any doubt.',
+      },
+      {
+        ru: 'Первые два квартала платить партнёру за удалённое закрытие обращения по тарифу выезда: удалённая диагностика не лишает его дохода, а дорогой выезд остаётся для случаев, где он нужен. Это временная мера, и её цена вычитается из экономии.',
+        en: 'For the first two quarters pay the partner for a remote closure at the visit rate: remote diagnosis does not take its income away, and the costly visit stays for the cases that need it. It is a temporary measure and its price comes off the saving.',
+      },
+    ],
+  },
+  {
+    processId: 'weg-npd-tobe',
+    itemId: 'cert',
+    answers: [
+      {
+        ru: 'Сертификационная группа теряет комфорт: досье нужно готовить по ещё не готовым данным. Руководитель проекта теряет контроль над последовательностью («сначала испытания, потом бумага»), а испытатели получают дедлайн на промежуточные результаты.',
+        en: 'The certification team loses comfort: the dossier has to be prepared from data that is not ready yet. The project manager loses control over the sequence (“tests first, paperwork after”), and the test engineers get a deadline for interim results.',
+      },
+      {
+        ru: 'Досье подают, а данные «докладывают потом»; орган сертификации возвращает заявку с замечаниями; испытатели не успевают выдать промежуточные результаты, и группа ждёт; к воротам 3 проект приходит «условно готовым».',
+        en: 'The dossier is filed and the data is “added later”; the certification body returns the application with remarks; the test engineers miss the interim results and the team waits; the project reaches Gate 3 “conditionally ready”.',
+      },
+      {
+        ru: 'Определить минимальный набор промежуточных результатов испытаний, нужный для подачи, и поставить его в график проекта отдельной вехой: тогда досье подаётся по реальным данным, а не по ожиданиям.',
+        en: 'Define the minimum set of interim test results needed for filing and put it into the project schedule as its own milestone: then the dossier is filed on real data, not on expectations.',
+      },
+    ],
+  },
+  {
+    processId: 'weg-export-tobe',
+    itemId: 'freight',
+    answers: [
+      {
+        ru: 'Логисты теряют гибкость выбора перевозчика на каждую отправку (контроль) и повод показать «сэкономил на ставке» (статус); перевозчик теряет премию за срочные заказы; закупщик фрахта обязуется держать объём, и ошибка в прогнозе становится его ошибкой.',
+        en: 'Logisticians lose the freedom to pick a carrier for each shipment (control) and the chance to show “saved on the rate” (status); the carrier loses the premium on rush orders; the freight buyer commits to a volume, so a forecasting error becomes theirs.',
+      },
+      {
+        ru: 'Срочные отправки уходят мимо контракта по спотовым ставкам; контрактный объём не выбирается, и приходится платить за недобор; перевозчик не даёт слот в пик и ссылается на загрузку.',
+        en: 'Rush shipments go outside the contract at spot rates; the contracted volume is not used up and the shortfall has to be paid for; the carrier refuses a slot at the peak and cites capacity.',
+      },
+      {
+        ru: 'Зафиксировать в контракте долю объёма (например, 70 %) и гарантированные слоты в пик, а остальное оставить на спот; оценивать логиста по средней ставке за год, а не по каждой отправке.',
+        en: 'Fix a share of the volume in the contract (say 70%) with guaranteed slots at the peak, and leave the rest to the spot market; assess the logistician on the average rate over the year, not on each shipment.',
+      },
+    ],
+  },
+];
+
+Object.assign(__exports, { RISK_QUESTIONS, RISK_NOTE, RISKS });
+
+});
+__fm_define('app/notations/sheet/templates.js', function (__exports) {
+/**
+ * Worksheet templates: the empty sheets a user starts from.
+ *
+ * The wording of the matrix instructions and of the three risk questions is the
+ * course's own; the journey rows are the usual customer-journey layers.
+ */
+
+/** Rows of a customer journey map; `curve` marks the emotion band. */
+const JOURNEY_ROWS = {
+  goal: { key: 'goal', label: { ru: 'Цель клиента', en: 'Customer goal' }, height: 84 },
+  actions: { key: 'actions', label: { ru: 'Действия клиента', en: 'Customer actions' }, height: 104 },
+  touch: { key: 'touch', label: { ru: 'Точки контакта', en: 'Touchpoints' }, height: 92 },
+  doubts: { key: 'doubts', label: { ru: 'Вопросы и сомнения', en: 'Questions and doubts' }, height: 104 },
+  emotion: { key: 'emotion', label: { ru: 'Эмоция\n(−2 … +2)', en: 'Emotion\n(−2 … +2)' }, height: 150, curve: true },
+  pain: { key: 'pain', label: { ru: 'Боли', en: 'Pain points' }, height: 118, tone: 'pain' },
+  inside: { key: 'inside', label: { ru: 'Что происходит внутри компании', en: 'What happens inside the company' }, height: 118 },
+  metric: { key: 'metric', label: { ru: 'Метрика этапа', en: 'Stage metric' }, height: 84 },
+  ideas: { key: 'ideas', label: { ru: 'Возможности', en: 'Opportunities' }, height: 104, tone: 'gain' },
+};
+
+const blank = (count) => Array.from({ length: count }, () => ({ ru: '', en: '' }));
+
+const SHEET_TEMPLATES = [
+  {
+    id: 'impact-effort',
+    name: { ru: 'Матрица «эффект — усилия»', en: 'Impact / effort matrix' },
+    description: {
+      ru: 'Рабочий лист: расставьте 3–5 изменений из своей TO-BE по четырём квадрантам и объясните, почему быстрая победа идёт первой.',
+      en: 'Worksheet: place 3–5 changes from your TO-BE into four quadrants and explain why the quick win goes first.',
+    },
+    spec: {
+      notation: 'sheet',
+      kind: 'matrix',
+      name: { ru: 'Матрица «эффект — усилия»', en: 'Impact / effort matrix' },
+      title: { ru: 'Рабочий лист: расставьте свои TO-BE изменения', en: 'Worksheet: rank your TO-BE changes' },
+      items: [
+        { no: '1', label: '', placed: false },
+        { no: '2', label: '', placed: false },
+        { no: '3', label: '', placed: false },
+      ],
+      why: '',
+    },
+  },
+  {
+    id: 'implementation-risks',
+    name: { ru: 'Риски внедрения изменения', en: 'Implementation risks' },
+    description: {
+      ru: 'Рабочий лист из трёх вопросов: кто теряет, как проявится сопротивление и какая одна мера снизит его сильнее всего.',
+      en: 'A three-question worksheet: who loses, how the resistance will show, and the one measure that reduces it most.',
+    },
+    spec: {
+      notation: 'sheet',
+      kind: 'risks',
+      name: { ru: 'Риски внедрения изменения', en: 'Implementation risks' },
+      title: { ru: 'Рабочий лист: риски внедрения вашего изменения', en: 'Worksheet: risks of implementing your change' },
+      change: '',
+      changeHeight: 84,
+      questions: [
+        {
+          question: {
+            ru: 'Кто теряет от этого изменения и что именно (время / контроль / комфорт / статус)?',
+            en: 'Who loses from this change, and what exactly (time / control / comfort / status)?',
+          },
+          answer: '',
+        },
+        {
+          question: {
+            ru: 'Как будет проявляться сопротивление на практике (конкретно, не абстрактно)?',
+            en: 'How will resistance show up in practice (concretely, not in the abstract)?',
+          },
+          answer: '',
+        },
+        {
+          question: {
+            ru: 'Какая одна мера снизит сопротивление сильнее всего?',
+            en: 'Which single measure would reduce the resistance the most?',
+          },
+          answer: '',
+        },
+      ],
+    },
+  },
+  {
+    id: 'customer-journey',
+    name: { ru: 'Карта пути клиента', en: 'Customer journey map' },
+    description: {
+      ru: 'Этапы пути клиента по строкам: цели, действия, точки контакта, сомнения, кривая эмоций, боли, внутренний процесс, метрика и возможности.',
+      en: 'The customer\'s path by layers: goals, actions, touchpoints, doubts, an emotion curve, pain points, the internal process, a metric and opportunities.',
+    },
+    spec: {
+      notation: 'sheet',
+      kind: 'journey',
+      name: { ru: 'Карта пути клиента', en: 'Customer journey map' },
+      title: { ru: 'Карта пути клиента', en: 'Customer journey map' },
+      stages: [
+        { name: { ru: 'Осознание', en: 'Awareness' }, emotion: 0 },
+        { name: { ru: 'Поиск', en: 'Search' }, emotion: 0 },
+        { name: { ru: 'Выбор', en: 'Choice' }, emotion: 0 },
+        { name: { ru: 'Покупка', en: 'Purchase' }, emotion: 0 },
+        { name: { ru: 'Использование', en: 'Use' }, emotion: 0 },
+        { name: { ru: 'Поддержка', en: 'Support' }, emotion: 0 },
+      ],
+      rows: Object.values(JOURNEY_ROWS).map((row) => (row.curve ? row : { ...row, cells: blank(6) })),
+    },
+  },
+];
+
+Object.assign(__exports, { JOURNEY_ROWS, SHEET_TEMPLATES });
+
+});
+__fm_define('app/library/weg/sheets/engine.js', function (__exports) {
+/**
+ * What each change of a target model is worth, measured on the models.
+ *
+ * The worksheets quote numbers next to every change. They are not typed in:
+ * a change is switched off in a copy of the TO-BE model (its steps get their
+ * AS-IS parameters back, its branch shares return to the old values) and the
+ * two models are analysed. The difference is what the change contributes.
+ * Changes that replace whole steps (a step that exists only in AS-IS cannot be
+ * "switched back on" in a copy) are measured by the load of those AS-IS steps.
+ */
+const { analyzeProcess } = __fm_require('app/analysis/simulate.js');
+const { completionShare } = __fm_require('app/analysis/compare.js');
+const { formatDuration, formatMoney } = __fm_require('app/analysis/parameters.js');
+const { pick } = __fm_require('app/library/shared.js');
+const { WEG_AS_IS, WEG_TO_BE, buildWegDiagram } = __fm_require('app/library/weg/index.js');
+const COST_KEYS = ['duration', 'waitTime', 'cost'];
+
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+function processPair(processId) {
+  const tobe = WEG_TO_BE.find((process) => process.id === processId);
+  const asis = tobe && WEG_AS_IS.find((process) => process.id === tobe.baselineId);
+  return tobe && asis ? { tobe, asis } : null;
+}
+
+const cache = new Map();
+
+/**
+ * Analysis of a library process; the numbers do not depend on the language.
+ * `cost` is the cost of a case that reaches a successful end: a change that
+ * stops rejecting late lets more cases into expensive steps, and the cost per
+ * *started* case would then punish it for being good.
+ */
+function analyse(process) {
+  if (!cache.has(process)) {
+    const diagram = buildWegDiagram(process, 'en');
+    const result = analyzeProcess(diagram);
+    const done = completionShare(diagram, result);
+    cache.set(process, {
+      result,
+      done,
+      nodes: result.nodes,
+      lead: result.totals.leadExpected,
+      work: result.totals.workMinutes,
+      cost: result.totals.costPerRun / done,
+    });
+  }
+  return cache.get(process);
+}
+
+/**
+ * A copy of the TO-BE process with one change switched off.
+ * `revert`: `nodes` get their AS-IS duration / wait / cost back, `zero` nodes
+ * stop costing anything (steps that do not exist in AS-IS), `like` maps a
+ * TO-BE step to the AS-IS step it replaced, `edges` are
+ * `[source, target, share]` triples that restore a branch share, `rewire`
+ * removes and adds flows (to turn a parallel stretch back into a sequence).
+ */
+function revertChange(tobe, asis, revert = {}) {
+  const process = clone(tobe);
+  const before = new Map(asis.spec.nodes.map((node) => [node.id, node]));
+  const find = (id) => {
+    const found = process.spec.nodes.find((node) => node.id === id);
+    if (!found) throw new Error(`${tobe.id}: no step "${id}"`);
+    found.props = found.props || {};
+    return found;
+  };
+  for (const id of revert.nodes || []) {
+    const step = find(id);
+    const old = before.get(id);
+    for (const key of COST_KEYS) {
+      if (old?.props && key in old.props) step.props[key] = old.props[key];
+      else delete step.props[key];
+    }
+  }
+  for (const [id, asisId] of Object.entries(revert.like || {})) {
+    // a step that replaced another one gets the parameters of the step it replaced
+    const step = find(id);
+    const old = before.get(asisId);
+    if (!old) throw new Error(`${tobe.id}: no AS-IS step "${asisId}"`);
+    for (const key of COST_KEYS) {
+      if (old.props && key in old.props) step.props[key] = old.props[key];
+      else delete step.props[key];
+    }
+  }
+  for (const id of revert.zero || []) {
+    const step = find(id);
+    for (const key of COST_KEYS) step.props[key] = 0;
+  }
+  const rewire = revert.rewire || {};
+  for (const [source, target] of rewire.remove || []) {
+    const index = process.spec.edges.findIndex((entry) => entry.source === source && entry.target === target);
+    if (index < 0) throw new Error(`${tobe.id}: no flow ${source} > ${target}`);
+    process.spec.edges.splice(index, 1);
+  }
+  for (const [source, target, share] of rewire.add || []) {
+    process.spec.edges.push({ source, target, props: share === undefined ? {} : { probability: share } });
+  }
+  for (const [source, target, share] of revert.edges || []) {
+    const edge = process.spec.edges.find((entry) => entry.source === source && entry.target === target);
+    if (!edge) throw new Error(`${tobe.id}: no flow ${source} > ${target}`);
+    edge.props = edge.props || {};
+    edge.props.probability = share;
+  }
+  return process;
+}
+
+/** Row of an analysis by the id a step has in the specification. */
+function rowsById(process, analysis) {
+  const byLabel = new Map(analysis.nodes.map((row) => [row.label, row]));
+  const out = new Map();
+  for (const node of process.spec.nodes) {
+    const row = byLabel.get(node.label.en);
+    if (row) out.set(node.id, row);
+  }
+  return out;
+}
+
+/** Row of the analysis for a step, by its id in the specification. */
+function stepRow(process, id) {
+  const row = rowsById(process, analyse(process)).get(id);
+  if (!row) throw new Error(`${process.id}: no step "${id}"`);
+  return row;
+}
+
+/** Branch share (percent) of a flow of the specification. */
+function flowShare(process, source, target) {
+  const edge = process.spec.edges.find((entry) => entry.source === source && entry.target === target);
+  if (!edge) throw new Error(`${process.id}: no flow ${source} > ${target}`);
+  return edge.props?.probability;
+}
+
+/** Work, waiting and cost per case that a set of AS-IS steps carries. */
+function stepLoad(asis, ids) {
+  const analysis = analyse(asis);
+  const rows = rowsById(asis, analysis);
+  const load = { work: 0, wait: 0, cost: 0 };
+  for (const id of ids) {
+    const row = rows.get(id);
+    if (!row) throw new Error(`${asis.id}: no step "${id}"`);
+    load.work += row.totalMinutes;
+    load.wait += row.runs * row.wait;
+    load.cost += row.totalCost;
+  }
+  return load;
+}
+
+/**
+ * Measures one change. Returns the contribution to the lead time, the work and
+ * the cost of a case (positive = the change saves that much), the same per
+ * year, and the share of the whole transition each one makes up.
+ */
+function measureChange(processId, change) {
+  const pair = processPair(processId);
+  if (!pair) throw new Error(`unknown process ${processId}`);
+  const { tobe, asis } = pair;
+  const base = analyse(tobe);
+  const before = analyse(asis);
+  const volume = tobe.analysis?.volumePerYear || 0;
+  const gain = {
+    lead: before.lead - base.lead,
+    work: before.work - base.work,
+    cost: before.cost - base.cost,
+  };
+  let saved;
+  let kind;
+  if (change.revert) {
+    const off = analyse(revertChange(tobe, asis, change.revert));
+    saved = {
+      lead: off.lead - base.lead,
+      work: off.work - base.work,
+      cost: off.cost - base.cost,
+    };
+    kind = 'revert';
+  } else if (change.steps) {
+    // steps that disappear, less whatever replaces them
+    const gone = stepLoad(asis, change.steps);
+    const instead = change.by ? stepLoad(tobe, change.by) : { work: 0, wait: 0, cost: 0 };
+    saved = {
+      lead: gone.work + gone.wait - instead.work - instead.wait,
+      work: gone.work - instead.work,
+      cost: gone.cost - instead.cost,
+    };
+    kind = 'steps';
+  } else {
+    return null;
+  }
+  const share = (value, total) => (Math.abs(total) > 1e-9 ? value / total : 0);
+  return {
+    kind,
+    saved,
+    perYear: { cost: saved.cost * volume, work: saved.work * volume },
+    share: { lead: share(saved.lead, gain.lead), work: share(saved.work, gain.work), cost: share(saved.cost, gain.cost) },
+    gain,
+    volume,
+  };
+}
+
+/* ----------------------------------------------------------------- wording */
+
+const signed = (value, text) => (value > 0 ? `+${text}` : value < 0 ? `−${text}` : text);
+const pct = (value) => `${Math.round(Math.abs(value) * 100)} %`;
+
+/**
+ * One line that says what the model attributes to the change. `signed` values
+ * are positive when the change helps; wording is "without it ... would be".
+ */
+function describeMeasure(measure, locale = 'ru', currency = 'R$') {
+  if (!measure) return '';
+  const ru = locale === 'ru';
+  const { saved, share, perYear, kind } = measure;
+  const parts = [];
+  if (kind === 'revert') {
+    const lead = Math.abs(saved.lead);
+    if (lead >= 0.5 && (Math.abs(share.lead) >= 0.02 || lead >= 30)) {
+      parts.push(
+        ru
+          ? `срок ${saved.lead > 0 ? 'длиннее' : 'короче'} на ${formatDuration(lead, 'ru')} (${pct(share.lead)} выигрыша процесса)`
+          : `lead time ${formatDuration(lead, 'en')} ${saved.lead > 0 ? 'longer' : 'shorter'} (${pct(share.lead)} of the process gain)`
+      );
+    }
+    if (Math.abs(saved.work) >= 1 && Math.abs(share.work) >= 0.05) {
+      parts.push(
+        ru
+          ? `трудозатраты ${saved.work > 0 ? 'выше' : 'ниже'} на ${formatDuration(Math.abs(saved.work), 'ru')}`
+          : `work ${formatDuration(Math.abs(saved.work), 'en')} ${saved.work > 0 ? 'higher' : 'lower'}`
+      );
+    }
+    if (Math.abs(saved.cost) >= 0.05) {
+      const money = formatMoney(Math.abs(saved.cost), currency, locale);
+      const year = Math.abs(perYear.cost) >= 1e6 ? ` (≈ ${formatMoney(Math.abs(perYear.cost), currency, locale)} ${ru ? 'в год' : 'a year'})` : '';
+      parts.push(
+        ru
+          ? `стоимость случая ${saved.cost > 0 ? 'выше' : 'ниже'} на ${money}${year}`
+          : `cost per case ${money} ${saved.cost > 0 ? 'higher' : 'lower'}${year}`
+      );
+    }
+    if (!parts.length) return '';
+    return ru ? `Без этого изменения: ${parts.join('; ')}.` : `Without this change: ${parts.join('; ')}.`;
+  }
+  const bits = [];
+  if (saved.work >= 0.5) bits.push(formatDuration(saved.work, locale) + (ru ? ' работы' : ' of work'));
+  if (saved.cost >= 0.05) bits.push(formatMoney(saved.cost, currency, locale));
+  if (!bits.length) return '';
+  return ru
+    ? `Новые шаги вместо прежних экономят на каждом случае ${bits.join(' и ')}.`
+    : `The new steps in place of the old ones save ${bits.join(' and ')} on every case.`;
+}
+
+
+/**
+ * Fills `{lead}`, `{cost}`, `{year}`, `{leadShare}`, `{costShare}`, `{workShare}`
+ * in a sentence. `{id:key}` takes the value from another change of the same
+ * sheet; a bare `{key}` takes it from `fallback`.
+ */
+function fillPlaceholders(text, measures, fallback, locale = 'ru', currency = 'R$') {
+  const values = (measure) => {
+    if (!measure) return {};
+    const { saved, share, perYear } = measure;
+    return {
+      lead: formatDuration(Math.abs(saved.lead), locale),
+      leadShare: pct(share.lead),
+      cost: formatMoney(Math.abs(saved.cost), currency, locale),
+      year: formatMoney(Math.abs(perYear.cost), currency, locale),
+      workShare: pct(share.work),
+      costShare: pct(share.cost),
+    };
+  };
+  return text.replace(/\{(?:(\w+):)?(\w+)\}/g, (match, id, key) => {
+    const found = values(id ? measures[id] : fallback)[key];
+    return found === undefined ? match : found;
+  });
+}
+
+function localized(value, locale) {
+  return pick(value, locale);
+}
+
+Object.assign(__exports, { signed, processPair, analyse, revertChange, stepRow, flowShare, stepLoad, measureChange, describeMeasure, fillPlaceholders, localized });
+
+});
+__fm_define('app/library/weg/sheets/journey.js', function (__exports) {
+/**
+ * Customer journey of a WEG buyer, as is and to be.
+ *
+ * The buyer is an industrial customer - a purchasing or maintenance engineer
+ * - who selects, orders, receives, pays for, runs and services standard
+ * motors. The path follows the processes of the library: order to cash (1)
+ * covers the stages from the order to the payment, service and repair (6) the
+ * stages after delivery. Selection, quotation and operation are not modelled
+ * in the library and say so.
+ *
+ * What is in a cell:
+ *  - customer rows (goal, actions, touchpoints, doubts, pain) are hypotheses
+ *    from the logic of the processes, not interviews;
+ *  - the internal-process row and the metric row quote the models: durations
+ *    and shares are read from the specifications and the analysis, so they
+ *    cannot drift from the diagrams;
+ *  - the emotion curve (−2 … +2) is an expert judgement.
+ */
+const { WEG_AS_IS, WEG_TO_BE } = __fm_require('app/library/weg/index.js');
+const { JOURNEY_ROWS } = __fm_require('app/notations/sheet/templates.js');
+const { analyse, flowShare, stepLoad, stepRow } = __fm_require('app/library/weg/sheets/engine.js');
+const asisOf = (id) => WEG_AS_IS.find((process) => process.id === id);
+const tobeOf = (id) => WEG_TO_BE.find((process) => process.id === id);
+
+const JOURNEY_STAGES = [
+  { ru: 'Потребность и подбор', en: 'Need and selection' },
+  { ru: 'Запрос и предложение', en: 'Enquiry and quotation' },
+  { ru: 'Заказ и проверка кредита', en: 'Order and credit check' },
+  { ru: 'Ожидание и отгрузка', en: 'Waiting and shipment' },
+  { ru: 'Получение и монтаж', en: 'Receipt and installation' },
+  { ru: 'Оплата', en: 'Payment' },
+  { ru: 'Эксплуатация', en: 'Operation' },
+  { ru: 'Сервис и ремонт', en: 'Service and repair' },
+  { ru: 'Повторный заказ', en: 'Reorder' },
+];
+
+/** Emotion by stage, −2 … +2: an expert judgement, flagged on the sheet. */
+const EMOTIONS = {
+  'as-is': [0, -1, -1, -2, 1, 0, 1, -2, 0],
+  'to-be': [1, 1, 1, 1, 1, 0, 1, 0, 1],
+};
+
+const GOALS = [
+  { ru: 'Подобрать двигатель под нагрузку, КПД и условия площадки.', en: 'Find a motor that fits the load, efficiency class and site conditions.' },
+  { ru: 'Получить цену, срок и условия, которые можно сравнить с другими поставщиками.', en: 'Get a price, lead time and terms that can be compared with other suppliers.' },
+  { ru: 'Оформить заказ без ошибок и быстро получить подтверждение.', en: 'Place the order without errors and get a quick confirmation.' },
+  { ru: 'Получить товар к обещанному сроку и знать, где он.', en: 'Receive the goods by the promised date and know where they are.' },
+  { ru: 'Принять поставку без расхождений и быстро запустить оборудование.', en: 'Accept the delivery without discrepancies and put the equipment into service quickly.' },
+  { ru: 'Заплатить в удобный срок и без споров по счёту.', en: 'Pay at a convenient time and without disputes over the invoice.' },
+  { ru: 'Чтобы двигатель работал без остановок и с ожидаемым КПД.', en: 'Keep the motor running without stoppages and at the expected efficiency.' },
+  { ru: 'Вернуть оборудование в работу быстро и с понятной стоимостью.', en: 'Get the equipment back to work quickly and at a clear cost.' },
+  { ru: 'Купить то же самое снова без лишних согласований или заменить на лучшее.', en: 'Buy the same again without extra approvals, or replace it with something better.' },
+];
+
+/** `{ru, en}` shorthand. */
+const t = (ru, en) => ({ ru, en });
+
+/* ------------------------------------------------------------ AS-IS rows */
+
+const AS_IS = {
+  actions: [
+    t('Листает каталог и листы данных, сверяет мощность, КПД и исполнение, уточняет у менеджера или дистрибьютора.', 'Browses the catalogue and data sheets, checks power, efficiency class and enclosure, then asks a salesperson or distributor.'),
+    t('Отправляет запрос письмом или через дистрибьютора, ждёт коммерческое предложение и сравнивает его с конкурентами.', 'Sends an enquiry by e-mail or through a distributor, waits for the quotation and compares it with competitors.'),
+    t('Присылает заказ письмом или таблицей, отвечает на вопросы по артикулам и условиям; при нехватке лимита вносит предоплату.', 'Sends the order as a letter or a spreadsheet, answers questions on part numbers and terms; prepays when the credit limit is short.'),
+    t('Ждёт, звонит или пишет, чтобы узнать статус, планирует приёмку на своём складе.', 'Waits, calls or writes to ask for the status, plans receiving at their own warehouse.'),
+    t('Принимает груз, сверяет с накладной и заказом, монтирует двигатель; при расхождении пишет менеджеру.', 'Receives the load, checks it against the delivery note and the order, installs the motor; writes to the salesperson on a discrepancy.'),
+    t('Получает счёт и NF-e, платит через 30 дней по договору; при ошибке в счёте согласует исправление.', 'Receives the invoice and the NF-e, pays after 30 days under the contract; agrees a correction if the invoice is wrong.'),
+    t('Эксплуатирует по регламенту, ремонтная служба обходит оборудование; о проблеме узнаёт после отказа.', 'Runs it by the schedule, the maintenance crew walks the plant; learns of a problem after a failure.'),
+    t('Звонит в сервис, ждёт диагностику, согласует смету, ждёт вывоз двигателя и его возврат.', 'Phones the service desk, waits for the diagnosis, approves the quotation, waits for the motor to be collected and returned.'),
+    t('Повторяет заказ по старому письму, запрашивает цену заново, сравнивает с другими поставщиками.', 'Repeats the order from an old e-mail, asks for the price again, compares with other suppliers.'),
+  ],
+  touch: [
+    t('Сайт и каталог, телефон менеджера, дистрибьютор.', 'Website and catalogue, the salesperson’s phone, the distributor.'),
+    t('Электронная почта, телефон, дистрибьютор.', 'E-mail, phone, the distributor.'),
+    t('Почта, телефон отдела заказов, письмо с просьбой о предоплате.', 'E-mail, the order desk’s phone, a letter asking for prepayment.'),
+    t('Звонок в отдел заказов, уведомление об отгрузке по почте, перевозчик.', 'A call to the order desk, a shipping notice by e-mail, the carrier.'),
+    t('Накладная и NF-e, шильдик на двигателе, бумажная инструкция.', 'Delivery note and NF-e, the nameplate, a printed manual.'),
+    t('Счёт и NF-e по почте, финансовый отдел поставщика.', 'Invoice and NF-e by e-mail, the supplier’s finance department.'),
+    t('Регламент ТО клиента, руководство по эксплуатации, сервис по звонку.', 'The customer’s maintenance schedule, the operating manual, service on request.'),
+    t('Телефон сервиса, партнёр из сети ASTEC, письмо со сметой.', 'The service phone, an ASTEC partner, a quotation by e-mail.'),
+    t('Старая переписка, менеджер по продажам, запрос оценки сервиса.', 'Old correspondence, the salesperson, a service rating request.'),
+  ],
+  doubts: [
+    t('Подойдёт ли этот типоразмер? Есть ли он в наличии? Кого спросить, если нужного исполнения нет в каталоге?', 'Will this frame size do? Is it in stock? Whom to ask if the execution is not in the catalogue?'),
+    t('Цена актуальна? Сохранится ли скидка за объём? Почему срок «уточняется»?', 'Is the price current? Will the volume discount hold? Why is the lead time “to be confirmed”?'),
+    t('Принят ли заказ? Нет ли ошибки в артикуле? Почему просят предоплату, мы давно работаем?', 'Was the order accepted? Is the part number right? Why prepay when we have worked together for years?'),
+    t('Когда отгрузят? Почему «в производстве», если в каталоге было «в наличии»?', 'When will it ship? Why “in production” if the catalogue said “in stock”?'),
+    t('Всё ли привезли? Где протокол испытаний этого двигателя?', 'Is everything here? Where are the test records of this motor?'),
+    t('Совпадает ли счёт с заказом? Что будет при просрочке?', 'Does the invoice match the order? What happens if we are late?'),
+    t('Сколько ещё прослужит подшипник? Не пора ли менять?', 'How long will the bearing last? Is it time to replace it?'),
+    t('Это гарантийный случай? Сколько стоит ремонт? Сколько простоит линия?', 'Is this a warranty case? How much will the repair cost? How long will the line stand?'),
+    t('Остались ли прежние условия? Не попробовать ли другого поставщика?', 'Are the old terms still valid? Should we try another supplier?'),
+  ],
+  pain: [
+    t('Наличие и срок в каталоге не видны, узнаёт только после запроса; ответ ждёт, пока менеджер освободится.', 'Stock and lead time are not visible in the catalogue, only after an enquiry; the answer waits until the salesperson is free.'),
+    t('Предложение приходит через часы или дни, цену и срок приходится подтверждать повторно.', 'The quotation arrives hours or days later; price and lead time have to be confirmed again.'),
+    t('Ошибки в артикулах находят после отправки; запрос предоплаты задерживает ≈ {prepay} заказов на 2 дня.', 'Part-number errors surface after sending; a prepayment request holds ≈ {prepay} of orders for 2 days.'),
+    t('Для ≈ {offstock} заказов склада нет, партия ждёт плана производства до 9 дней; статус клиент узнаёт, только позвонив.', 'For ≈ {offstock} of orders there is no stock; the batch waits up to 9 days for the production plan; the customer learns the status only by calling.'),
+    t('Протокол испытаний и сертификаты запрашивают отдельно; расхождения по комплектности решаются письмами.', 'Test records and certificates are requested separately; shortages are settled by letters.'),
+    t('У ≈ {dunning} заказов бывают напоминания и звонки по просрочке; сроки платежа оспариваются.', 'About {dunning} of orders get reminders and calls about late payment; payment dates are disputed.'),
+    t('Об отказе узнаёт, когда оборудование уже стоит; остановки на ТО назначаются по календарю, а не по состоянию.', 'Learns of a failure when the equipment already stands; maintenance stops follow the calendar, not the condition.'),
+    t('Диагностика по звонку закрывает {remote} случаев; остальным вывоз (2 дня), согласование сметы (3 дня), запчасти (4 дня).', 'A call-in diagnosis closes {remote} of cases; the rest wait for collection (2 days), quotation approval (3 days) and parts (4 days).'),
+    t('Всё нужно подтверждать заново; история обслуживания у WEG и у клиента не совпадает.', 'Everything has to be confirmed again; the service history at WEG and at the customer does not match.'),
+  ],
+  inside: [
+    t('Менеджер подбирает вручную и консультируется с инженером; данные о складе в ERP, клиенту не открыты.', 'A salesperson selects by hand and consults an engineer; stock data sits in ERP, closed to the customer.'),
+    t('Менеджер собирает цену из прайса и условий вручную; запросы не из каталога уходят инженеру ({eto} заказов).', 'A salesperson builds the price from the list and terms by hand; enquiries outside the catalogue go to an engineer ({eto} of orders).'),
+    t('Менеджер регистрирует заказ в ERP (4 мин) и проверяет артикулы (12 мин), аналитик проверяет кредитный лимит (8 мин).', 'A salesperson registers the order in ERP (4 min) and checks part numbers (12 min); an analyst checks the credit limit (8 min).'),
+    t('Подбор, упаковка, NF-e, передача перевозчику, уведомление и счёт делаются вручную: {shipWork} работы на заказ.', 'Picking, packing, the NF-e, the carrier handover, the notice and the invoice are done by hand: {shipWork} of work per order.'),
+    t('В модели нет шага, который фиксирует, где установлен каждый двигатель.', 'The model has no step that records where each motor is installed.'),
+    t('Дебиторка заводится вручную, платёж разносится вручную; взыскание ручное ({dunning} заказов).', 'The receivable is posted by hand, the payment is applied by hand; collections are manual ({dunning} of orders).'),
+    t('Обращение начинается со звонка клиента; состояние установленных двигателей WEG не видит.', 'A case starts with the customer’s call; WEG does not see the state of installed motors.'),
+    t('Техник регистрирует обращение (8 мин), диагностирует по данным привода (35 мин), определяет гарантию вручную (15 мин).', 'A technician logs the case (8 min), diagnoses from drive data (35 min), determines the warranty by hand (15 min).'),
+    t('История заказов и обращений лежит в разных системах; отчёт и запрос оценки оформляются вручную (30 + 6 мин).', 'Order and case history sits in different systems; the report and the rating request are done by hand (30 + 6 min).'),
+  ],
+  ideas: [
+    t('Открыть клиенту наличие и срок прямо в каталоге.', 'Show the customer stock and lead time right in the catalogue.'),
+    t('Показывать цену по договору сразу после входа.', 'Show the contract price right after login.'),
+    t('Принимать структурированный заказ из портала и по EDI, проверять строки правилами.', 'Accept a structured order from a portal and via EDI, check the lines by rules.'),
+    t('Показывать статус и трек-номер без звонка; планировать склад по спросу портала.', 'Show the status and tracking number without a call; plan stock from portal demand.'),
+    t('Прикладывать протокол испытаний к отгрузке автоматически.', 'Attach the test record to the shipment automatically.'),
+    t('Предложить выбор срока оплаты и показать цену каждого варианта.', 'Offer a choice of payment term and show the price of each option.'),
+    t('Предложить датчики и подписку на мониторинг.', 'Offer sensors and a monitoring subscription.'),
+    t('Телеметрия для удалённой диагностики, запчасти на региональном складе, смета в портале.', 'Telemetry for remote diagnosis, parts on a regional shelf, the quotation in the portal.'),
+    t('Связать историю заказов и обращений в одну карточку клиента.', 'Tie order and case history into one customer record.'),
+  ],
+};
+
+/* ------------------------------------------------------------ TO-BE rows */
+
+const TO_BE = {
+  actions: [
+    t('Вводит нагрузку и условия в подборщик на портале, видит подходящие двигатели, наличие на складе и срок.', 'Enters the load and conditions in a selector on the portal and sees the matching motors, stock and delivery date.'),
+    t('Видит цену по своему договору и срок прямо в корзине портала; нестандартное запрашивает кнопкой.', 'Sees the price under their own contract and the date in the portal basket; asks for anything non-standard with a button.'),
+    t('Загружает заказ на портале или по EDI, система сразу показывает ошибки в строках и дату отгрузки.', 'Uploads the order on the portal or via EDI; the system shows line errors and the shipping date at once.'),
+    t('Следит за статусом в портале, получает трек-номер при передаче перевозчику.', 'Follows the status in the portal and gets the tracking number when the carrier takes over.'),
+    t('Сканирует груз по уведомлению об отгрузке, открывает цифровой паспорт двигателя в портале, монтирует.', 'Scans the load against the despatch notice, opens the motor’s digital passport in the portal, installs.'),
+    t('Выбирает срок: 30 дней или 7 дней со скидкой 1,5 %; платит по ссылке в портале.', 'Chooses the term: 30 days, or 7 days at a 1.5% discount; pays through a link in the portal.'),
+    t('Подключает мониторинг вибрации, температуры и тока, получает оповещение об отклонении до отказа.', 'Connects monitoring of vibration, temperature and current and is alerted to a deviation before a failure.'),
+    t('Получает диагноз по телеметрии, одобряет смету в портале, согласует окно остановки для вывоза.', 'Gets the diagnosis from telemetry, approves the quotation in the portal, agrees a shutdown window for collection.'),
+    t('Повторяет заказ из истории портала одним нажатием, получает предложение заменить модель на более эффективную.', 'Repeats the order from the portal history in one click and gets an offer to swap to a more efficient model.'),
+  ],
+  touch: [
+    t('Портал с подборщиком; чат с инженером для нестандартного случая.', 'A portal with a selector; a chat with an engineer for a non-standard case.'),
+    t('Портал: личные цены и рамочный договор, уведомления.', 'The portal: personal prices and the framework agreement, notifications.'),
+    t('Портал и EDI, автоматическое подтверждение, звонок только при исключении.', 'Portal and EDI, automatic confirmation, a call only on an exception.'),
+    t('Портал со статусами, push-уведомление, сайт перевозчика.', 'Portal with statuses, a push notification, the carrier’s site.'),
+    t('QR-код на шильдике ведёт к цифровому паспорту, уведомление об отгрузке.', 'A QR code on the nameplate opens the digital passport, the despatch notice.'),
+    t('Портал: счета, выбор срока оплаты, напоминания.', 'The portal: invoices, choice of payment term, reminders.'),
+    t('Система мониторинга, оповещения, портал сервиса.', 'The monitoring system, alerts, the service portal.'),
+    t('Портал сервиса, смета в личном кабинете, партнёр ASTEC.', 'The service portal, the quotation in the customer account, an ASTEC partner.'),
+    t('Портал: история заказов; оценка сервиса одним касанием; письма менеджера.', 'The portal: order history; a one-tap service rating; the salesperson’s e-mails.'),
+  ],
+  doubts: [
+    t('Достаточен ли запас по мощности? Что делать с нестандартным исполнением? (портал передаёт такой запрос инженеру)', 'Is the power margin enough? What about a non-standard execution? (the portal passes such a request to an engineer)'),
+    t('Можно ли получить ещё скидку за раннюю оплату? Что входит в цену?', 'Can I get a further discount for paying early? What does the price include?'),
+    t('Почему строку отклонили? (портал называет причину)', 'Why was a line rejected? (the portal gives the reason)'),
+    t('Не сдвинется ли дата? (портал показывает причину и новую дату)', 'Will the date slip? (the portal shows the reason and the new date)'),
+    t('Подходит ли двигатель к приводу? (паспорт показывает параметры и протокол)', 'Does the motor suit the drive? (the passport shows the parameters and the record)'),
+    t('Выгодна ли скидка 1,5 % по сравнению с нашей стоимостью денег?', 'Is a 1.5% discount worth it against our cost of money?'),
+    t('Правильно ли система оценивает остаточный ресурс?', 'Does the system judge the remaining life correctly?'),
+    t('Можно ли обойтись без вывоза? Когда лучше остановить линию?', 'Can we avoid collection? When is the best time to stop the line?'),
+    t('Окупится ли замена на двигатель более высокого класса КПД?', 'Will switching to a higher efficiency class pay back?'),
+  ],
+  pain: [
+    t('Нестандартное исполнение подборщик всё равно передаёт инженеру ({eto} заказов в модели).', 'The selector still hands a non-standard execution to an engineer ({eto} of orders in the model).'),
+    t('Скидки сверх каталога по-прежнему согласуются вручную.', 'Discounts beyond the catalogue are still approved by hand.'),
+    t('У {fix} заказов есть строки, которые нужно уточнить; {review} заказов ждут ручной проверки лимита.', '{fix} of orders have lines to clear with the customer; {review} of orders wait for a manual limit review.'),
+    t('Для ≈ {offstock} заказов склада всё равно нет: ожидание партии сокращено до 3 дней.', 'For ≈ {offstock} of orders there is still no stock: the batch wait is cut to 3 days.'),
+    t('Паспорт полезен, только если клиент им пользуется; монтаж остаётся на стороне клиента.', 'The passport helps only if the customer uses it; installation remains the customer’s job.'),
+    t('Не каждому клиенту ранняя оплата выгодна; для остальных срок прежний, 30 дней.', 'Early payment does not suit every customer; for the others the term is unchanged, 30 days.'),
+    t('Мониторинг нужно подключить и обслуживать; ложные тревоги подрывают доверие.', 'Monitoring has to be connected and maintained; false alarms erode trust.'),
+    t('До физического ремонта всё равно доходит {repair} случаев; запчасти по прогнозу не всегда совпадают с фактом.', 'A physical repair is still needed in {repair} of cases; parts staged by forecast do not always match the fact.'),
+    t('Рекомендации должны быть точными, иначе выглядят навязчивыми.', 'Recommendations must be accurate or they look pushy.'),
+  ],
+  inside: [
+    t('Каталог, цены и склад доступны из портала; подбор идёт по правилам, человек подключается к исключениям.', 'Catalogue, prices and stock are reachable from the portal; selection runs by rules and a person joins for exceptions.'),
+    t('Цена и условия берутся из каталога по правилам; вручную согласуются только скидки сверх лимита.', 'Price and terms come from the catalogue by rules; only discounts above the limit are approved by hand.'),
+    t('Автоматическая проверка строк (0,5 мин) и скоринг по правилам (0,3 мин); люди разбирают только исключения.', 'Automatic line check (0.5 min) and rule-based scoring (0.3 min); people handle only exceptions.'),
+    t('Маршрут на автоматизированном складе, NF-e и уведомление формируются сами: {shipWork} работы на заказ.', 'A route on the automated warehouse, the NF-e and the notice generate themselves: {shipWork} of work per order.'),
+    t('Цифровой паспорт двигателя (протоколы испытаний, серийный номер) создаётся при выпуске: в модели производства такой шаг есть.', 'The motor’s digital passport (test records, serial number) is created at release: the manufacturing model has this step.'),
+    t('Счёт и дебиторка формируются сами, платёж разносится автоматически, напоминания уходят по правилам.', 'The invoice and receivable generate themselves, the payment is applied automatically, reminders go out by rules.'),
+    t('В модели {monitor} обращений открывает сама система мониторинга по отклонению вибрации, температуры и тока (допущение).', 'In the model {monitor} of cases are opened by the monitoring system itself on a deviation in vibration, temperature or current (an assumption).'),
+    t('Телеметрия уже есть: диагностика 18 мин, {remote} случаев закрываются удалённо; гарантия по цифровому паспорту за 0,4 мин.', 'Telemetry is already there: diagnosis 18 min, {remote} of cases close remotely; warranty from the digital passport in 0.4 min.'),
+    t('Цифровой паспорт и история связаны; отчёт и запрос оценки формируются сами (≈ 1 мин).', 'The digital passport and the history are linked; the report and the rating request generate themselves (≈ 1 min).'),
+  ],
+  ideas: [
+    t('Предлагать модель с более высоким КПД и расчётом окупаемости по тарифу на электроэнергию.', 'Suggest a higher-efficiency model with a payback calculation at the power tariff.'),
+    t('Цены, зависящие от годовой потребности клиента.', 'Prices tied to the customer’s annual need.'),
+    t('Подсказывать повторяющиеся заказы одним нажатием.', 'Suggest recurring orders in one tap.'),
+    t('Прогноз прибытия, уточняемый по данным перевозчика.', 'An arrival forecast refined with the carrier’s data.'),
+    t('Мастер подключения в портале для типовых приводов.', 'A set-up wizard in the portal for typical drives.'),
+    t('Скидка, зависящая от дня оплаты.', 'A discount that depends on the payment day.'),
+    t('Прогноз остаточного ресурса в портале вместе с планом запчастей.', 'A remaining-life forecast in the portal together with a spare-parts plan.'),
+    t('Резервный двигатель на время ремонта по подписке.', 'A loan motor for the repair period, by subscription.'),
+    t('Предложение замены по фактической загрузке двигателя из мониторинга.', 'A replacement offer based on the motor’s actual load from monitoring.'),
+  ],
+};
+
+/* ----------------------------------------------------------- the numbers */
+
+/** Durations in minutes, hours or working days - never months, so a path reads in one unit. */
+function span(minutes, locale) {
+  const ru = locale === 'ru';
+  const value = Math.abs(minutes);
+  const round = (x) => (Math.round(x * 10) / 10).toString().replace('.', ru ? ',' : '.');
+  if (value < 60) return `${round(minutes)} ${ru ? 'мин' : 'min'}`;
+  if (value < 480) return `${round(minutes / 60)} ${ru ? 'ч' : 'h'}`;
+  return `${round(minutes / 480)} ${ru ? 'раб. дн.' : 'working days'}`;
+}
+
+const pctOf = (value) => `${Math.round(value)} %`;
+
+function figures(variant) {
+  const o2c = variant === 'as-is' ? asisOf('weg-o2c') : tobeOf('weg-o2c-tobe');
+  const svc = variant === 'as-is' ? asisOf('weg-service') : tobeOf('weg-service-tobe');
+  const run = (process, id) => stepRow(process, id).runs;
+  const handling = ['pick', 'pack', 'nfe', 'ship', 'notify', 'invoice'];
+  const shipWork = stepLoad(o2c, handling).work;
+  const values = {
+    o2c,
+    svc,
+    offstock: pctOf(100 - flowShare(o2c, 'gwStock', 'pick')),
+    eto: pctOf(flowShare(o2c, 'gwStd', 'toEto')),
+    remote: pctOf(flowShare(svc, 'gwRemote', 'closeRemote')),
+    repair: pctOf(run(svc, 'inspect') * 100),
+    shipWork: { ru: span(shipWork, 'ru'), en: span(shipWork, 'en') },
+  };
+  if (variant === 'as-is') {
+    values.prepay = pctOf(run(o2c, 'prepay') * 100);
+    values.dunning = pctOf(100 - flowShare(o2c, 'gwCash', 'close'));
+  } else {
+    values.fix = pctOf(flowShare(o2c, 'gwValid', 'fix'));
+    values.review = pctOf(flowShare(o2c, 'gwScore', 'review'));
+    values.monitor = pctOf(flowShare(svc, 'gwSource', 'predict'));
+  }
+  return values;
+}
+
+function fill(text, values, locale) {
+  return text.replace(/\{(\w+)\}/g, (match, key) => {
+    const value = values[key];
+    if (value === undefined) return match;
+    return typeof value === 'object' ? value[locale] : value;
+  });
+}
+
+/** The metric row: numbers from the order-to-cash and service models. */
+function metrics(variant) {
+  const f = figures(variant);
+  const asis = variant === 'as-is';
+  const o2c = f.o2c;
+  const svc = f.svc;
+  const ru = (value) => span(value, 'ru');
+  const en = (value) => span(value, 'en');
+
+  const confirmId = asis ? 'reserve' : 'atp';
+  const work = stepLoad(o2c, asis ? ['register', 'check', 'credit', 'prepay'] : ['validate', 'fix', 'score', 'review']).work;
+  const confirm = stepRow(o2c, confirmId).finish;
+  const handover = stepRow(o2c, 'ship').finish;
+  const cash = stepRow(o2c, 'close').finish;
+  const done = analyse(o2c).done;
+  const svcLead = analyse(svc).lead;
+  const svcRepair = f.repair;
+
+  const unmodelled = t(
+    'Вне моделей библиотеки WEG: измеряется отдельно (время подбора, доля запросов без ответа).',
+    'Outside the WEG library models: measure it separately (selection time, share of unanswered enquiries).'
+  );
+  return [
+    unmodelled,
+    t('Вне моделей: модель начинается с заказа. Мерьте время от запроса до предложения.', 'Outside the models: the model starts at the order. Measure the time from enquiry to quotation.'),
+    { ru: `Подтверждение через ${ru(confirm)}; работа людей на заказ ${ru(work)}.`, en: `Confirmed after ${en(confirm)}; people’s work per order ${en(work)}.` },
+    { ru: `Передача перевозчику через ${ru(handover)} после заказа; со склада ${pctOf(flowShare(o2c, 'gwStock', 'pick'))}.`, en: `Handed to the carrier ${en(handover)} after the order; ${pctOf(flowShare(o2c, 'gwStock', 'pick'))} from stock.` },
+    t('Вне моделей: мерьте долю поставок без расхождений и время запуска.', 'Outside the models: measure the share of deliveries without discrepancies and the start-up time.'),
+    { ru: `Деньги через ${ru(cash)} после заказа; до оплаты доходит ${pctOf(done * 100)} заказов.`, en: `Cash ${en(cash)} after the order; ${pctOf(done * 100)} of orders reach payment.` },
+    asis
+      ? t('Обращений от мониторинга: 0 (в модели обращение начинается с клиента).', 'Cases opened by monitoring: 0 (in the model a case starts with the customer).')
+      : { ru: `Обращений от мониторинга: ${f.monitor} (допущение модели).`, en: `Cases opened by monitoring: ${f.monitor} (a model assumption).` },
+    { ru: `Срок обращения ${ru(svcLead)}; до физического ремонта доходит ${svcRepair}.`, en: `Case lead time ${en(svcLead)}; ${svcRepair} reach a physical repair.` },
+    t('Вне моделей: мерьте долю повторных заказов и NPS.', 'Outside the models: measure the reorder share and NPS.'),
+  ];
+}
+
+const ROW_HEIGHT = { goal: 92, actions: 138, touch: 100, doubts: 126, emotion: 160, pain: 138, inside: 152, metric: 112, ideas: 112 };
+
+/**
+ * Specification of one journey sheet, ready for `buildSheetDiagrams`.
+ * `variant` is 'as-is' or 'to-be'.
+ */
+function journeySpec(variant, locale = 'ru') {
+  const asis = variant === 'as-is';
+  const values = figures(variant);
+  const rows = asis ? AS_IS : TO_BE;
+  const cell = (entry, tone) => ({ ...entry, tone });
+  const filled = (list, tone) => list.map((entry) => cell({ ru: fill(entry.ru, values, 'ru'), en: fill(entry.en, values, 'en') }, tone));
+
+  const titleRu = asis ? 'Путь покупателя WEG — как есть (AS-IS)' : 'Путь покупателя WEG — как будет (TO-BE)';
+  const titleEn = asis ? 'WEG customer journey — as is (AS-IS)' : 'WEG customer journey — to be (TO-BE)';
+  return {
+    notation: 'sheet',
+    kind: 'journey',
+    name: { ru: titleRu, en: titleEn },
+    title: { ru: titleRu, en: titleEn },
+    kicker: {
+      ru: 'Покупатель — промышленный заказчик серийных двигателей · гипотеза по логике процессов, не опрос клиентов · эмоции −2 … +2 — экспертная оценка',
+      en: 'The buyer is an industrial customer of standard motors · a hypothesis from the logic of the processes, not a customer survey · emotions −2 … +2 are a judgement',
+    },
+    description: {
+      ru: asis
+        ? 'Девять этапов пути покупателя серийного двигателя WEG сегодня: что делает клиент, где болит и что происходит внутри компании.'
+        : 'Девять этапов пути покупателя серийного двигателя WEG после изменений: что делает клиент, что остаётся неудобным и что происходит внутри.',
+      en: asis
+        ? 'The nine stages of a standard-motor buyer’s path at WEG today: what the customer does, where it hurts and what happens inside the company.'
+        : 'The nine stages of a standard-motor buyer’s path at WEG after the changes: what the customer does, what stays inconvenient and what happens inside.',
+    },
+    stages: JOURNEY_STAGES.map((name, index) => ({ name, emotion: EMOTIONS[variant][index] })),
+    rows: [
+      { ...JOURNEY_ROWS.goal, height: ROW_HEIGHT.goal, cells: GOALS.map((entry) => cell(entry, 'neutral')) },
+      { ...JOURNEY_ROWS.actions, height: ROW_HEIGHT.actions, cells: filled(rows.actions, 'neutral') },
+      { ...JOURNEY_ROWS.touch, height: ROW_HEIGHT.touch, cells: filled(rows.touch, 'neutral') },
+      { ...JOURNEY_ROWS.doubts, height: ROW_HEIGHT.doubts, cells: filled(rows.doubts, 'neutral') },
+      { ...JOURNEY_ROWS.emotion, height: ROW_HEIGHT.emotion },
+      {
+        ...JOURNEY_ROWS.pain,
+        label: asis ? JOURNEY_ROWS.pain.label : { ru: 'Что остаётся неудобным', en: 'What stays inconvenient' },
+        height: ROW_HEIGHT.pain,
+        cells: filled(rows.pain, 'pain'),
+      },
+      { ...JOURNEY_ROWS.inside, height: ROW_HEIGHT.inside, cells: filled(rows.inside, 'neutral') },
+      { ...JOURNEY_ROWS.metric, height: ROW_HEIGHT.metric, cells: metrics(variant).map((entry) => cell(entry, 'neutral')) },
+      {
+        ...JOURNEY_ROWS.ideas,
+        label: asis ? JOURNEY_ROWS.ideas.label : { ru: 'Что улучшать дальше', en: 'What to improve next' },
+        height: ROW_HEIGHT.ideas,
+        cells: filled(rows.ideas, 'gain'),
+      },
+    ],
+  };
+}
+
+Object.assign(__exports, { JOURNEY_STAGES, EMOTIONS, journeySpec });
+
+});
+__fm_define('app/library/weg/sheets/index.js', function (__exports) {
+/**
+ * WEG worksheets: the course's fill-in templates, completed for the library.
+ *
+ *  - an impact / effort matrix for each of the eight processes (TO-BE changes),
+ *  - an implementation-risk sheet for the change each matrix puts first,
+ *  - a customer journey of the buyer, as is and to be.
+ *
+ * They are generated like the process diagrams: from specifications and from
+ * the analysis of the models, so the numbers on the sheets are the models'.
+ */
+const { buildSheetDiagrams, pick } = __fm_require('app/notations/sheet/build.js');
+const { formatMoney } = __fm_require('app/analysis/parameters.js');
+const { variantFolder } = __fm_require('app/library/shared.js');
+const { MATRICES } = __fm_require('app/library/weg/sheets/matrices.js');
+const { RISKS, RISK_NOTE, RISK_QUESTIONS } = __fm_require('app/library/weg/sheets/risks.js');
+const { journeySpec } = __fm_require('app/library/weg/sheets/journey.js');
+const { analyse, describeMeasure, fillPlaceholders, measureChange, processPair } = __fm_require('app/library/weg/sheets/engine.js');
+const WEG_SHEETS_LIBRARY = 'wegsheets';
+
+const SHEETS_ROOT = { ru: 'WEG/Рабочие листы', en: 'WEG/Worksheets' };
+const FOLDERS = {
+  matrix: { ru: 'Матрица «эффект — усилия»', en: 'Impact–effort matrix' },
+  risks: { ru: 'Риски внедрения', en: 'Implementation risks' },
+};
+const JOURNEY_ROOT = { ru: 'WEG/Путь покупателя', en: 'WEG/Customer journey' };
+
+const sheetsFolder = (kind, locale) => `${pick(SHEETS_ROOT, locale)}/${pick(FOLDERS[kind], locale)}`;
+const journeyFolder = (variant, locale) => variantFolder(pick(JOURNEY_ROOT, locale), variant, locale);
+
+/* ---------------------------------------------------------------- scoring */
+
+/**
+ * Scores a matrix: impact (1-10) is the change's share of the process gain,
+ * the largest of the weighted shares (lead time, cost of a completed case,
+ * work) scaled so the strongest change of the sheet gets 10; effort is the
+ * expert score stored with the change. A change the models cannot measure
+ * carries its own impact.
+ */
+function scoreMatrix(entry) {
+  const weights = entry.weights;
+  const measured = entry.items.map((item) => {
+    const measure = item.measure ? measureChange(entry.processId, item.measure) : null;
+    const strength = measure
+      ? Math.max(0, weights.lead * measure.share.lead, weights.cost * measure.share.cost, weights.work * measure.share.work)
+      : null;
+    return { item, measure, strength };
+  });
+  const top = Math.max(...measured.filter((row) => row.strength !== null).map((row) => row.strength), 1e-9);
+  return measured.map((row) => ({
+    ...row,
+    impact: row.item.impact ?? Math.max(1, Math.min(10, Math.round(1 + (9 * row.strength) / top))),
+    effort: row.item.effort,
+  }));
+}
+
+const QUADRANT_NAMES = {
+  win: { ru: 'быстрая победа', en: 'quick win' },
+  big: { ru: 'крупный проект', en: 'major project' },
+  fill: { ru: 'по возможности', en: 'when possible' },
+  drop: { ru: 'отказаться', en: 'drop' },
+};
+const quadrantOf = (impact, effort) => (impact >= 6 ? (effort <= 5 ? 'win' : 'big') : effort <= 5 ? 'fill' : 'drop');
+
+function weightsLine(weights, locale) {
+  const ru = locale === 'ru';
+  const n = (value) => String(value).replace('.', ru ? ',' : '.');
+  return ru
+    ? `срок (вес ${n(weights.lead)}), стоимость доведённого до конца случая (вес ${n(weights.cost)}), трудозатраты (вес ${n(weights.work)})`
+    : `lead time (weight ${n(weights.lead)}), cost of a completed case (weight ${n(weights.cost)}), work (weight ${n(weights.work)})`;
+}
+
+const WEIGHT_REASONS = {
+  'weg-make-motor-tobe': {
+    ru: 'Срок на линии измеряется минутами, у которых нет цены, поэтому его вес снижен.',
+    en: 'Lead time on a line is measured in minutes that carry no price, so its weight is reduced.',
+  },
+  'weg-procurement-tobe': {
+    ru: 'Срок поставки в основном ожидание, а не работа, поэтому вес срока и трудозатрат снижен.',
+    en: 'Supply lead time is mostly waiting rather than work, so the weight of lead time and work is reduced.',
+  },
+  'weg-npd-tobe': {
+    ru: 'Для разработки продукта важнее время выхода на рынок, чем стоимость одного проекта, поэтому вес стоимости снижен.',
+    en: 'For product development time to market matters more than the cost of one project, so the weight of cost is reduced.',
+  },
+};
+
+function matrixNote(entry, pair, locale) {
+  const ru = locale === 'ru';
+  const before = analyse(pair.asis);
+  const after = analyse(pair.tobe);
+  const days = (minutes) => `${(Math.round((minutes / 480) * 10) / 10).toString().replace('.', ru ? ',' : '.')} ${ru ? 'раб. дн.' : 'working days'}`;
+  const reason = WEIGHT_REASONS[entry.processId];
+  const lines = ru
+    ? [
+        `Эффект измерен на моделях: изменение отключают в копии TO-BE схемы, процесс пересчитывают, и берётся доля изменения в выигрыше процесса; самое сильное изменение листа получает 10. Учитывается наибольшая из долей: ${weightsLine(entry.weights, 'ru')}.${reason ? ' ' + reason.ru : ''}`,
+        'Усилия (1–10) — оценка эксперта: модели ничего не знают о договорах, ИТ и людях; 5 и меньше — левая половина матрицы. Карточка с оценками открывается в свойствах: там цифры модели и то, чего они не учитывают.',
+        `Процесс целиком: срок ${days(before.lead)} → ${days(after.lead)}, стоимость доведённого до конца случая ${formatMoney(before.cost, 'R$', 'ru')} → ${formatMoney(after.cost, 'R$', 'ru')}. Нормативы и доли TO-BE — отраслевые допущения WEG, их нужно калибровать по своим данным; цифры сняты на момент сборки библиотеки.`,
+      ]
+    : [
+        `The impact is measured on the models: the change is switched off in a copy of the TO-BE diagram, the process is recalculated and the change’s share of the process gain is taken; the strongest change of the sheet gets 10. The largest of the shares counts: ${weightsLine(entry.weights, 'en')}.${reason ? ' ' + reason.en : ''}`,
+        'Effort (1–10) is an expert judgement: the models know nothing about contracts, IT or people; 5 and below is the left half of the matrix. Open a card’s properties for the model’s figures and what they leave out.',
+        `The whole process: lead time ${days(before.lead)} → ${days(after.lead)}, cost of a completed case ${formatMoney(before.cost, 'R$', 'en')} → ${formatMoney(after.cost, 'R$', 'en')}. The TO-BE norms and shares are industry assumptions for WEG to calibrate against its own data; the figures were taken when the library was built.`,
+      ];
+  return lines.join('\n\n');
+}
+
+/** Specification of one matrix, ready for `buildSheetDiagrams`. */
+function matrixSpec(entry, locale = 'ru') {
+  const pair = processPair(entry.processId);
+  const scored = scoreMatrix(entry);
+  const measures = Object.fromEntries(scored.filter((row) => row.measure).map((row) => [row.item.id, row.measure]));
+  const first = scored.find((row) => row.item.id === entry.first);
+  const processName = pick(pair.asis.name, locale);
+  const items = scored.map((row, index) => {
+    const detail = row.measure ? describeMeasure(row.measure, locale) : '';
+    const caveat = pick(row.item.caveat, locale);
+    return {
+      no: String(index + 1),
+      label: row.item.label,
+      impact: row.impact,
+      effort: row.effort,
+      basis: [detail, caveat].filter(Boolean).join(' '),
+    };
+  });
+  const why = fillPlaceholders(pick(entry.why, locale), measures, first?.measure, locale);
+  const title = {
+    ru: 'Рабочий лист: расставьте свои TO-BE изменения',
+    en: 'Worksheet: rank your TO-BE changes',
+  };
+  const documentation = matrixDocumentation(entry, scored, items, pair, locale);
+  return {
+    notation: 'sheet',
+    kind: 'matrix',
+    name: { ru: `Эффект — усилия · ${pick(pair.asis.name, 'ru')}`, en: `Impact–effort · ${pick(pair.asis.name, 'en')}` },
+    title,
+    kicker: { ru: `WEG · ${pick(pair.asis.name, 'ru')} · TO-BE`, en: `WEG · ${pick(pair.asis.name, 'en')} · TO-BE` },
+    description: {
+      ru: `Матрица «эффект — усилия» по ${processName}: пять изменений из TO-BE, оценка эффекта по модели и объяснение, с чего начинать.`,
+      en: `Impact–effort matrix for ${processName}: five changes from the TO-BE, impact measured on the model and a reason for where to start.`,
+    },
+    documentation,
+    items,
+    why,
+    note: matrixNote(entry, pair, locale),
+    noteHeight: 190,
+  };
+}
+
+function matrixDocumentation(entry, scored, items, pair, locale) {
+  const ru = locale === 'ru';
+  const head = ru
+    ? `Рабочий лист «Эффект — усилия» по процессу «${pick(pair.asis.name, 'ru')}».`
+    : `Impact–effort worksheet for the process “${pick(pair.asis.name, 'en')}”.`;
+  const lines = scored.map((row, index) => {
+    const quadrant = pick(QUADRANT_NAMES[quadrantOf(row.impact, row.effort)], locale);
+    return `${index + 1}. ${pick(row.item.label, locale)} — ${ru ? 'эффект' : 'impact'} ${row.impact}, ${ru ? 'усилия' : 'effort'} ${row.effort} (${quadrant}). ${items[index].basis}`;
+  });
+  const foot = ru
+    ? 'Эффект посчитан по моделям библиотеки (вкладка «Анализ» покажет те же схемы), усилия — оценка эксперта. Перетащите карточку, чтобы проверить другую расстановку; проверки в нижней панели подскажут, чего не хватает листу.'
+    : 'Impact is computed from the library models (the Analysis tab shows the same diagrams), effort is an expert judgement. Drag a card to try another placement; the checks in the bottom panel say what the sheet still lacks.';
+  return `${head}\n\n${lines.join('\n\n')}\n\n${foot}`;
+}
+
+/* ------------------------------------------------------------------ risks */
+
+function riskSpec(entry, locale = 'ru') {
+  const matrix = MATRICES.find((item) => item.processId === entry.processId);
+  const pair = processPair(entry.processId);
+  const scored = scoreMatrix(matrix);
+  const measures = Object.fromEntries(scored.filter((row) => row.measure).map((row) => [row.item.id, row.measure]));
+  const change = matrix.items.find((item) => item.id === entry.itemId);
+  const row = scored.find((item) => item.item.id === entry.itemId);
+  const quadrant = pick(QUADRANT_NAMES[quadrantOf(row.impact, row.effort)], locale);
+  const process = pick(pair.asis.name, locale);
+  const changeText = `${pick(change.label, locale)}\n${
+    locale === 'ru'
+      ? `Процесс: ${process}. На матрице: эффект ${row.impact}, усилия ${row.effort} (${quadrant}).`
+      : `Process: ${process}. On the matrix: impact ${row.impact}, effort ${row.effort} (${quadrant}).`
+  }\n${pick(RISK_NOTE, locale)}`;
+  return {
+    notation: 'sheet',
+    kind: 'risks',
+    name: { ru: `Риски внедрения · ${pick(pair.asis.name, 'ru')}`, en: `Implementation risks · ${pick(pair.asis.name, 'en')}` },
+    title: { ru: 'Рабочий лист: риски внедрения вашего изменения', en: 'Worksheet: risks of implementing your change' },
+    kicker: { ru: `WEG · ${pick(pair.asis.name, 'ru')} · TO-BE`, en: `WEG · ${pick(pair.asis.name, 'en')} · TO-BE` },
+    description: {
+      ru: `Три вопроса о сопротивлении изменению «${pick(change.label, 'ru')}»: кто теряет, как проявится сопротивление и какая мера снизит его сильнее всего.`,
+      en: `Three questions on the resistance to “${pick(change.label, 'en')}”: who loses, how the resistance will show and which measure would reduce it most.`,
+    },
+    documentation: [changeText, ...entry.answers.map((answer, index) => `${index + 1}. ${pick(RISK_QUESTIONS[index], locale)}\n${fillPlaceholders(pick(answer, locale), measures, null, locale)}`)].join('\n\n'),
+    change: changeText,
+    changeHeight: 116,
+    questions: RISK_QUESTIONS.map((question, index) => ({
+      question,
+      answer: fillPlaceholders(pick(entry.answers[index], locale), measures, null, locale),
+      height: 156,
+    })),
+  };
+}
+
+/* ------------------------------------------------------------------- build */
+
+function stamp(diagram, { folder, processId, variant, description }) {
+  diagram.meta.folder = folder;
+  diagram.meta.library = WEG_SHEETS_LIBRARY;
+  diagram.meta.processId = processId;
+  if (variant) diagram.meta.variant = variant;
+  diagram.meta.author = 'WEG S.A. — public disclosure; FiberModeler';
+  if (description && !diagram.meta.description) diagram.meta.description = description;
+  return diagram;
+}
+
+/** Matrices, risk sheets and the two journeys, in explorer order. */
+function buildWegSheetDiagrams(locale = 'ru') {
+  const diagrams = [];
+  for (const entry of MATRICES) {
+    const [diagram] = buildSheetDiagrams(matrixSpec(entry, locale), { locale });
+    diagrams.push(stamp(diagram, { folder: sheetsFolder('matrix', locale), processId: `${entry.processId.replace(/-tobe$/, '')}-matrix`, variant: 'to-be' }));
+  }
+  for (const entry of RISKS) {
+    const [diagram] = buildSheetDiagrams(riskSpec(entry, locale), { locale });
+    diagrams.push(stamp(diagram, { folder: sheetsFolder('risks', locale), processId: `${entry.processId.replace(/-tobe$/, '')}-risks`, variant: 'to-be' }));
+  }
+  for (const variant of ['as-is', 'to-be']) {
+    const [diagram] = buildSheetDiagrams(journeySpec(variant, locale), { locale });
+    diagrams.push(stamp(diagram, { folder: journeyFolder(variant, locale), processId: variant === 'as-is' ? 'weg-journey' : 'weg-journey-tobe', variant }));
+  }
+  return diagrams;
+}
+
+const WEG_SHEET_COUNT = MATRICES.length + RISKS.length + 2;
+
+function wegSheetsDocumentation(locale = 'ru') {
+  return locale === 'en'
+    ? `WEG worksheets — ${WEG_SHEET_COUNT} filled templates: an impact–effort matrix and an implementation-risk sheet for each of the eight processes, and the buyer’s journey as is and to be.\n\nImpact scores and the numbers on the journey come from the library models. Effort scores, emotions and the answers on the risk sheets are hypotheses from the logic of the processes; they are marked as such and should be checked in interviews.`
+    : `Рабочие листы WEG — ${WEG_SHEET_COUNT} заполненных шаблонов: матрица «эффект — усилия» и лист рисков внедрения по каждому из восьми процессов, а также путь покупателя как есть и как будет.\n\nОценки эффекта и числа на пути покупателя взяты из моделей библиотеки. Оценки усилий, эмоции и ответы на листах рисков — гипотезы по логике процессов; они помечены как гипотезы и требуют проверки интервью.`;
+}
+
+
+Object.assign(__exports, { WEG_SHEETS_LIBRARY, scoreMatrix, matrixSpec, riskSpec, buildWegSheetDiagrams, WEG_SHEET_COUNT, wegSheetsDocumentation });
+
+});
 __fm_define('app/library/index.js', function (__exports) {
 /**
  * Every process library shipped with the application.
@@ -15076,8 +17780,9 @@ __fm_define('app/library/index.js', function (__exports) {
 const { createProject } = __fm_require('app/core/model.js');
 const { WEG_PROCESSES, buildWegDiagrams, wegProjectDocumentation } = __fm_require('app/library/weg/index.js');
 const { UBER_PROCESSES, buildUberDiagrams, uberProjectDocumentation } = __fm_require('app/library/ubereats/index.js');
+const { WEG_SHEET_COUNT, buildWegSheetDiagrams, wegSheetsDocumentation } = __fm_require('app/library/weg/sheets/index.js');
 /** `meta.library` values of the shipped libraries. */
-const LIBRARY_IDS = ['weg', 'ubereats'];
+const LIBRARY_IDS = ['weg', 'wegsheets', 'ubereats'];
 
 function isLibraryDiagram(diagram) {
   return LIBRARY_IDS.includes(diagram?.meta?.library);
@@ -15085,9 +17790,11 @@ function isLibraryDiagram(diagram) {
 
 const LIBRARY_PROCESS_COUNT = WEG_PROCESSES.length + UBER_PROCESSES.length;
 
-/** All shipped diagrams, in explorer order: WEG first, then Uber Eats. */
+const LIBRARY_SHEET_COUNT = WEG_SHEET_COUNT;
+
+/** All shipped diagrams, in explorer order: WEG, its worksheets, then Uber Eats. */
 function buildAllLibraryDiagrams(locale = 'ru') {
-  return [...buildWegDiagrams(locale), ...buildUberDiagrams(locale)];
+  return [...buildWegDiagrams(locale), ...buildWegSheetDiagrams(locale), ...buildUberDiagrams(locale)];
 }
 
 function librariesProjectName(locale = 'ru') {
@@ -15096,7 +17803,7 @@ function librariesProjectName(locale = 'ru') {
 
 function librariesProjectDocumentation(locale = 'ru') {
   const rule = '\n\n' + '─'.repeat(40) + '\n\n';
-  return `${wegProjectDocumentation(locale)}${rule}${uberProjectDocumentation(locale)}`;
+  return `${wegProjectDocumentation(locale)}${rule}${wegSheetsDocumentation(locale)}${rule}${uberProjectDocumentation(locale)}`;
 }
 
 /** The libraries as one project - what the application opens on start. */
@@ -15107,15 +17814,15 @@ function createLibrariesProject(locale = 'ru') {
     author: 'FiberModeler',
     description:
       locale === 'en'
-        ? 'BPMN 2.0 process libraries with calculable parameters: WEG (eight processes) and Uber Eats in Dubai (ordering from McDonald\'s), each as is and to be.'
-        : 'Библиотеки процессов BPMN 2.0 с рассчитываемыми параметрами: WEG (восемь процессов) и Uber Eats в Дубае (заказ из McDonald\'s), каждый как есть и как будет.',
+        ? 'BPMN 2.0 process libraries with calculable parameters: WEG (eight processes) and Uber Eats in Dubai (ordering from McDonald\'s), each as is and to be; plus the filled WEG worksheets: impact–effort matrices, implementation risks and the customer journey.'
+        : 'Библиотеки процессов BPMN 2.0 с рассчитываемыми параметрами: WEG (восемь процессов) и Uber Eats в Дубае (заказ из McDonald\'s), каждый как есть и как будет; плюс заполненные рабочие листы WEG: матрицы «эффект — усилия», риски внедрения и путь покупателя.',
   });
   project.documentation = librariesProjectDocumentation(locale);
   project.diagrams = buildAllLibraryDiagrams(locale);
   return project;
 }
 
-Object.assign(__exports, { LIBRARY_IDS, isLibraryDiagram, LIBRARY_PROCESS_COUNT, buildAllLibraryDiagrams, librariesProjectName, librariesProjectDocumentation, createLibrariesProject });
+Object.assign(__exports, { LIBRARY_IDS, isLibraryDiagram, LIBRARY_PROCESS_COUNT, LIBRARY_SHEET_COUNT, buildAllLibraryDiagrams, librariesProjectName, librariesProjectDocumentation, createLibrariesProject });
 
 });
 __fm_define('app/storage/db.js', function (__exports) {
@@ -16648,14 +19355,14 @@ class Explorer {
     const project = this.doc.project;
     rows.push(row({ id: '__project', level: 0, label: project.name, iconName: 'folder', group: false, badge: String(project.diagrams.length), active: false, bold: true }));
 
-    for (const notation of ['bpmn', 'idef0']) {
+    for (const notation of ['bpmn', 'idef0', 'sheet']) {
       const roots = project.diagrams.filter((d) => d.notation === notation && !d.parentDiagramId);
       const all = project.diagrams.filter((d) => d.notation === notation);
       rows.push(
         row({
           id: `__group_${notation}`,
           level: 1,
-          label: t(notation === 'bpmn' ? 'explorer.bpmn' : 'explorer.idef0'),
+          label: t({ bpmn: 'explorer.bpmn', idef0: 'explorer.idef0', sheet: 'explorer.sheet' }[notation]),
           groupHeader: true,
           badge: String(all.length),
           collapsed: this.collapsed.has(`__group_${notation}`),
@@ -16715,7 +19422,7 @@ class Explorer {
         id: diagram.id,
         level,
         label: diagram.name,
-        iconName: diagram.notation === 'idef0' ? 'decompose' : 'diagram',
+        iconName: { idef0: 'decompose', sheet: 'table' }[diagram.notation] || 'diagram',
         active: diagram.id === this.activeId,
         hasChildren: children.length > 0,
         collapsed: isCollapsed,
@@ -16773,6 +19480,7 @@ class Explorer {
           { label: t('model.newIdef0'), action: () => this.app.createDiagram('idef0') },
           { separator: true },
           { label: t('model.templates'), action: () => this.app.openTemplates() },
+          { label: t('model.newSheet'), action: () => this.app.openTemplates('sheet') },
         ],
         event.clientX,
         event.clientY
@@ -17934,6 +20642,7 @@ function commandList(app) {
     { id: 'model.newBpmn', group: 'model', icon: 'diagram', label: t('model.newBpmn'), run: () => app.createDiagram('bpmn') },
     { id: 'model.newIdef0', group: 'model', icon: 'decompose', label: t('model.newIdef0'), run: () => app.createDiagram('idef0') },
     { id: 'model.templates', group: 'model', icon: 'file', label: t('model.templates'), run: () => app.openTemplates() },
+    { id: 'model.newSheet', group: 'model', icon: 'table', label: t('model.newSheet'), run: () => app.openTemplates('sheet') },
     { id: 'model.autoLayout', group: 'model', icon: 'layout', shortcut: 'l', label: t('model.autoLayout'), enabled: hasDiagram, run: () => app.autoLayout() },
     { id: 'model.autoRoute', group: 'model', icon: 'route', label: t('model.autoRoute'), enabled: hasDiagram, run: () => app.autoRoute() },
     { id: 'model.validate', group: 'model', icon: 'validate', shortcut: 'Mod+Shift+v', label: t('model.validate'), enabled: hasDiagram, run: () => app.validate() },
@@ -18226,6 +20935,7 @@ function menuDefinitions(app) {
       items: () => [
         item('model.newBpmn'),
         item('model.newIdef0'),
+        item('model.newSheet'),
         item('model.templates'),
         { separator: true },
         item('model.decompose'),
@@ -19219,12 +21929,15 @@ Object.assign(__exports, { openQuickBuild, bpmnSpecFromRows, idef0SpecFromRows }
 
 });
 __fm_define('app/ui/dialogs/templates.js', function (__exports) {
-/** Template gallery for both notations. */
+/** Template gallery for every notation: diagrams and fill-in worksheets. */
 const { i18n, t } = __fm_require('app/i18n/index.js');
 const { buttonRow, openDialog } = __fm_require('app/ui/dialog.js');
 const { BPMN_TEMPLATES } = __fm_require('app/notations/bpmn/templates.js');
 const { IDEF0_TEMPLATES } = __fm_require('app/notations/idef0/templates.js');
+const { SHEET_TEMPLATES } = __fm_require('app/notations/sheet/templates.js');
 const { localName } = __fm_require('app/notations/index.js');
+const TEMPLATES = { bpmn: BPMN_TEMPLATES, idef0: IDEF0_TEMPLATES, sheet: SHEET_TEMPLATES };
+
 function openTemplates(app, notation = 'bpmn') {
   let current = notation;
   let selected = null;
@@ -19242,6 +21955,7 @@ function openTemplates(app, notation = 'bpmn') {
     for (const option of [
       { value: 'bpmn', label: t('templates.bpmn') },
       { value: 'idef0', label: t('templates.idef0') },
+      { value: 'sheet', label: t('templates.sheet') },
     ]) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -19258,7 +21972,7 @@ function openTemplates(app, notation = 'bpmn') {
   };
 
   const renderGrid = () => {
-    const list = current === 'bpmn' ? BPMN_TEMPLATES : IDEF0_TEMPLATES;
+    const list = TEMPLATES[current] || BPMN_TEMPLATES;
     grid.innerHTML = '';
     for (const template of list) {
       const card = document.createElement('div');
@@ -19288,7 +22002,7 @@ function openTemplates(app, notation = 'bpmn') {
     buttonRow([
       'spacer',
       { label: t('dialog.cancel'), action: () => dialog.close() },
-      { label: t('templates.insert'), variant: 'primary', action: () => insert(selected || (current === 'bpmn' ? BPMN_TEMPLATES : IDEF0_TEMPLATES)[0]) },
+      { label: t('templates.insert'), variant: 'primary', action: () => insert(selected || (TEMPLATES[current] || BPMN_TEMPLATES)[0]) },
     ])
   );
   renderTabs();
@@ -20827,6 +23541,7 @@ class App {
           { label: t('model.newIdef0'), action: () => this.createDiagram('idef0') },
           { separator: true },
           { label: t('model.templates'), action: () => this.openTemplates() },
+          { label: t('model.newSheet'), action: () => this.openTemplates('sheet') },
           { label: t('tools.autoBuild'), action: () => this.openAutoBuild() },
           { label: t('tools.quickBuild'), action: () => this.openQuickBuild() },
         ],
@@ -22064,8 +24779,8 @@ class App {
   openQuickBuild() {
     openQuickBuild(this);
   }
-  openTemplates() {
-    openTemplates(this, this.activeDiagram?.notation || 'bpmn');
+  openTemplates(notation) {
+    openTemplates(this, notation || this.activeDiagram?.notation || 'bpmn');
   }
   openPrint() {
     openPrint(this);

@@ -121,6 +121,7 @@ export function menuDefinitions(app) {
       items: () => [
         item('model.newBpmn'),
         item('model.newIdef0'),
+        item('model.newSheet'),
         item('model.templates'),
         { separator: true },
         item('model.decompose'),

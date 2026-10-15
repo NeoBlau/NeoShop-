@@ -25,14 +25,14 @@ export class Explorer {
     const project = this.doc.project;
     rows.push(row({ id: '__project', level: 0, label: project.name, iconName: 'folder', group: false, badge: String(project.diagrams.length), active: false, bold: true }));
 
-    for (const notation of ['bpmn', 'idef0']) {
+    for (const notation of ['bpmn', 'idef0', 'sheet']) {
       const roots = project.diagrams.filter((d) => d.notation === notation && !d.parentDiagramId);
       const all = project.diagrams.filter((d) => d.notation === notation);
       rows.push(
         row({
           id: `__group_${notation}`,
           level: 1,
-          label: t(notation === 'bpmn' ? 'explorer.bpmn' : 'explorer.idef0'),
+          label: t({ bpmn: 'explorer.bpmn', idef0: 'explorer.idef0', sheet: 'explorer.sheet' }[notation]),
           groupHeader: true,
           badge: String(all.length),
           collapsed: this.collapsed.has(`__group_${notation}`),
@@ -92,7 +92,7 @@ export class Explorer {
         id: diagram.id,
         level,
         label: diagram.name,
-        iconName: diagram.notation === 'idef0' ? 'decompose' : 'diagram',
+        iconName: { idef0: 'decompose', sheet: 'table' }[diagram.notation] || 'diagram',
         active: diagram.id === this.activeId,
         hasChildren: children.length > 0,
         collapsed: isCollapsed,
@@ -150,6 +150,7 @@ export class Explorer {
           { label: t('model.newIdef0'), action: () => this.app.createDiagram('idef0') },
           { separator: true },
           { label: t('model.templates'), action: () => this.app.openTemplates() },
+          { label: t('model.newSheet'), action: () => this.app.openTemplates('sheet') },
         ],
         event.clientX,
         event.clientY

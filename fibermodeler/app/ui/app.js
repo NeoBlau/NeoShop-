@@ -193,6 +193,7 @@ export class App {
           { label: t('model.newIdef0'), action: () => this.createDiagram('idef0') },
           { separator: true },
           { label: t('model.templates'), action: () => this.openTemplates() },
+          { label: t('model.newSheet'), action: () => this.openTemplates('sheet') },
           { label: t('tools.autoBuild'), action: () => this.openAutoBuild() },
           { label: t('tools.quickBuild'), action: () => this.openQuickBuild() },
         ],
@@ -1430,8 +1431,8 @@ export class App {
   openQuickBuild() {
     openQuickBuild(this);
   }
-  openTemplates() {
-    openTemplates(this, this.activeDiagram?.notation || 'bpmn');
+  openTemplates(notation) {
+    openTemplates(this, notation || this.activeDiagram?.notation || 'bpmn');
   }
   openPrint() {
     openPrint(this);

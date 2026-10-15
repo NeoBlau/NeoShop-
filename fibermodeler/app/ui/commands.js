@@ -104,6 +104,7 @@ export function commandList(app) {
     { id: 'model.newBpmn', group: 'model', icon: 'diagram', label: t('model.newBpmn'), run: () => app.createDiagram('bpmn') },
     { id: 'model.newIdef0', group: 'model', icon: 'decompose', label: t('model.newIdef0'), run: () => app.createDiagram('idef0') },
     { id: 'model.templates', group: 'model', icon: 'file', label: t('model.templates'), run: () => app.openTemplates() },
+    { id: 'model.newSheet', group: 'model', icon: 'table', label: t('model.newSheet'), run: () => app.openTemplates('sheet') },
     { id: 'model.autoLayout', group: 'model', icon: 'layout', shortcut: 'l', label: t('model.autoLayout'), enabled: hasDiagram, run: () => app.autoLayout() },
     { id: 'model.autoRoute', group: 'model', icon: 'route', label: t('model.autoRoute'), enabled: hasDiagram, run: () => app.autoRoute() },
     { id: 'model.validate', group: 'model', icon: 'validate', shortcut: 'Mod+Shift+v', label: t('model.validate'), enabled: hasDiagram, run: () => app.validate() },

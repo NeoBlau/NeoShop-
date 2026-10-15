@@ -125,17 +125,6 @@ export function comparisonBlock(baseline, current, locale) {
   return `${head}\n${lines.join('\n')}${foot}`;
 }
 
-/** Every library process as diagrams, in the documented order. */
-export function buildWegDiagrams(locale = 'ru') {
-  const diagrams = WEG_PROCESSES.map((process) => buildWegDiagram(process, locale));
-  const byProcessId = new Map(diagrams.map((diagram) => [diagram.meta.processId, diagram]));
-  for (const diagram of diagrams) {
-    const baseline = diagram.meta.baselineId ? byProcessId.get(diagram.meta.baselineId) : null;
-    if (baseline) diagram.meta.documentation += comparisonBlock(baseline, diagram, locale);
-  }
-  return diagrams;
-}
-
 /**
  * Builds every process of a library and appends the computed comparison to the
  * documentation of each target-state model. `folderOf(process, locale)` gives

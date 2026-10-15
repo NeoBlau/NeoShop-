@@ -279,13 +279,13 @@ test('an Uber Eats diagram survives a save / load round trip', () => {
 });
 
 test('the application opens on every shipped library, each in its own folders', () => {
-  assert.deepEqual(LIBRARY_IDS, ['weg', 'ubereats'], 'two libraries are shipped');
+  assert.deepEqual(LIBRARY_IDS, ['weg', 'wegsheets', 'ubereats'], 'the process libraries and the WEG worksheets are shipped');
   for (const locale of ['ru', 'en']) {
     const project = createLibrariesProject(locale);
-    assert.equal(project.diagrams.length, 18, 'sixteen WEG models and two Uber Eats models');
+    assert.equal(project.diagrams.length, 36, 'sixteen WEG models, eighteen worksheets and two Uber Eats models');
     assert.ok(project.diagrams.every(isLibraryDiagram), 'every diagram is library content');
     const folders = new Set(project.diagrams.map((d) => d.meta.folder));
-    assert.equal(folders.size, 4, 'two roots, two versions each');
+    assert.equal(folders.size, 8, 'two process roots with two versions each, and four worksheet folders');
     const ids = project.diagrams.map((d) => d.meta.processId);
     assert.equal(new Set(ids).size, ids.length, 'process identifiers are unique across the libraries');
     assert.ok(project.documentation.includes('WEG') && project.documentation.includes('Uber Eats'), 'the project notes cover both');
@@ -294,5 +294,5 @@ test('the application opens on every shipped library, each in its own folders', 
   assert.equal(isLibraryDiagram({ meta: { library: 'weg' } }), true, 'a WEG diagram counts');
   assert.equal(isLibraryDiagram({ meta: {} }), false, 'a user diagram does not');
   assert.equal(isLibraryDiagram(null), false, 'and null is safe');
-  assert.equal(buildAllLibraryDiagrams('ru').length, 18, 'the flat builder agrees');
+  assert.equal(buildAllLibraryDiagrams('ru').length, 36, 'the flat builder agrees');
 });

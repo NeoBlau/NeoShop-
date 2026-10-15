@@ -423,7 +423,7 @@ export class DiagramCanvas extends Emitter {
             );
           }
         }
-        if (this.settings.get('canvas.quickHandles', true) && descriptor?.category !== 'swimlane') {
+        if (this.settings.get('canvas.quickHandles', true) && descriptor?.category !== 'swimlane' && getNotation(this.diagram.notation).quickConnect !== false) {
           for (const q of quickHandlePositions(r)) {
             parts.push(
               `<g class="ov-quick" data-quick="${q.id}" transform="translate(${q.x},${q.y})">` +

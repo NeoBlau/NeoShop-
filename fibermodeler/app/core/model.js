@@ -38,7 +38,7 @@ export function createProject(options = {}) {
 export function createDiagram(options = {}) {
   const ts = nowIso();
   return {
-    id: options.id || uid(options.notation === 'idef0' ? 'idef0' : 'bpmn'),
+    id: options.id || uid({ idef0: 'idef0', sheet: 'sheet' }[options.notation] || 'bpmn'),
     notation: options.notation || 'bpmn',
     name: options.name || 'Diagram',
     nodes: [],
@@ -347,7 +347,7 @@ export function normalizeProject(raw) {
     const diagram = createDiagram({
       id: d.id,
       name: d.name,
-      notation: d.notation === 'idef0' ? 'idef0' : 'bpmn',
+      notation: ['idef0', 'sheet'].includes(d.notation) ? d.notation : 'bpmn',
       parentDiagramId: d.parentDiagramId || null,
       parentNodeId: d.parentNodeId || null,
     });

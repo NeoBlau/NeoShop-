@@ -9,9 +9,10 @@
 import { createProject } from '../core/model.js';
 import { WEG_PROCESSES, buildWegDiagrams, wegProjectDocumentation } from './weg/index.js';
 import { UBER_PROCESSES, buildUberDiagrams, uberProjectDocumentation } from './ubereats/index.js';
+import { WEG_SHEET_COUNT, buildWegSheetDiagrams, wegSheetsDocumentation } from './weg/sheets/index.js';
 
 /** `meta.library` values of the shipped libraries. */
-export const LIBRARY_IDS = ['weg', 'ubereats'];
+export const LIBRARY_IDS = ['weg', 'wegsheets', 'ubereats'];
 
 export function isLibraryDiagram(diagram) {
   return LIBRARY_IDS.includes(diagram?.meta?.library);
@@ -19,9 +20,11 @@ export function isLibraryDiagram(diagram) {
 
 export const LIBRARY_PROCESS_COUNT = WEG_PROCESSES.length + UBER_PROCESSES.length;
 
-/** All shipped diagrams, in explorer order: WEG first, then Uber Eats. */
+export const LIBRARY_SHEET_COUNT = WEG_SHEET_COUNT;
+
+/** All shipped diagrams, in explorer order: WEG, its worksheets, then Uber Eats. */
 export function buildAllLibraryDiagrams(locale = 'ru') {
-  return [...buildWegDiagrams(locale), ...buildUberDiagrams(locale)];
+  return [...buildWegDiagrams(locale), ...buildWegSheetDiagrams(locale), ...buildUberDiagrams(locale)];
 }
 
 export function librariesProjectName(locale = 'ru') {
@@ -30,7 +33,7 @@ export function librariesProjectName(locale = 'ru') {
 
 export function librariesProjectDocumentation(locale = 'ru') {
   const rule = '\n\n' + '─'.repeat(40) + '\n\n';
-  return `${wegProjectDocumentation(locale)}${rule}${uberProjectDocumentation(locale)}`;
+  return `${wegProjectDocumentation(locale)}${rule}${wegSheetsDocumentation(locale)}${rule}${uberProjectDocumentation(locale)}`;
 }
 
 /** The libraries as one project - what the application opens on start. */
@@ -41,8 +44,8 @@ export function createLibrariesProject(locale = 'ru') {
     author: 'FiberModeler',
     description:
       locale === 'en'
-        ? 'BPMN 2.0 process libraries with calculable parameters: WEG (eight processes) and Uber Eats in Dubai (ordering from McDonald\'s), each as is and to be.'
-        : 'Библиотеки процессов BPMN 2.0 с рассчитываемыми параметрами: WEG (восемь процессов) и Uber Eats в Дубае (заказ из McDonald\'s), каждый как есть и как будет.',
+        ? 'BPMN 2.0 process libraries with calculable parameters: WEG (eight processes) and Uber Eats in Dubai (ordering from McDonald\'s), each as is and to be; plus the filled WEG worksheets: impact–effort matrices, implementation risks and the customer journey.'
+        : 'Библиотеки процессов BPMN 2.0 с рассчитываемыми параметрами: WEG (восемь процессов) и Uber Eats в Дубае (заказ из McDonald\'s), каждый как есть и как будет; плюс заполненные рабочие листы WEG: матрицы «эффект — усилия», риски внедрения и путь покупателя.',
   });
   project.documentation = librariesProjectDocumentation(locale);
   project.diagrams = buildAllLibraryDiagrams(locale);
