@@ -8,7 +8,7 @@ import { buildDiagrams } from '../app/ai/schema.js';
 import { MATRICES } from '../app/library/weg/sheets/matrices.js';
 import { RISKS } from '../app/library/weg/sheets/risks.js';
 import { WEG_SHEET_COUNT, buildWegSheetDiagrams, scoreMatrix } from '../app/library/weg/sheets/index.js';
-import { WEG_AS_IS, WEG_TO_BE } from '../app/library/weg/index.js';
+import { WEG_AS_IS, WEG_TO_BE, buildWegDiagram } from '../app/library/weg/index.js';
 import { stepRow, flowShare } from '../app/library/weg/sheets/engine.js';
 import { createLibrariesProject } from '../app/library/index.js';
 import { normalizeProject } from '../app/core/model.js';
@@ -218,5 +218,75 @@ test('the supplier lead times stay as in the baseline: the target models do not 
     const a = WEG_AS_IS.find((p) => p.id === asisId);
     const b = WEG_TO_BE.find((p) => p.id === tobeId);
     assert.equal(wait(b, step), wait(a, step), `${tobeId}: ${step} is unchanged`);
+  }
+});
+
+/* ---------------------------------------------------- the buyer journey in BPMN */
+
+import { WEG_JOURNEY_PROCESSES, buildWegJourneyDiagrams } from '../app/library/weg/journey/index.js';
+import { validateBpmn } from '../app/notations/bpmn/validate.js';
+import { analyzeProcess } from '../app/analysis/simulate.js';
+const analyseProcess = (process) => analyzeProcess(buildWegDiagram(process, 'en'));
+import { compareProcesses } from '../app/analysis/compare.js';
+
+test('the buyer journey exists in BPMN as is and to be, valid and calculable', () => {
+  assert.equal(WEG_JOURNEY_PROCESSES.length, 2, 'as is and to be');
+  for (const locale of ['ru', 'en']) {
+    const diagrams = buildWegJourneyDiagrams(locale);
+    assert.equal(diagrams.length, 2, 'two diagrams');
+    assert.ok(diagrams.every((d) => d.meta.library === 'wegjourney' && d.meta.folder.startsWith('WEG/')), 'tagged and foldered');
+    for (const diagram of diagrams) {
+      assert.equal(validateBpmn(diagram).filter((p) => p.severity === 'error').length, 0, `${diagram.name} passes BPMN validation`);
+      const result = analyzeProcess(diagram);
+      assert.ok(result.ok && result.totals.leadExpected > 0 && result.totals.costPerRun > 0, 'produces a calculation');
+      const lanes = diagram.nodes.filter((n) => n.type === 'lane');
+      assert.ok(lanes.length >= 7, 'one lane per actor');
+      const flat = diagram.nodes.filter((n) => n.type !== 'lane' && n.type !== 'pool' && !n.parent?.startsWith?.('zzz'));
+      assert.ok(flat.length > 35, 'a full journey, not a sketch');
+    }
+    const [asis, tobe] = diagrams;
+    assert.equal(tobe.meta.baselineId, asis.meta.processId, 'the target is paired with its baseline');
+    const comparison = compareProcesses(asis, tobe);
+    assert.ok(comparison.rows.find((r) => r.key === 'lead').to < comparison.rows.find((r) => r.key === 'lead').from, 'a shorter journey');
+    assert.ok(comparison.rows.find((r) => r.key === 'cost').to < comparison.rows.find((r) => r.key === 'cost').from, 'a cheaper journey');
+    assert.ok(tobe.meta.documentation.includes(locale === 'ru' ? 'Что даёт переход' : 'Measured gain'), 'the computed comparison is attached');
+  }
+});
+
+test('the journey takes the shared steps from processes 1 and 6 unchanged and keeps the customer-side assumptions equal in both versions', () => {
+  const [asis, tobe] = buildWegJourneyDiagrams('en');
+  const byLabel = (diagram) => new Map(diagram.nodes.map((n) => [n.label, n]));
+  const sources = [
+    [asis, WEG_AS_IS.find((p) => p.id === 'weg-o2c'), WEG_AS_IS.find((p) => p.id === 'weg-service')],
+    [tobe, WEG_TO_BE.find((p) => p.id === 'weg-o2c-tobe'), WEG_TO_BE.find((p) => p.id === 'weg-service-tobe')],
+  ];
+  for (const [diagram, o2c, svc] of sources) {
+    const labels = byLabel(diagram);
+    for (const process of [o2c]) {
+      for (const step of process.spec.nodes.filter((n) => n.props && (n.props.duration || n.props.waitTime || n.props.cost))) {
+        const copy = labels.get(step.label.en);
+        assert.ok(copy, `${step.label.en} is on the journey`);
+        for (const key of ['duration', 'waitTime', 'cost']) assert.equal(Number(copy.props[key] || 0), Number(step.props[key] || 0), `${step.label.en}: ${key} is the process's own`);
+      }
+    }
+  }
+  for (const [diagram, , svc] of sources) {
+    const call = diagram.nodes.find((n) => n.type === 'callActivity');
+    const own = analyseProcess(svc);
+    assert.close(call.props.cost, own.totals.costPerRun, 0.01, 'the service call costs what process 6 costs per case');
+    assert.close(call.props.duration + call.props.waitTime, own.totals.leadExpected, 0.2, 'and lasts as long as process 6');
+  }
+  const win = (diagram) => diagram.edges.filter((e) => e.label === 'suits' || e.label === 'suit').map((e) => e.props.probability);
+  assert.deepEqual(win(asis), win(tobe), 'the quotation acceptance is the same in both versions');
+  const need = (diagram) => diagram.edges.find((e) => e.label === 'yes' && diagram.nodes.find((n) => n.id === e.source)?.label === 'Did the motor need service?').props.probability;
+  assert.equal(need(asis), need(tobe), 'the chance of needing service is the same');
+});
+
+test('the journey is bilingual and carries no invented links', () => {
+  for (const diagram of buildWegJourneyDiagrams('en')) {
+    for (const node of diagram.nodes) assert.ok(!cyrillic.test(node.label || ''), `"${node.label}" is translated`);
+    for (const edge of diagram.edges) assert.ok(!cyrillic.test(edge.label || ''), 'edge labels are translated');
+    assert.ok(!cyrillic.test(diagram.meta.documentation), 'documentation is translated');
+    assert.ok(!/https?:\/\//.test(diagram.meta.documentation.replace(/https:\/\/(www\.|ri\.)?weg\.net[^\s]*|https:\/\/www\.(infomoney|nsctotal)[^\s]*/g, '')), 'no unverified links');
   }
 });

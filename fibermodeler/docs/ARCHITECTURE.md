@@ -51,13 +51,14 @@ app/
   analysis/             parameters (схема и форматирование), simulate (расчёт), compare (AS-IS/TO-BE)
   library/              kit, shared (сборка схем, сравнение), index (все библиотеки)
     weg/                facts, asis/p1…p8, tobe/p1…p8, index
+    weg/journey/        путь покупателя в BPMN (собирается из процессов 1 и 6)
     weg/sheets/         engine (измерение вклада изменений), matrices, risks, journey, index
     ubereats/           facts, asis, tobe, index
   storage/              db (IndexedDB), recent, autosave
   ui/                   app, commands, menus, panels/, dialogs/, icons, menu, dialog, toast
   i18n/                 ru, en
   assets/fonts/         подмножество DejaVu Sans для PDF
-tests/                  116 тестов, свой раннер
+tests/                  119 тестов, свой раннер
 tools/                  сборка одного файла, subsetting шрифта
 ```
 

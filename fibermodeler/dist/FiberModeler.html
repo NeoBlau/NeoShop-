@@ -16048,6 +16048,577 @@ function uberProjectDocumentation(locale = 'ru') {
 Object.assign(__exports, { UBER_FOLDER, uberFolder, UBER_AS_IS, UBER_TO_BE, UBER_PROCESSES, localizeSpec, buildUberDiagram, buildUberDiagrams, uberProjectDocumentation });
 
 });
+__fm_define('app/library/weg/sheets/engine.js', function (__exports) {
+/**
+ * What each change of a target model is worth, measured on the models.
+ *
+ * The worksheets quote numbers next to every change. They are not typed in:
+ * a change is switched off in a copy of the TO-BE model (its steps get their
+ * AS-IS parameters back, its branch shares return to the old values) and the
+ * two models are analysed. The difference is what the change contributes.
+ * Changes that replace whole steps (a step that exists only in AS-IS cannot be
+ * "switched back on" in a copy) are measured by the load of those AS-IS steps.
+ */
+const { analyzeProcess } = __fm_require('app/analysis/simulate.js');
+const { completionShare } = __fm_require('app/analysis/compare.js');
+const { formatDuration, formatMoney } = __fm_require('app/analysis/parameters.js');
+const { pick } = __fm_require('app/library/shared.js');
+const { WEG_AS_IS, WEG_TO_BE, buildWegDiagram } = __fm_require('app/library/weg/index.js');
+const COST_KEYS = ['duration', 'waitTime', 'cost'];
+
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+function processPair(processId) {
+  const tobe = WEG_TO_BE.find((process) => process.id === processId);
+  const asis = tobe && WEG_AS_IS.find((process) => process.id === tobe.baselineId);
+  return tobe && asis ? { tobe, asis } : null;
+}
+
+const cache = new Map();
+
+/**
+ * Analysis of a library process; the numbers do not depend on the language.
+ * `cost` is the cost of a case that reaches a successful end: a change that
+ * stops rejecting late lets more cases into expensive steps, and the cost per
+ * *started* case would then punish it for being good.
+ */
+function analyse(process) {
+  if (!cache.has(process)) {
+    const diagram = buildWegDiagram(process, 'en');
+    const result = analyzeProcess(diagram);
+    const done = completionShare(diagram, result);
+    cache.set(process, {
+      result,
+      done,
+      nodes: result.nodes,
+      lead: result.totals.leadExpected,
+      work: result.totals.workMinutes,
+      cost: result.totals.costPerRun / done,
+    });
+  }
+  return cache.get(process);
+}
+
+/**
+ * A copy of the TO-BE process with one change switched off.
+ * `revert`: `nodes` get their AS-IS duration / wait / cost back, `zero` nodes
+ * stop costing anything (steps that do not exist in AS-IS), `like` maps a
+ * TO-BE step to the AS-IS step it replaced, `edges` are
+ * `[source, target, share]` triples that restore a branch share, `rewire`
+ * removes and adds flows (to turn a parallel stretch back into a sequence).
+ */
+function revertChange(tobe, asis, revert = {}) {
+  const process = clone(tobe);
+  const before = new Map(asis.spec.nodes.map((node) => [node.id, node]));
+  const find = (id) => {
+    const found = process.spec.nodes.find((node) => node.id === id);
+    if (!found) throw new Error(`${tobe.id}: no step "${id}"`);
+    found.props = found.props || {};
+    return found;
+  };
+  for (const id of revert.nodes || []) {
+    const step = find(id);
+    const old = before.get(id);
+    for (const key of COST_KEYS) {
+      if (old?.props && key in old.props) step.props[key] = old.props[key];
+      else delete step.props[key];
+    }
+  }
+  for (const [id, asisId] of Object.entries(revert.like || {})) {
+    // a step that replaced another one gets the parameters of the step it replaced
+    const step = find(id);
+    const old = before.get(asisId);
+    if (!old) throw new Error(`${tobe.id}: no AS-IS step "${asisId}"`);
+    for (const key of COST_KEYS) {
+      if (old.props && key in old.props) step.props[key] = old.props[key];
+      else delete step.props[key];
+    }
+  }
+  for (const id of revert.zero || []) {
+    const step = find(id);
+    for (const key of COST_KEYS) step.props[key] = 0;
+  }
+  const rewire = revert.rewire || {};
+  for (const [source, target] of rewire.remove || []) {
+    const index = process.spec.edges.findIndex((entry) => entry.source === source && entry.target === target);
+    if (index < 0) throw new Error(`${tobe.id}: no flow ${source} > ${target}`);
+    process.spec.edges.splice(index, 1);
+  }
+  for (const [source, target, share] of rewire.add || []) {
+    process.spec.edges.push({ source, target, props: share === undefined ? {} : { probability: share } });
+  }
+  for (const [source, target, share] of revert.edges || []) {
+    const edge = process.spec.edges.find((entry) => entry.source === source && entry.target === target);
+    if (!edge) throw new Error(`${tobe.id}: no flow ${source} > ${target}`);
+    edge.props = edge.props || {};
+    edge.props.probability = share;
+  }
+  return process;
+}
+
+/** Row of an analysis by the id a step has in the specification. */
+function rowsById(process, analysis) {
+  const byLabel = new Map(analysis.nodes.map((row) => [row.label, row]));
+  const out = new Map();
+  for (const node of process.spec.nodes) {
+    const row = byLabel.get(node.label.en);
+    if (row) out.set(node.id, row);
+  }
+  return out;
+}
+
+/** Row of the analysis for a step, by its id in the specification. */
+function stepRow(process, id) {
+  const row = rowsById(process, analyse(process)).get(id);
+  if (!row) throw new Error(`${process.id}: no step "${id}"`);
+  return row;
+}
+
+/** Branch share (percent) of a flow of the specification. */
+function flowShare(process, source, target) {
+  const edge = process.spec.edges.find((entry) => entry.source === source && entry.target === target);
+  if (!edge) throw new Error(`${process.id}: no flow ${source} > ${target}`);
+  return edge.props?.probability;
+}
+
+/** Work, waiting and cost per case that a set of AS-IS steps carries. */
+function stepLoad(asis, ids) {
+  const analysis = analyse(asis);
+  const rows = rowsById(asis, analysis);
+  const load = { work: 0, wait: 0, cost: 0 };
+  for (const id of ids) {
+    const row = rows.get(id);
+    if (!row) throw new Error(`${asis.id}: no step "${id}"`);
+    load.work += row.totalMinutes;
+    load.wait += row.runs * row.wait;
+    load.cost += row.totalCost;
+  }
+  return load;
+}
+
+/**
+ * Measures one change. Returns the contribution to the lead time, the work and
+ * the cost of a case (positive = the change saves that much), the same per
+ * year, and the share of the whole transition each one makes up.
+ */
+function measureChange(processId, change) {
+  const pair = processPair(processId);
+  if (!pair) throw new Error(`unknown process ${processId}`);
+  const { tobe, asis } = pair;
+  const base = analyse(tobe);
+  const before = analyse(asis);
+  const volume = tobe.analysis?.volumePerYear || 0;
+  const gain = {
+    lead: before.lead - base.lead,
+    work: before.work - base.work,
+    cost: before.cost - base.cost,
+  };
+  let saved;
+  let kind;
+  if (change.revert) {
+    const off = analyse(revertChange(tobe, asis, change.revert));
+    saved = {
+      lead: off.lead - base.lead,
+      work: off.work - base.work,
+      cost: off.cost - base.cost,
+    };
+    kind = 'revert';
+  } else if (change.steps) {
+    // steps that disappear, less whatever replaces them
+    const gone = stepLoad(asis, change.steps);
+    const instead = change.by ? stepLoad(tobe, change.by) : { work: 0, wait: 0, cost: 0 };
+    saved = {
+      lead: gone.work + gone.wait - instead.work - instead.wait,
+      work: gone.work - instead.work,
+      cost: gone.cost - instead.cost,
+    };
+    kind = 'steps';
+  } else {
+    return null;
+  }
+  const share = (value, total) => (Math.abs(total) > 1e-9 ? value / total : 0);
+  return {
+    kind,
+    saved,
+    perYear: { cost: saved.cost * volume, work: saved.work * volume },
+    share: { lead: share(saved.lead, gain.lead), work: share(saved.work, gain.work), cost: share(saved.cost, gain.cost) },
+    gain,
+    volume,
+  };
+}
+
+/* ----------------------------------------------------------------- wording */
+
+const signed = (value, text) => (value > 0 ? `+${text}` : value < 0 ? `−${text}` : text);
+const pct = (value) => `${Math.round(Math.abs(value) * 100)} %`;
+
+/**
+ * One line that says what the model attributes to the change. `signed` values
+ * are positive when the change helps; wording is "without it ... would be".
+ */
+function describeMeasure(measure, locale = 'ru', currency = 'R$') {
+  if (!measure) return '';
+  const ru = locale === 'ru';
+  const { saved, share, perYear, kind } = measure;
+  const parts = [];
+  if (kind === 'revert') {
+    const lead = Math.abs(saved.lead);
+    if (lead >= 0.5 && (Math.abs(share.lead) >= 0.02 || lead >= 30)) {
+      parts.push(
+        ru
+          ? `срок ${saved.lead > 0 ? 'длиннее' : 'короче'} на ${formatDuration(lead, 'ru')} (${pct(share.lead)} выигрыша процесса)`
+          : `lead time ${formatDuration(lead, 'en')} ${saved.lead > 0 ? 'longer' : 'shorter'} (${pct(share.lead)} of the process gain)`
+      );
+    }
+    if (Math.abs(saved.work) >= 1 && Math.abs(share.work) >= 0.05) {
+      parts.push(
+        ru
+          ? `трудозатраты ${saved.work > 0 ? 'выше' : 'ниже'} на ${formatDuration(Math.abs(saved.work), 'ru')}`
+          : `work ${formatDuration(Math.abs(saved.work), 'en')} ${saved.work > 0 ? 'higher' : 'lower'}`
+      );
+    }
+    if (Math.abs(saved.cost) >= 0.05) {
+      const money = formatMoney(Math.abs(saved.cost), currency, locale);
+      const year = Math.abs(perYear.cost) >= 1e6 ? ` (≈ ${formatMoney(Math.abs(perYear.cost), currency, locale)} ${ru ? 'в год' : 'a year'})` : '';
+      parts.push(
+        ru
+          ? `стоимость случая ${saved.cost > 0 ? 'выше' : 'ниже'} на ${money}${year}`
+          : `cost per case ${money} ${saved.cost > 0 ? 'higher' : 'lower'}${year}`
+      );
+    }
+    if (!parts.length) return '';
+    return ru ? `Без этого изменения: ${parts.join('; ')}.` : `Without this change: ${parts.join('; ')}.`;
+  }
+  const bits = [];
+  if (saved.work >= 0.5) bits.push(formatDuration(saved.work, locale) + (ru ? ' работы' : ' of work'));
+  if (saved.cost >= 0.05) bits.push(formatMoney(saved.cost, currency, locale));
+  if (!bits.length) return '';
+  return ru
+    ? `Новые шаги вместо прежних экономят на каждом случае ${bits.join(' и ')}.`
+    : `The new steps in place of the old ones save ${bits.join(' and ')} on every case.`;
+}
+
+
+/**
+ * Fills `{lead}`, `{cost}`, `{year}`, `{leadShare}`, `{costShare}`, `{workShare}`
+ * in a sentence. `{id:key}` takes the value from another change of the same
+ * sheet; a bare `{key}` takes it from `fallback`.
+ */
+function fillPlaceholders(text, measures, fallback, locale = 'ru', currency = 'R$') {
+  const values = (measure) => {
+    if (!measure) return {};
+    const { saved, share, perYear } = measure;
+    return {
+      lead: formatDuration(Math.abs(saved.lead), locale),
+      leadShare: pct(share.lead),
+      cost: formatMoney(Math.abs(saved.cost), currency, locale),
+      year: formatMoney(Math.abs(perYear.cost), currency, locale),
+      workShare: pct(share.work),
+      costShare: pct(share.cost),
+    };
+  };
+  return text.replace(/\{(?:(\w+):)?(\w+)\}/g, (match, id, key) => {
+    const found = values(id ? measures[id] : fallback)[key];
+    return found === undefined ? match : found;
+  });
+}
+
+function localized(value, locale) {
+  return pick(value, locale);
+}
+
+Object.assign(__exports, { signed, processPair, analyse, revertChange, stepRow, flowShare, stepLoad, measureChange, describeMeasure, fillPlaceholders, localized });
+
+});
+__fm_define('app/library/weg/journey/index.js', function (__exports) {
+/**
+ * The WEG buyer's journey as BPMN 2.0, as is and to be.
+ *
+ * The buyer is an industrial customer of standard motors. One case is one
+ * purchase from the first need to the decision about the next order, and it
+ * is built from what the library already models rather than re-typed:
+ *
+ *  - the order-to-cash steps (process 1) are taken over from that library
+ *    entry, lanes remapped, parameters and branch shares untouched;
+ *  - after-sale service is one call to process 6: its work, waiting and cost
+ *    per case are read from the calculation of that diagram, and it is entered
+ *    with the probability that a delivered motor needs service, derived from
+ *    the two processes' yearly volumes (145 000 cases against 760 000 orders);
+ *  - what only the customer does - selecting, asking for a price, receiving,
+ *    installing, deciding about the next order - is added here, with the
+ *    customer's time recorded as waiting (the convention of every library
+ *    process: customer time is waiting, not company labour).
+ *
+ * Because the shared steps are copied at build time, a change to process 1 or 6
+ * shows up here too, and the comparison of the two journeys is computed by the
+ * same engine as everywhere else. Only the customer-side steps and the
+ * connections are assumptions of this file, and they are tagged as such.
+ */
+const { DAY, auto, flow, node, wait, work } = __fm_require('app/library/kit.js');
+const { buildLibraryDiagrams, pick, variantFolder } = __fm_require('app/library/shared.js');
+const { dataNote, roleLabel } = __fm_require('app/library/weg/facts.js');
+const { WEG_AS_IS, WEG_TO_BE } = __fm_require('app/library/weg/index.js');
+const { analyse } = __fm_require('app/library/weg/sheets/engine.js');
+const WEG_JOURNEY_LIBRARY = 'wegjourney';
+
+const ROOT = { ru: 'WEG/Путь покупателя', en: 'WEG/Customer journey' };
+
+function journeyFolder(variant, locale = 'ru') {
+  return variantFolder(pick(ROOT, locale), variant, locale);
+}
+
+const find = (list, id) => list.find((process) => process.id === id);
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+/** Share of delivered motors that need service: service cases per order (derived). */
+const SERVICE_SHARE = 19;
+/** Share of enquiries that turn into an order: the same in both versions, so the market does not move the comparison. */
+const WIN_SHARE = 85;
+
+const SKIP_TYPES = new Set(['textAnnotation', 'dataObject', 'dataStore']);
+
+/** Nodes of a library process without notes and data objects, lanes remapped, ids optionally prefixed. */
+function takeNodes(process, { drop = [], prefix = '', laneMap = {}, strip = [] }) {
+  return process.spec.nodes
+    .filter((entry) => !SKIP_TYPES.has(entry.type) && !drop.includes(entry.id))
+    .map((entry) => {
+      const copy = clone(entry);
+      copy.id = prefix + entry.id;
+      copy.lane = laneMap[entry.lane] || entry.lane;
+      if (strip.includes(entry.id) && copy.props) delete copy.props.completes;
+      return copy;
+    });
+}
+
+function takeEdges(process, { drop = [], prefix = '', rename = {} }) {
+  const skipped = new Set([...drop, ...process.spec.nodes.filter((entry) => SKIP_TYPES.has(entry.type)).map((entry) => entry.id)]);
+  return process.spec.edges
+    .filter((edge) => !edge.type || edge.type === 'sequenceFlow')
+    .filter((edge) => !skipped.has(edge.source) && !skipped.has(edge.target))
+    .map((edge) => {
+      const copy = clone(edge);
+      copy.source = rename[edge.source] ?? prefix + edge.source;
+      copy.target = rename[edge.target] ?? prefix + edge.target;
+      return copy;
+    });
+}
+
+/** One call activity that stands for process 6, with the figures of its own calculation. */
+function serviceCall(svc, label) {
+  const result = analyse(svc);
+  const work = Math.round(result.work * 10) / 10;
+  const waiting = Math.max(0, Math.round((result.lead - result.work) * 10) / 10);
+  return node('service', 'callActivity', 'service', label.ru, label.en, {
+    duration: work,
+    waitTime: waiting,
+    cost: Math.round(result.result.totals.costPerRun * 100) / 100,
+    dataSource: 'derived',
+  });
+}
+
+const SERVICE_LANE = { id: 'service', label: { ru: 'Сервис и ремонт (процесс 6)', en: 'Service and repair (process 6)' } };
+
+function mergeLanes(...lists) {
+  const seen = new Set();
+  const lanes = [];
+  for (const list of lists) {
+    for (const lane of list) {
+      if (seen.has(lane.id)) continue;
+      seen.add(lane.id);
+      lanes.push(lane);
+    }
+  }
+  return lanes;
+}
+
+function mergeRoles(...lists) {
+  const seen = new Set();
+  return lists.flat().filter((role) => (seen.has(role.id) ? false : seen.add(role.id)));
+}
+
+/* ------------------------------------------------------------------ AS-IS */
+
+function buildAsIs() {
+  const o2c = find(WEG_AS_IS, 'weg-o2c');
+  const svc = find(WEG_AS_IS, 'weg-service');
+  const log = 'log';
+  const nodes = [
+    node('start', 'startEvent', 'customer', 'Появилась потребность в двигателе: замена, новая установка или рост нагрузки', 'A need for a motor: a replacement, a new installation or a higher load'),
+    node('select', 'userTask', 'customer', 'Подобрать двигатель по каталогу и листам данных', 'Select a motor from the catalogue and data sheets', wait(90)),
+    node('ask', 'sendTask', 'customer', 'Запросить цену и срок у менеджера или дистрибьютора', 'Ask a salesperson or distributor for price and lead time', wait(20)),
+    node('offer', 'userTask', 'sales', 'Собрать и отправить предложение вручную из прайса и условий', 'Build and send the quotation by hand from the price list and terms', work(25, 'Менеджер по продажам', { waitTime: DAY / 2 })),
+    node('gwOffer', 'exclusiveGateway', 'customer', 'Предложение подходит?', 'Does the quotation suit?'),
+    node('lost', 'endEvent', 'customer', 'Клиент выбрал другого поставщика', 'The customer chose another supplier'),
+    node('order', 'sendTask', 'customer', 'Отправить заказ письмом или таблицей', 'Send the order as a letter or a spreadsheet', wait(15)),
+    ...takeNodes(o2c, { drop: ['start'] }),
+    node('pgDeliver', 'parallelGateway', log, 'Груз передан: оплата и поставка идут параллельно', 'Goods handed over: payment and delivery run in parallel'),
+    node('receive', 'manualTask', 'customer', 'Принять груз, сверить с накладной и заказом', 'Receive the load and check it against the delivery note and the order', wait(60)),
+    node('install', 'manualTask', 'customer', 'Смонтировать и запустить двигатель', 'Install and start the motor', wait(DAY)),
+    node('gwNeed', 'exclusiveGateway', 'customer', 'Двигателю потребовался сервис?', 'Did the motor need service?'),
+    serviceCall(svc, { ru: 'Сервис и ремонт: звонок, диагностика, гарантия, вывоз, смета, ремонт, возврат', en: 'Service and repair: call, diagnosis, warranty, collection, quotation, repair, return' }),
+    node('gwBack', 'exclusiveGateway', 'customer', 'Двигатель снова в работе', 'The motor is back in service'),
+    node('reorder', 'userTask', 'customer', 'Решить: повторить заказ, сменить поставщика или заменить модель', 'Decide: reorder, switch supplier or replace the model', wait(60)),
+    node('finish', 'endEvent', 'customer', 'Путь закончен: повторный заказ или уход', 'Journey over: a reorder or a departure'),
+  ];
+  const edges = [
+    flow('start', 'select'),
+    flow('select', 'ask'),
+    flow('ask', 'offer'),
+    flow('offer', 'gwOffer'),
+    flow('gwOffer', 'order', { share: WIN_SHARE, ru: 'подходит', en: 'suits' }),
+    flow('gwOffer', 'lost', { share: 100 - WIN_SHARE, ru: 'не подходит', en: 'does not suit' }),
+    flow('order', 'register'),
+    ...takeEdges(o2c, { drop: ['start'], rename: {} }).filter((edge) => !(edge.source === 'notify' && edge.target === 'invoice')),
+    flow('notify', 'pgDeliver'),
+    flow('pgDeliver', 'invoice'),
+    flow('pgDeliver', 'receive'),
+    flow('receive', 'install'),
+    flow('install', 'gwNeed'),
+    flow('gwNeed', 'service', { share: SERVICE_SHARE, ru: 'да', en: 'yes' }),
+    flow('gwNeed', 'gwBack', { share: 100 - SERVICE_SHARE, ru: 'нет', en: 'no' }),
+    flow('service', 'gwBack'),
+    flow('gwBack', 'reorder'),
+    flow('reorder', 'finish'),
+  ];
+  return { o2c, svc, nodes, edges };
+}
+
+/* ------------------------------------------------------------------ TO-BE */
+
+function buildToBe() {
+  const o2c = find(WEG_TO_BE, 'weg-o2c-tobe');
+  const svc = find(WEG_TO_BE, 'weg-service-tobe');
+  const nodes = [
+    node('start', 'startEvent', 'customer', 'Появилась потребность в двигателе: замена, новая установка или рост нагрузки', 'A need for a motor: a replacement, a new installation or a higher load'),
+    node('select', 'userTask', 'customer', 'Подобрать двигатель в подборщике портала: наличие и срок видны сразу', 'Select a motor in the portal selector: stock and lead time are visible at once', wait(25)),
+    node('basket', 'userTask', 'customer', 'Увидеть цену по своему договору и срок в корзине портала', 'See the price under their own contract and the date in the portal basket', wait(10)),
+    node('gwOffer', 'exclusiveGateway', 'customer', 'Условия подходят?', 'Do the terms suit?'),
+    node('lost', 'endEvent', 'customer', 'Клиент выбрал другого поставщика', 'The customer chose another supplier'),
+    node('order', 'sendTask', 'customer', 'Загрузить заказ в портале или по EDI', 'Upload the order on the portal or via EDI', wait(10)),
+    ...takeNodes(o2c, { drop: ['start'] }),
+    node('pgDeliver', 'parallelGateway', 'log', 'Груз передан: оплата и поставка идут параллельно', 'Goods handed over: payment and delivery run in parallel'),
+    node('receive', 'manualTask', 'customer', 'Сканировать груз по уведомлению об отгрузке, открыть цифровой паспорт двигателя', 'Scan the load against the despatch notice and open the motor\'s digital passport', wait(30)),
+    node('install', 'manualTask', 'customer', 'Смонтировать и запустить двигатель', 'Install and start the motor', wait(DAY)),
+    node('connect', 'userTask', 'customer', 'Подключить мониторинг вибрации, температуры и тока', 'Connect monitoring of vibration, temperature and current', wait(45)),
+    node('gwNeed', 'exclusiveGateway', 'customer', 'Двигателю потребовался сервис?', 'Did the motor need service?'),
+    serviceCall(svc, { ru: 'Сервис по событию мониторинга: диагностика по телеметрии, окно остановки, запчасти по прогнозу, смета в портале', en: 'Service from a monitoring event: telemetry diagnosis, shutdown window, parts by forecast, quotation in the portal' }),
+    node('gwBack', 'exclusiveGateway', 'customer', 'Двигатель снова в работе', 'The motor is back in service'),
+    node('reorder', 'userTask', 'customer', 'Решить: повторить заказ из истории, сменить поставщика или заменить модель', 'Decide: reorder from the history, switch supplier or replace the model', wait(30)),
+    node('finish', 'endEvent', 'customer', 'Путь закончен: повторный заказ или уход', 'Journey over: a reorder or a departure'),
+  ];
+  const edges = [
+    flow('start', 'select'),
+    flow('select', 'basket'),
+    flow('basket', 'gwOffer'),
+    flow('gwOffer', 'order', { share: WIN_SHARE, ru: 'подходят', en: 'suit' }),
+    flow('gwOffer', 'lost', { share: 100 - WIN_SHARE, ru: 'не подходят', en: 'do not suit' }),
+    flow('order', 'validate'),
+    ...takeEdges(o2c, { drop: ['start'] }).filter((edge) => !(edge.source === 'notify' && edge.target === 'invoice')),
+    flow('notify', 'pgDeliver'),
+    flow('pgDeliver', 'invoice'),
+    flow('pgDeliver', 'receive'),
+    flow('receive', 'install'),
+    flow('install', 'connect'),
+    flow('connect', 'gwNeed'),
+    flow('gwNeed', 'service', { share: SERVICE_SHARE, ru: 'да', en: 'yes' }),
+    flow('gwNeed', 'gwBack', { share: 100 - SERVICE_SHARE, ru: 'нет', en: 'no' }),
+    flow('service', 'gwBack'),
+    flow('gwBack', 'reorder'),
+    flow('reorder', 'finish'),
+  ];
+  return { o2c, svc, nodes, edges };
+}
+
+/* ---------------------------------------------------------------- process */
+
+function documentation(variant, locale) {
+  const ru = locale === 'ru';
+  const asis = variant === 'as-is';
+  const note = dataNote(locale);
+  const common = ru
+    ? `Покупатель — промышленный заказчик серийных двигателей WEG. Один случай — одна покупка от первой потребности до решения о следующем заказе. Схема собрана из того, что уже смоделировано в библиотеке: этапы от заказа до денег взяты из процесса «1. Обработка заказа на серийный двигатель», сервис после поставки показан одним вызовом процесса «6. Сервис и ремонт оборудования»: его трудозатраты, ожидание и стоимость берутся из расчёта той схемы. Параметры и доли шагов процесса 1 не переписаны, а копируются при сборке: изменится процесс 1 или 6 — изменится и эта схема.
+
+Чего в схеме нет в других процессах и что здесь допущение (помечено «отраслевое допущение»): шаги самого заказчика (подбор, запрос, приёмка, монтаж, решение о повторном заказе), вероятность того, что заказчик согласится с предложением (${WIN_SHARE} %, одинаковая в обеих версиях, чтобы рынок не двигал сравнение), и вероятность того, что поставленному двигателю потребуется сервис (${SERVICE_SHARE} %: 145 000 сервисных обращений на 760 000 заказов в год — расчёт из объёмов двух процессов).
+
+Время заказчика записано как ожидание, а не как труд компании. Эксплуатация двигателя длится годами и в срок пути не входит: путь закрывается решением о повторном заказе. Деньги получены — отдельная ветка, она идёт параллельно поставке и считается завершением заказа.`
+    : `The buyer is an industrial customer of WEG standard motors. One case is one purchase from the first need to the decision about the next order. The diagram is assembled from what the library already models: the stages from order to cash are taken from "1. Order to cash for catalogue motors", after-sale service is shown as one call to "6. After-sales service and repair", whose work, waiting and cost are read from the calculation of that diagram. The parameters and branch shares of process 1 are not retyped but copied at build time: change process 1 or 6 and this diagram changes with it.
+
+What this diagram adds and what is an assumption here (tagged "industry assumption"): the customer's own steps (selection, enquiry, receiving, installation, the reorder decision), the chance that the customer accepts the quotation (${WIN_SHARE}%, the same in both versions so the market does not move the comparison) and the chance that a delivered motor needs service (${SERVICE_SHARE}%: 145,000 service cases against 760,000 orders a year, derived from the volumes of the two processes).
+
+Customer time is recorded as waiting, not as company labour. A motor runs for years and that is not part of the journey's lead time: the journey closes with the decision about the next order. "Cash received" is a separate branch that runs in parallel with delivery and counts as the completion of the order.`;
+  const stages = asis
+    ? ru
+      ? `Этапы.
+1) Потребность и подбор — заказчик сам листает каталог и листы данных. 2) Запрос и предложение — письмо менеджеру или дистрибьютору, предложение собирается вручную, заказчик ждёт часы. 3) Заказ и проверка кредита — заказ письмом или таблицей, ручная регистрация и проверка артикулов, ручная проверка лимита, предоплата для части заказов. 4) Ожидание и отгрузка — резерв, ожидание производственной партии для заказов не со склада, комплектация, NF-e, передача перевозчику. 5) Получение и монтаж — заказчик принимает груз и запускает двигатель. 6) Оплата — счёт, 30 дней, напоминания и взыскание для части заказов. 7—8) Эксплуатация, сервис и ремонт — вызов процесса 6 (звонок, диагностика, гарантия, вывоз, смета, ремонт, возврат), его цифры взяты из расчёта той схемы. 9) Повторный заказ — заказчик решает, остаться ли.`
+      : `Stages.
+1) Need and selection: the customer browses the catalogue and data sheets alone. 2) Enquiry and quotation: a letter to a salesperson or distributor, the quotation is built by hand, the customer waits for hours. 3) Order and credit check: the order by letter or spreadsheet, manual registration and part-number checks, a manual limit check, prepayment for some orders. 4) Waiting and shipment: reservation, the wait for a production batch for orders not from stock, picking, NF-e, handover to the carrier. 5) Receipt and installation: the customer receives the load and starts the motor. 6) Payment: the invoice, 30 days, reminders and collections for some orders. 7-8) Operation, service and repair: a call to process 6 (call, diagnosis, warranty, collection, quotation, repair, return) with the figures of that diagram's calculation. 9) Reorder: the customer decides whether to stay.`
+    : ru
+      ? `Что меняется на пути покупателя.
+1) Подбор в портале: наличие и срок видны сразу, ручной запрос и ручное предложение исчезают для каталожных позиций. 2) Заказ из портала или по EDI с автоматической проверкой строк и скорингом вместо ручной регистрации и проверки лимита. 3) Срок отгрузки показывается при заказе, склад планируется по спросу портала, NF-e, уведомление и счёт формируются сами. 4) Заказчик выбирает срок оплаты: 30 дней или 7 дней со скидкой 1,5 %. 5) Груз принимается по уведомлению об отгрузке, у двигателя есть цифровой паспорт, а у заказчика появляется новый шаг: подключить мониторинг. 6) Сервис начинается с события мониторинга в 62 % случаев и закрывается удалённо в 58 % случаев, дальше те же шаги процесса 6 с портальной сметой и запчастями по прогнозу.
+
+Что НЕ меняется: монтаж двигателя заказчиком, доля заказчиков, согласных с предложением, вероятность сервиса, физическая комплектация, перевозка и ремонт.`
+      : `What changes on the buyer's path.
+1) Selection in the portal: stock and lead time are visible at once, and the manual enquiry and manual quotation disappear for catalogue items. 2) The order comes from the portal or via EDI with automatic line checks and scoring instead of manual registration and a manual limit check. 3) The ship date is shown at ordering, stock is planned from portal demand, and the NF-e, the notice and the invoice generate themselves. 4) The customer chooses the payment term: 30 days or 7 days at a 1.5% discount. 5) The load is received against the despatch notice, the motor has a digital passport, and the customer gets a new step: connecting monitoring. 6) Service starts from a monitoring event in 62% of cases and closes remotely in 58% of cases, then the same steps of process 6 with the quotation in the portal and parts staged by forecast.
+
+What does NOT change: the customer installs the motor, the share of customers who accept the quotation, the chance that service is needed, physical picking, transport and the repair itself.`;
+  return `${common}\n\n${stages}\n\n${note}`;
+}
+
+function journeyProcess(variant) {
+  const asis = variant === 'as-is';
+  const built = asis ? buildAsIs() : buildToBe();
+  const lanes = mergeLanes(built.o2c.spec.lanes, [SERVICE_LANE]);
+  const spec = {
+    notation: 'bpmn',
+    name: asis
+      ? { ru: 'Путь покупателя WEG (BPMN) — как есть', en: 'WEG customer journey (BPMN) — as is' }
+      : { ru: 'Путь покупателя WEG (BPMN) — как будет', en: 'WEG customer journey (BPMN) — to be' },
+    lanes,
+    nodes: built.nodes,
+    edges: built.edges,
+  };
+  return {
+    id: asis ? 'weg-journey-bpmn' : 'weg-journey-bpmn-tobe',
+    order: 1,
+    variant,
+    baselineId: asis ? undefined : 'weg-journey-bpmn',
+    name: spec.name,
+    description: asis
+      ? {
+          ru: 'Путь покупателя серийного двигателя сегодня, от потребности до решения о повторном заказе: подбор, запрос, заказ и проверка кредита, ожидание, отгрузка, получение, оплата и сервис.',
+          en: 'The standard-motor buyer\'s journey today, from the need to the reorder decision: selection, enquiry, order and credit check, waiting, shipment, receipt, payment and service.',
+        }
+      : {
+          ru: 'Путь покупателя после изменений: подбор и цена в портале, заказ без ручных проверок, дата отгрузки при заказе, выбор срока оплаты, цифровой паспорт, мониторинг и удалённый сервис.',
+          en: 'The buyer\'s journey after the changes: selection and price in the portal, an order without manual checks, a ship date at ordering, a choice of payment term, a digital passport, monitoring and remote service.',
+        },
+    analysis: {
+      ...clone(built.o2c.analysis),
+      roles: mergeRoles(clone(built.o2c.analysis.roles || [])),
+    },
+    documentation: { ru: documentation(variant, 'ru'), en: documentation(variant, 'en') },
+    spec,
+  };
+}
+
+const WEG_JOURNEY_AS_IS = [journeyProcess('as-is')];
+const WEG_JOURNEY_TO_BE = [journeyProcess('to-be')];
+const WEG_JOURNEY_PROCESSES = [...WEG_JOURNEY_AS_IS, ...WEG_JOURNEY_TO_BE];
+
+const BUILD = {
+  library: WEG_JOURNEY_LIBRARY,
+  author: 'WEG S.A. — public disclosure; FiberModeler',
+  roleName: roleLabel,
+};
+
+/** The two BPMN journeys as diagrams, with the computed comparison on the target one. */
+function buildWegJourneyDiagrams(locale = 'ru') {
+  return buildLibraryDiagrams(WEG_JOURNEY_PROCESSES, locale, BUILD, (process) => journeyFolder(process.variant, locale));
+}
+
+Object.assign(__exports, { WEG_JOURNEY_LIBRARY, journeyFolder, WEG_JOURNEY_AS_IS, WEG_JOURNEY_TO_BE, WEG_JOURNEY_PROCESSES, buildWegJourneyDiagrams });
+
+});
 __fm_define('app/library/weg/sheets/matrices.js', function (__exports) {
 /**
  * Impact / effort worksheets for the eight WEG processes.
@@ -16898,288 +17469,6 @@ const SHEET_TEMPLATES = [
 Object.assign(__exports, { JOURNEY_ROWS, SHEET_TEMPLATES });
 
 });
-__fm_define('app/library/weg/sheets/engine.js', function (__exports) {
-/**
- * What each change of a target model is worth, measured on the models.
- *
- * The worksheets quote numbers next to every change. They are not typed in:
- * a change is switched off in a copy of the TO-BE model (its steps get their
- * AS-IS parameters back, its branch shares return to the old values) and the
- * two models are analysed. The difference is what the change contributes.
- * Changes that replace whole steps (a step that exists only in AS-IS cannot be
- * "switched back on" in a copy) are measured by the load of those AS-IS steps.
- */
-const { analyzeProcess } = __fm_require('app/analysis/simulate.js');
-const { completionShare } = __fm_require('app/analysis/compare.js');
-const { formatDuration, formatMoney } = __fm_require('app/analysis/parameters.js');
-const { pick } = __fm_require('app/library/shared.js');
-const { WEG_AS_IS, WEG_TO_BE, buildWegDiagram } = __fm_require('app/library/weg/index.js');
-const COST_KEYS = ['duration', 'waitTime', 'cost'];
-
-const clone = (value) => JSON.parse(JSON.stringify(value));
-
-function processPair(processId) {
-  const tobe = WEG_TO_BE.find((process) => process.id === processId);
-  const asis = tobe && WEG_AS_IS.find((process) => process.id === tobe.baselineId);
-  return tobe && asis ? { tobe, asis } : null;
-}
-
-const cache = new Map();
-
-/**
- * Analysis of a library process; the numbers do not depend on the language.
- * `cost` is the cost of a case that reaches a successful end: a change that
- * stops rejecting late lets more cases into expensive steps, and the cost per
- * *started* case would then punish it for being good.
- */
-function analyse(process) {
-  if (!cache.has(process)) {
-    const diagram = buildWegDiagram(process, 'en');
-    const result = analyzeProcess(diagram);
-    const done = completionShare(diagram, result);
-    cache.set(process, {
-      result,
-      done,
-      nodes: result.nodes,
-      lead: result.totals.leadExpected,
-      work: result.totals.workMinutes,
-      cost: result.totals.costPerRun / done,
-    });
-  }
-  return cache.get(process);
-}
-
-/**
- * A copy of the TO-BE process with one change switched off.
- * `revert`: `nodes` get their AS-IS duration / wait / cost back, `zero` nodes
- * stop costing anything (steps that do not exist in AS-IS), `like` maps a
- * TO-BE step to the AS-IS step it replaced, `edges` are
- * `[source, target, share]` triples that restore a branch share, `rewire`
- * removes and adds flows (to turn a parallel stretch back into a sequence).
- */
-function revertChange(tobe, asis, revert = {}) {
-  const process = clone(tobe);
-  const before = new Map(asis.spec.nodes.map((node) => [node.id, node]));
-  const find = (id) => {
-    const found = process.spec.nodes.find((node) => node.id === id);
-    if (!found) throw new Error(`${tobe.id}: no step "${id}"`);
-    found.props = found.props || {};
-    return found;
-  };
-  for (const id of revert.nodes || []) {
-    const step = find(id);
-    const old = before.get(id);
-    for (const key of COST_KEYS) {
-      if (old?.props && key in old.props) step.props[key] = old.props[key];
-      else delete step.props[key];
-    }
-  }
-  for (const [id, asisId] of Object.entries(revert.like || {})) {
-    // a step that replaced another one gets the parameters of the step it replaced
-    const step = find(id);
-    const old = before.get(asisId);
-    if (!old) throw new Error(`${tobe.id}: no AS-IS step "${asisId}"`);
-    for (const key of COST_KEYS) {
-      if (old.props && key in old.props) step.props[key] = old.props[key];
-      else delete step.props[key];
-    }
-  }
-  for (const id of revert.zero || []) {
-    const step = find(id);
-    for (const key of COST_KEYS) step.props[key] = 0;
-  }
-  const rewire = revert.rewire || {};
-  for (const [source, target] of rewire.remove || []) {
-    const index = process.spec.edges.findIndex((entry) => entry.source === source && entry.target === target);
-    if (index < 0) throw new Error(`${tobe.id}: no flow ${source} > ${target}`);
-    process.spec.edges.splice(index, 1);
-  }
-  for (const [source, target, share] of rewire.add || []) {
-    process.spec.edges.push({ source, target, props: share === undefined ? {} : { probability: share } });
-  }
-  for (const [source, target, share] of revert.edges || []) {
-    const edge = process.spec.edges.find((entry) => entry.source === source && entry.target === target);
-    if (!edge) throw new Error(`${tobe.id}: no flow ${source} > ${target}`);
-    edge.props = edge.props || {};
-    edge.props.probability = share;
-  }
-  return process;
-}
-
-/** Row of an analysis by the id a step has in the specification. */
-function rowsById(process, analysis) {
-  const byLabel = new Map(analysis.nodes.map((row) => [row.label, row]));
-  const out = new Map();
-  for (const node of process.spec.nodes) {
-    const row = byLabel.get(node.label.en);
-    if (row) out.set(node.id, row);
-  }
-  return out;
-}
-
-/** Row of the analysis for a step, by its id in the specification. */
-function stepRow(process, id) {
-  const row = rowsById(process, analyse(process)).get(id);
-  if (!row) throw new Error(`${process.id}: no step "${id}"`);
-  return row;
-}
-
-/** Branch share (percent) of a flow of the specification. */
-function flowShare(process, source, target) {
-  const edge = process.spec.edges.find((entry) => entry.source === source && entry.target === target);
-  if (!edge) throw new Error(`${process.id}: no flow ${source} > ${target}`);
-  return edge.props?.probability;
-}
-
-/** Work, waiting and cost per case that a set of AS-IS steps carries. */
-function stepLoad(asis, ids) {
-  const analysis = analyse(asis);
-  const rows = rowsById(asis, analysis);
-  const load = { work: 0, wait: 0, cost: 0 };
-  for (const id of ids) {
-    const row = rows.get(id);
-    if (!row) throw new Error(`${asis.id}: no step "${id}"`);
-    load.work += row.totalMinutes;
-    load.wait += row.runs * row.wait;
-    load.cost += row.totalCost;
-  }
-  return load;
-}
-
-/**
- * Measures one change. Returns the contribution to the lead time, the work and
- * the cost of a case (positive = the change saves that much), the same per
- * year, and the share of the whole transition each one makes up.
- */
-function measureChange(processId, change) {
-  const pair = processPair(processId);
-  if (!pair) throw new Error(`unknown process ${processId}`);
-  const { tobe, asis } = pair;
-  const base = analyse(tobe);
-  const before = analyse(asis);
-  const volume = tobe.analysis?.volumePerYear || 0;
-  const gain = {
-    lead: before.lead - base.lead,
-    work: before.work - base.work,
-    cost: before.cost - base.cost,
-  };
-  let saved;
-  let kind;
-  if (change.revert) {
-    const off = analyse(revertChange(tobe, asis, change.revert));
-    saved = {
-      lead: off.lead - base.lead,
-      work: off.work - base.work,
-      cost: off.cost - base.cost,
-    };
-    kind = 'revert';
-  } else if (change.steps) {
-    // steps that disappear, less whatever replaces them
-    const gone = stepLoad(asis, change.steps);
-    const instead = change.by ? stepLoad(tobe, change.by) : { work: 0, wait: 0, cost: 0 };
-    saved = {
-      lead: gone.work + gone.wait - instead.work - instead.wait,
-      work: gone.work - instead.work,
-      cost: gone.cost - instead.cost,
-    };
-    kind = 'steps';
-  } else {
-    return null;
-  }
-  const share = (value, total) => (Math.abs(total) > 1e-9 ? value / total : 0);
-  return {
-    kind,
-    saved,
-    perYear: { cost: saved.cost * volume, work: saved.work * volume },
-    share: { lead: share(saved.lead, gain.lead), work: share(saved.work, gain.work), cost: share(saved.cost, gain.cost) },
-    gain,
-    volume,
-  };
-}
-
-/* ----------------------------------------------------------------- wording */
-
-const signed = (value, text) => (value > 0 ? `+${text}` : value < 0 ? `−${text}` : text);
-const pct = (value) => `${Math.round(Math.abs(value) * 100)} %`;
-
-/**
- * One line that says what the model attributes to the change. `signed` values
- * are positive when the change helps; wording is "without it ... would be".
- */
-function describeMeasure(measure, locale = 'ru', currency = 'R$') {
-  if (!measure) return '';
-  const ru = locale === 'ru';
-  const { saved, share, perYear, kind } = measure;
-  const parts = [];
-  if (kind === 'revert') {
-    const lead = Math.abs(saved.lead);
-    if (lead >= 0.5 && (Math.abs(share.lead) >= 0.02 || lead >= 30)) {
-      parts.push(
-        ru
-          ? `срок ${saved.lead > 0 ? 'длиннее' : 'короче'} на ${formatDuration(lead, 'ru')} (${pct(share.lead)} выигрыша процесса)`
-          : `lead time ${formatDuration(lead, 'en')} ${saved.lead > 0 ? 'longer' : 'shorter'} (${pct(share.lead)} of the process gain)`
-      );
-    }
-    if (Math.abs(saved.work) >= 1 && Math.abs(share.work) >= 0.05) {
-      parts.push(
-        ru
-          ? `трудозатраты ${saved.work > 0 ? 'выше' : 'ниже'} на ${formatDuration(Math.abs(saved.work), 'ru')}`
-          : `work ${formatDuration(Math.abs(saved.work), 'en')} ${saved.work > 0 ? 'higher' : 'lower'}`
-      );
-    }
-    if (Math.abs(saved.cost) >= 0.05) {
-      const money = formatMoney(Math.abs(saved.cost), currency, locale);
-      const year = Math.abs(perYear.cost) >= 1e6 ? ` (≈ ${formatMoney(Math.abs(perYear.cost), currency, locale)} ${ru ? 'в год' : 'a year'})` : '';
-      parts.push(
-        ru
-          ? `стоимость случая ${saved.cost > 0 ? 'выше' : 'ниже'} на ${money}${year}`
-          : `cost per case ${money} ${saved.cost > 0 ? 'higher' : 'lower'}${year}`
-      );
-    }
-    if (!parts.length) return '';
-    return ru ? `Без этого изменения: ${parts.join('; ')}.` : `Without this change: ${parts.join('; ')}.`;
-  }
-  const bits = [];
-  if (saved.work >= 0.5) bits.push(formatDuration(saved.work, locale) + (ru ? ' работы' : ' of work'));
-  if (saved.cost >= 0.05) bits.push(formatMoney(saved.cost, currency, locale));
-  if (!bits.length) return '';
-  return ru
-    ? `Новые шаги вместо прежних экономят на каждом случае ${bits.join(' и ')}.`
-    : `The new steps in place of the old ones save ${bits.join(' and ')} on every case.`;
-}
-
-
-/**
- * Fills `{lead}`, `{cost}`, `{year}`, `{leadShare}`, `{costShare}`, `{workShare}`
- * in a sentence. `{id:key}` takes the value from another change of the same
- * sheet; a bare `{key}` takes it from `fallback`.
- */
-function fillPlaceholders(text, measures, fallback, locale = 'ru', currency = 'R$') {
-  const values = (measure) => {
-    if (!measure) return {};
-    const { saved, share, perYear } = measure;
-    return {
-      lead: formatDuration(Math.abs(saved.lead), locale),
-      leadShare: pct(share.lead),
-      cost: formatMoney(Math.abs(saved.cost), currency, locale),
-      year: formatMoney(Math.abs(perYear.cost), currency, locale),
-      workShare: pct(share.work),
-      costShare: pct(share.cost),
-    };
-  };
-  return text.replace(/\{(?:(\w+):)?(\w+)\}/g, (match, id, key) => {
-    const found = values(id ? measures[id] : fallback)[key];
-    return found === undefined ? match : found;
-  });
-}
-
-function localized(value, locale) {
-  return pick(value, locale);
-}
-
-Object.assign(__exports, { signed, processPair, analyse, revertChange, stepRow, flowShare, stepLoad, measureChange, describeMeasure, fillPlaceholders, localized });
-
-});
 __fm_define('app/library/weg/sheets/journey.js', function (__exports) {
 /**
  * Customer journey of a WEG buyer, as is and to be.
@@ -17780,21 +18069,22 @@ __fm_define('app/library/index.js', function (__exports) {
 const { createProject } = __fm_require('app/core/model.js');
 const { WEG_PROCESSES, buildWegDiagrams, wegProjectDocumentation } = __fm_require('app/library/weg/index.js');
 const { UBER_PROCESSES, buildUberDiagrams, uberProjectDocumentation } = __fm_require('app/library/ubereats/index.js');
+const { WEG_JOURNEY_PROCESSES, buildWegJourneyDiagrams } = __fm_require('app/library/weg/journey/index.js');
 const { WEG_SHEET_COUNT, buildWegSheetDiagrams, wegSheetsDocumentation } = __fm_require('app/library/weg/sheets/index.js');
 /** `meta.library` values of the shipped libraries. */
-const LIBRARY_IDS = ['weg', 'wegsheets', 'ubereats'];
+const LIBRARY_IDS = ['weg', 'wegjourney', 'wegsheets', 'ubereats'];
 
 function isLibraryDiagram(diagram) {
   return LIBRARY_IDS.includes(diagram?.meta?.library);
 }
 
-const LIBRARY_PROCESS_COUNT = WEG_PROCESSES.length + UBER_PROCESSES.length;
+const LIBRARY_PROCESS_COUNT = WEG_PROCESSES.length + WEG_JOURNEY_PROCESSES.length + UBER_PROCESSES.length;
 
 const LIBRARY_SHEET_COUNT = WEG_SHEET_COUNT;
 
-/** All shipped diagrams, in explorer order: WEG, its worksheets, then Uber Eats. */
+/** All shipped diagrams, in explorer order: WEG, the buyer's journey, the worksheets, then Uber Eats. */
 function buildAllLibraryDiagrams(locale = 'ru') {
-  return [...buildWegDiagrams(locale), ...buildWegSheetDiagrams(locale), ...buildUberDiagrams(locale)];
+  return [...buildWegDiagrams(locale), ...buildWegJourneyDiagrams(locale), ...buildWegSheetDiagrams(locale), ...buildUberDiagrams(locale)];
 }
 
 function librariesProjectName(locale = 'ru') {

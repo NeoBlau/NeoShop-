@@ -9,22 +9,23 @@
 import { createProject } from '../core/model.js';
 import { WEG_PROCESSES, buildWegDiagrams, wegProjectDocumentation } from './weg/index.js';
 import { UBER_PROCESSES, buildUberDiagrams, uberProjectDocumentation } from './ubereats/index.js';
+import { WEG_JOURNEY_PROCESSES, buildWegJourneyDiagrams } from './weg/journey/index.js';
 import { WEG_SHEET_COUNT, buildWegSheetDiagrams, wegSheetsDocumentation } from './weg/sheets/index.js';
 
 /** `meta.library` values of the shipped libraries. */
-export const LIBRARY_IDS = ['weg', 'wegsheets', 'ubereats'];
+export const LIBRARY_IDS = ['weg', 'wegjourney', 'wegsheets', 'ubereats'];
 
 export function isLibraryDiagram(diagram) {
   return LIBRARY_IDS.includes(diagram?.meta?.library);
 }
 
-export const LIBRARY_PROCESS_COUNT = WEG_PROCESSES.length + UBER_PROCESSES.length;
+export const LIBRARY_PROCESS_COUNT = WEG_PROCESSES.length + WEG_JOURNEY_PROCESSES.length + UBER_PROCESSES.length;
 
 export const LIBRARY_SHEET_COUNT = WEG_SHEET_COUNT;
 
-/** All shipped diagrams, in explorer order: WEG, its worksheets, then Uber Eats. */
+/** All shipped diagrams, in explorer order: WEG, the buyer's journey, the worksheets, then Uber Eats. */
 export function buildAllLibraryDiagrams(locale = 'ru') {
-  return [...buildWegDiagrams(locale), ...buildWegSheetDiagrams(locale), ...buildUberDiagrams(locale)];
+  return [...buildWegDiagrams(locale), ...buildWegJourneyDiagrams(locale), ...buildWegSheetDiagrams(locale), ...buildUberDiagrams(locale)];
 }
 
 export function librariesProjectName(locale = 'ru') {
