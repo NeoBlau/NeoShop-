@@ -1663,6 +1663,19 @@ export class App {
     }
   }
 
+  /**
+   * A project restored from the autosave may hold an older copy of the shipped
+   * libraries. Library diagrams it lacks are added; the ones it has - possibly
+   * edited - stay exactly as they are.
+   */
+  _addMissingLibraryDiagrams(project) {
+    if (!project.diagrams.some(isLibraryDiagram)) return;
+    const have = new Set(project.diagrams.filter(isLibraryDiagram).map((diagram) => diagram.meta?.processId));
+    for (const diagram of buildAllLibraryDiagrams(i18n.locale)) {
+      if (!have.has(diagram.meta.processId)) project.diagrams.push(diagram);
+    }
+  }
+
   /* --------------------------------------------------------------- boot */
 
   async boot() {
@@ -1670,6 +1683,7 @@ export class App {
     if (recovery?.projectId) {
       const record = await loadProjectRecord(recovery.projectId).catch(() => null);
       if (record?.project?.diagrams?.length) {
+        this._addMissingLibraryDiagrams(record.project);
         this._loadProject(record.project);
         this.openDiagram(record.project.diagrams[0].id);
         toast(t('toast.recovered'));
