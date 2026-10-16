@@ -229,7 +229,7 @@ register({
       valign: 'top',
       fontSize: 12.5,
       color: node.label ? textOf(node) : 'var(--el-muted, #94a3b8)',
-      maxLines: 14,
+      maxLines: Math.max(3, Math.floor((node.h - 20 - titleH) / 16.5)),
     });
     return markup;
   },
@@ -316,7 +316,7 @@ register({
       valign: 'top',
       fontSize: 13,
       color: node.label ? textOf(node) : 'var(--el-muted, #94a3b8)',
-      maxLines: 9,
+      maxLines: Math.max(3, Math.floor((node.h - 74) / 17)),
     });
     return markup;
   },

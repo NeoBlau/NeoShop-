@@ -198,7 +198,7 @@ function buildRisks(diagram, spec, locale) {
     w: 900,
     h: spec.changeHeight || 96,
     label: pick(spec.change, locale),
-    props: { title: pick(STRINGS.changeTitle, locale), role: 'change' },
+    props: { title: pick(spec.changeTitle ?? STRINGS.changeTitle, locale), role: 'change' },
   });
   let y = 90 + (spec.changeHeight || 96) + 22;
   const tones = ['teal', 'orange', 'violet'];
@@ -214,6 +214,66 @@ function buildRisks(diagram, spec, locale) {
     });
     y += height + 20;
   });
+  if (spec.footer) {
+    node(diagram, 'sheetText', {
+      x: 0,
+      y,
+      w: 900,
+      h: spec.footerHeight || 96,
+      label: pick(spec.footer, locale),
+      props: { title: pick(spec.footerTitle ?? '', locale), role: 'hint' },
+    });
+  }
+}
+
+/* ------------------------------------------------------------------- table */
+
+/**
+ * A fill-in table: a header row and rows of cells, as in the worksheets of a
+ * seminar (step / technology / reason). Cells reuse the journey cell, so the
+ * checks, export and editing work as they do on a journey map.
+ */
+function buildTable(diagram, spec, locale) {
+  const columns = spec.columns || [];
+  const gap = 8;
+  const width = columns.reduce((sum, column) => sum + column.w, 0) + gap * (columns.length - 1);
+  node(diagram, 'sheetTitle', { x: 0, y: 0, w: Math.min(width, 1400), h: 70, label: pick(spec.title, locale), props: { kicker: pick(spec.kicker, locale) } });
+  const lefts = [];
+  let x = 0;
+  for (const column of columns) {
+    lefts.push(x);
+    x += column.w + gap;
+  }
+  let y = 92;
+  columns.forEach((column, index) => {
+    node(diagram, 'journeyStage', { x: lefts[index], y, w: column.w, h: 44, label: pick(column.name, locale) });
+  });
+  y += 44 + gap;
+  for (const row of spec.rows || []) {
+    const height = row.height || 78;
+    columns.forEach((column, index) => {
+      const cell = (row.cells || [])[index] ?? '';
+      node(diagram, 'journeyCell', {
+        x: lefts[index],
+        y,
+        w: column.w,
+        h: height,
+        label: pick(cell.text ?? cell, locale),
+        props: { tone: (cell && cell.tone) || (index === 0 ? 'neutral' : row.tone || 'neutral') },
+      });
+    });
+    y += height + gap;
+  }
+  if (spec.footer) {
+    node(diagram, 'sheetText', {
+      x: 0,
+      y: y + 12,
+      w: width,
+      h: spec.footerHeight || 70,
+      label: pick(spec.footer, locale),
+      props: { title: pick(spec.footerTitle ?? '', locale), role: 'hint' },
+    });
+  }
 }
 
 /* ----------------------------------------------------------------- journey */
@@ -269,7 +329,7 @@ function buildJourney(diagram, spec, locale) {
 
 /* ------------------------------------------------------------------- entry */
 
-const BUILDERS = { matrix: buildMatrix, risks: buildRisks, journey: buildJourney };
+const BUILDERS = { matrix: buildMatrix, risks: buildRisks, form: buildRisks, table: buildTable, journey: buildJourney };
 
 export function buildSheetDiagrams(spec, options = {}) {
   const locale = options.locale || 'ru';

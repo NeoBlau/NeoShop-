@@ -279,13 +279,13 @@ test('an Uber Eats diagram survives a save / load round trip', () => {
 });
 
 test('the application opens on every shipped library, each in its own folders', () => {
-  assert.deepEqual(LIBRARY_IDS, ['weg', 'wegjourney', 'wegsheets', 'ubereats'], 'the process libraries, the buyer journey and the WEG worksheets are shipped');
+  assert.deepEqual(LIBRARY_IDS, ['weg', 'wegjourney', 'wegsheets', 'automation', 'ubereats'], 'the process libraries, the buyer journey, the worksheets and the automation sheets are shipped');
   for (const locale of ['ru', 'en']) {
     const project = createLibrariesProject(locale);
-    assert.equal(project.diagrams.length, 38, 'sixteen WEG models, two journey models, eighteen worksheets and two Uber Eats models');
+    assert.equal(project.diagrams.length, 120, 'sixteen WEG models, two journey models, eighteen worksheets, eighty-two automation sheets and two Uber Eats models');
     assert.ok(project.diagrams.every(isLibraryDiagram), 'every diagram is library content');
     const folders = new Set(project.diagrams.map((d) => d.meta.folder));
-    assert.equal(folders.size, 8, 'two process roots with two versions each, and four worksheet folders');
+    assert.equal(folders.size, 17, 'two process roots with two versions each, four worksheet folders, and nine automation folders');
     const ids = project.diagrams.map((d) => d.meta.processId);
     assert.equal(new Set(ids).size, ids.length, 'process identifiers are unique across the libraries');
     assert.ok(project.documentation.includes('WEG') && project.documentation.includes('Uber Eats'), 'the project notes cover both');
@@ -294,5 +294,5 @@ test('the application opens on every shipped library, each in its own folders', 
   assert.equal(isLibraryDiagram({ meta: { library: 'weg' } }), true, 'a WEG diagram counts');
   assert.equal(isLibraryDiagram({ meta: {} }), false, 'a user diagram does not');
   assert.equal(isLibraryDiagram(null), false, 'and null is safe');
-  assert.equal(buildAllLibraryDiagrams('ru').length, 38, 'the flat builder agrees');
+  assert.equal(buildAllLibraryDiagrams('ru').length, 120, 'the flat builder agrees');
 });

@@ -210,7 +210,7 @@ python3 serve.py
 Нужен Node.js 18+ — только для тестов и пересборки одного файла. Сама программа работает без него.
 
 ```bash
-node tests/run.js                   # 119 тестов, без зависимостей
+node tests/run.js                   # 124 теста, без зависимостей
 node tests/run.js weg               # только тесты библиотеки WEG
 python3 tools/build_single_file.py  # пересобрать dist/FiberModeler.html
 python3 tools/subset_font.py        # пересобрать встроенный шрифт для PDF

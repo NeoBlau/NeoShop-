@@ -10,6 +10,7 @@ import { RISKS } from '../app/library/weg/sheets/risks.js';
 import { WEG_SHEET_COUNT, buildWegSheetDiagrams, scoreMatrix } from '../app/library/weg/sheets/index.js';
 import { WEG_AS_IS, WEG_TO_BE, buildWegDiagram } from '../app/library/weg/index.js';
 import { stepRow, flowShare } from '../app/library/weg/sheets/engine.js';
+import { AUTOMATION_SHEET_COUNT } from '../app/library/automation/index.js';
 import { createLibrariesProject } from '../app/library/index.js';
 import { normalizeProject } from '../app/core/model.js';
 
@@ -26,7 +27,7 @@ test('the worksheet notation draws every element type and forbids connections', 
 });
 
 test('the three empty templates build and the checks read as a to-do list', () => {
-  assert.equal(SHEET_TEMPLATES.length, 3, 'matrix, risks, journey');
+  assert.equal(SHEET_TEMPLATES.length, 6, 'matrix, risks, technology, risk and mitigation, pilot, journey');
   for (const template of SHEET_TEMPLATES) {
     for (const locale of ['ru', 'en']) {
       const diagrams = buildDiagrams(template.spec, { locale, name: 'x' });
@@ -59,7 +60,7 @@ test('the checks notice a quick win without a reason and an emotion curve of the
   assert.ok(validateSheet(matrix).some((p) => p.messageKey === 'whyEmpty'), 'asks for the reason');
   matrix.nodes.find((n) => n.props?.role === 'why').label = 'Because.';
   assert.equal(validateSheet(matrix).length, 0, 'a complete sheet is clean');
-  const journey = buildSheetDiagrams(SHEET_TEMPLATES[2].spec, { locale: 'en' })[0];
+  const journey = buildSheetDiagrams(SHEET_TEMPLATES.find((t) => t.id === 'customer-journey').spec, { locale: 'en' })[0];
   journey.nodes.find((n) => n.type === 'journeyCurve').props.scores = '1, 2';
   assert.ok(validateSheet(journey).some((p) => p.messageKey === 'curveCount'), 'curve length is checked');
 });
@@ -68,7 +69,7 @@ test('worksheets survive a project round trip', () => {
   const project = createLibrariesProject('ru');
   const restored = normalizeProject(JSON.parse(JSON.stringify(project)));
   const sheets = restored.diagrams.filter((d) => d.notation === 'sheet');
-  assert.equal(sheets.length, WEG_SHEET_COUNT, 'worksheets keep their notation');
+  assert.equal(sheets.length, WEG_SHEET_COUNT + AUTOMATION_SHEET_COUNT, 'worksheets keep their notation');
   assert.ok(sheets.every((d) => d.id.startsWith('sheet') || d.id.length > 0), 'ids survive');
 });
 

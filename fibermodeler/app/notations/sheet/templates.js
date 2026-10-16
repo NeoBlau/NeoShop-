@@ -18,6 +18,26 @@ export const JOURNEY_ROWS = {
   ideas: { key: 'ideas', label: { ru: 'Возможности', en: 'Opportunities' }, height: 104, tone: 'gain' },
 };
 
+/** Columns of the technology-choice table, shared with the filled sheets of the library. */
+export const TECH_COLUMNS = [
+  { name: { ru: 'Шаг процесса', en: 'Process step' }, w: 440 },
+  { name: { ru: 'Технология (впишите)', en: 'Technology (fill in)' }, w: 220 },
+  { name: { ru: 'Обоснование (впишите)', en: 'Reason (fill in)' }, w: 520 },
+];
+
+export const RISK_FIELDS = [
+  { ru: 'Тип риска (организационный / технологический / «бардак»)', en: 'Type of risk (organisational / technological / "mess")' },
+  { ru: 'Описание риска именно для этого шага', en: 'The risk described for this very step' },
+  { ru: 'Мера снижения — что сделаем в первую неделю', en: 'Mitigation: what we do in the first week' },
+];
+
+export const PILOT_FIELDS = [
+  { ru: 'Технология, которую пилотируем', en: 'The technology we pilot' },
+  { ru: 'Масштаб пилота (кто / что / сколько времени)', en: 'Pilot scale (who / what / how long)' },
+  { ru: 'Показатель успеха пилота (1 измеримая метрика)', en: 'Pilot success indicator (one measurable metric)' },
+  { ru: 'Целевое значение через 2 недели', en: 'Target value after 2 weeks' },
+];
+
 const blank = (count) => Array.from({ length: count }, () => ({ ru: '', en: '' }));
 
 export const SHEET_TEMPLATES = [
@@ -78,6 +98,62 @@ export const SHEET_TEMPLATES = [
           answer: '',
         },
       ],
+    },
+  },
+  {
+    id: 'technology-choice',
+    name: { ru: 'Выбор технологии для шагов TO-BE', en: 'Technology choice for TO-BE steps' },
+    description: {
+      ru: 'Таблица: шаг TO-BE, класс технологии (RPA / BPM / CRM / ERP / AI) и обоснование одним предложением; отметьте шаги, которые автоматизировать не нужно.',
+      en: 'A table: the TO-BE step, the technology class (RPA / BPM / CRM / ERP / AI) and a one-sentence reason; mark the steps that need no automation.',
+    },
+    spec: {
+      notation: 'sheet',
+      kind: 'table',
+      name: { ru: 'Выбор технологии для шагов TO-BE', en: 'Technology choice for TO-BE steps' },
+      title: { ru: 'Рабочий лист: шаги TO-BE и технология', en: 'Worksheet: TO-BE steps and technology' },
+      columns: TECH_COLUMNS,
+      rows: [1, 2, 3, 4, 5].map((no) => ({ cells: [{ ru: '', en: '' }, '', ''] })),
+      footer: {
+        ru: 'Для каждого шага спросите себя: выполняет его человек или уже система? Какой класс технологии решает именно этот шаг? Не каждый шаг TO-BE нужно автоматизировать: отметьте такие и объясните почему.',
+        en: 'For every step ask: is it done by a person or already by a system? Which technology class solves exactly this step? Not every TO-BE step needs automation: mark those and say why.',
+      },
+    },
+  },
+  {
+    id: 'risk-mitigation',
+    name: { ru: 'Риск и мера снижения', en: 'Risk and mitigation' },
+    description: {
+      ru: 'Выберите один шаг, назовите тип риска (организационный / технологический / «бардак») и одну меру на первую неделю.',
+      en: 'Pick one step, name the risk type (organisational / technological / "mess") and one measure for the first week.',
+    },
+    spec: {
+      notation: 'sheet',
+      kind: 'form',
+      name: { ru: 'Риск и мера снижения', en: 'Risk and mitigation' },
+      title: { ru: 'Рабочий лист: риск и мера снижения', en: 'Worksheet: risk and mitigation' },
+      changeTitle: { ru: 'Выбранный шаг', en: 'The chosen step' },
+      change: '',
+      changeHeight: 84,
+      questions: RISK_FIELDS.map((question) => ({ question, answer: '', height: 110 })),
+    },
+  },
+  {
+    id: 'pilot-plan',
+    name: { ru: 'Масштаб пилота и KPI', en: 'Pilot scale and KPI' },
+    description: {
+      ru: 'Технология, масштаб пилота (кто, что, сколько времени), один измеримый показатель и его целевое значение через две недели.',
+      en: 'The technology, the pilot scale (who, what, how long), one measurable indicator and its target after two weeks.',
+    },
+    spec: {
+      notation: 'sheet',
+      kind: 'form',
+      name: { ru: 'Масштаб пилота и KPI', en: 'Pilot scale and KPI' },
+      title: { ru: 'Рабочий лист: масштаб пилота и KPI', en: 'Worksheet: pilot scale and KPI' },
+      changeTitle: { ru: 'Что пилотируем', en: 'What is piloted' },
+      change: '',
+      changeHeight: 72,
+      questions: PILOT_FIELDS.map((question) => ({ question, answer: '', height: 100 })),
     },
   },
   {

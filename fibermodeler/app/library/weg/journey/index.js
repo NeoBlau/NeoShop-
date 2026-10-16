@@ -22,7 +22,7 @@
  * connections are assumptions of this file, and they are tagged as such.
  */
 import { DAY, auto, flow, node, wait, work } from '../../kit.js';
-import { buildLibraryDiagrams, pick, variantFolder } from '../../shared.js';
+import { buildLibraryDiagram, buildLibraryDiagrams, pick, variantFolder } from '../../shared.js';
 import { dataNote, roleLabel } from '../facts.js';
 import { WEG_AS_IS, WEG_TO_BE } from '../index.js';
 import { analyse } from '../sheets/engine.js';
@@ -282,4 +282,9 @@ const BUILD = {
 /** The two BPMN journeys as diagrams, with the computed comparison on the target one. */
 export function buildWegJourneyDiagrams(locale = 'ru') {
   return buildLibraryDiagrams(WEG_JOURNEY_PROCESSES, locale, BUILD, (process) => journeyFolder(process.variant, locale));
+}
+
+/** One of the two journeys as a diagram, without the comparison block. */
+export function buildWegJourneyDiagram(process, locale = 'en') {
+  return buildLibraryDiagram(process, locale, { ...BUILD, folder: journeyFolder(process.variant, locale) });
 }
