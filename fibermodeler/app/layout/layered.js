@@ -38,20 +38,42 @@ export function layeredLayout(diagram, options = {}) {
     incoming.get(edge.target).push(edge.source);
   }
 
-  /* 1. layering ---------------------------------------------------------- */
+  /* 1. layering ----------------------------------------------------------
+   * Loops (a rework flow back to an earlier step) must not decide where a step
+   * goes. Back edges are found by a depth-first walk from the sources, in the
+   * order the flows were drawn, and left out of the layering; every other node
+   * then sits one layer after the latest of its predecessors.
+   */
+  const backEdges = new Set();
+  {
+    const state = new Map(); // 1 = on the walk, 2 = finished
+    const walk = (start) => {
+      const stack = [[start, 0]];
+      state.set(start, 1);
+      while (stack.length) {
+        const top = stack[stack.length - 1];
+        const next = outgoing.get(top[0])[top[1]++];
+        if (next === undefined) {
+          state.set(top[0], 2);
+          stack.pop();
+        } else if (state.get(next) === 1) {
+          backEdges.add(`${top[0]}>${next}`);
+        } else if (!state.has(next)) {
+          state.set(next, 1);
+          stack.push([next, 0]);
+        }
+      }
+    };
+    for (const node of flowNodes) if (!incoming.get(node.id).length && !state.has(node.id)) walk(node.id);
+    for (const node of flowNodes) if (!state.has(node.id)) walk(node.id);
+  }
+  const forwardIncoming = new Map(flowNodes.map((n) => [n.id, (incoming.get(n.id) || []).filter((prev) => !backEdges.has(`${prev}>${n.id}`))]));
   const layer = new Map();
-  const temp = new Set();
-  const done = new Set();
   const visit = (id) => {
-    if (done.has(id)) return layer.get(id);
-    if (temp.has(id)) return 0; // cycle: break here
-    temp.add(id);
+    if (layer.has(id)) return layer.get(id);
+    layer.set(id, 0); // guards against any cycle the walk could not see
     let best = 0;
-    for (const prev of incoming.get(id) || []) {
-      best = Math.max(best, visit(prev) + 1);
-    }
-    temp.delete(id);
-    done.add(id);
+    for (const prev of forwardIncoming.get(id)) best = Math.max(best, visit(prev) + 1);
     layer.set(id, best);
     return best;
   };

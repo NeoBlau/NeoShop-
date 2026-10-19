@@ -45,7 +45,7 @@ app/
     sheet/              types, rules, validate, build, templates (рабочие листы: матрица, риски, путь клиента)
     index.js            реестр нотаций
   canvas/               canvas, renderer, routing, interactions, minimap, rulers
-  layout/               layered (Сугияма), idef0layout, align
+  layout/               layered (Сугияма; петли доработки не влияют на слои), idef0layout, align
   io/                   zip, xml, bpmn, projectfile, svgexport, raster, pdf, files
   ai/                   schema, local, providers, index
   analysis/             parameters (схема и форматирование), simulate (расчёт), compare (AS-IS/TO-BE)
@@ -54,12 +54,13 @@ app/
     automation/         листы семинара по автоматизации (techs, content, index; факты считаются по моделям)
     weg/journey/        путь покупателя в BPMN (собирается из процессов 1 и 6)
     weg/sheets/         engine (измерение вклада изменений), matrices, risks, journey, index
+    alfabank/           facts, asis, index (кредитование, как есть)
     ubereats/           facts, asis, tobe, index
   storage/              db (IndexedDB), recent, autosave
   ui/                   app, commands, menus, panels/, dialogs/, icons, menu, dialog, toast
   i18n/                 ru, en
   assets/fonts/         подмножество DejaVu Sans для PDF
-tests/                  124 теста, свой раннер
+tests/                  129 тестов, свой раннер
 tools/                  сборка одного файла, subsetting шрифта
 ```
 
