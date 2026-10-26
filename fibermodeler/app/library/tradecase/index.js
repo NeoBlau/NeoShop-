@@ -58,20 +58,20 @@ function asIsDocumentation(locale) {
   return locale === 'ru'
     ? `Исправленная модель AS-IS: действующий процесс по условиям кейса и правилам BPMN 2.0. Обязанности участников и бизнес-правила сохранены, исправлены только ошибки моделирования.
 
-Участники: пул «Клиент» и пул «Торговая компания» с дорожками «Менеджер», «Склад» и «Бухгалтерия». Между пулами идут только потоки сообщений: заказ, отсутствие товара, счёт, оплата, уведомления о выполнении и об отмене.
+Участники: пул «Торговая компания» с дорожками «Менеджер», «Склад» и «Бухгалтерия» и пул «Клиент». Клиент показан свёрнутым пулом («чёрный ящик»): его поведение в кейсе не разбирается. Между пулами идут только потоки сообщений: заказ, «нет товара», счёт, оплата, «выполнен», «отменён».
 
 Ход процесса. Менеджер регистрирует полученный заказ, склад проверяет наличие. Если товара нет, менеджер уведомляет клиента и отменяет заказ. Если товар есть, бухгалтерия выставляет счёт и процесс ждёт одного из двух событий: оплаты или истечения трёх рабочих дней. При оплате бухгалтерия подтверждает поступление, склад отгружает товар, менеджер сообщает клиенту о выполнении и закрывает заказ. Без оплаты в срок менеджер отменяет заказ и уведомляет клиента.
 
-Три исхода компании: «Заказ выполнен», «Заказ отменён: товара нет», «Заказ отменён: нет оплаты». У клиента им соответствуют свои конечные события.
+Три исхода: «Заказ выполнен», «Заказ отменён: товара нет», «Заказ отменён: нет оплаты». Клиент узнаёт о каждом по своему сообщению.
 
 Числовых параметров в модели нет: по условиям задания эффекты без исходных данных не рассчитываются.`
     : `The corrected AS-IS model: the existing process by the case conditions and the BPMN 2.0 rules. The participants' duties and the business rules are kept; only modelling mistakes are fixed.
 
-Participants: the "Customer" pool and the "Trading company" pool with the "Manager", "Warehouse" and "Accounting" lanes. Only message flows run between the pools: the order, the out-of-stock notice, the invoice, the payment, the notices of fulfilment and of cancellation.
+Participants: the "Trading company" pool with the "Manager", "Warehouse" and "Accounting" lanes and the "Customer" pool. The customer is a collapsed pool (a black box): its behaviour is not analysed in the case. Only message flows run between the pools: the order, "out of stock", the invoice, the payment, "fulfilled", "cancelled".
 
 The flow. The manager registers the received order and the warehouse checks the stock. If the goods are missing the manager notifies the customer and cancels the order. If they are in stock accounting issues the invoice and the process waits for one of two events: the payment or the end of three working days. On payment accounting confirms the receipt, the warehouse ships, the manager tells the customer it is fulfilled and closes the order. If there is no payment in time the manager cancels the order and notifies the customer.
 
-Three company outcomes: "Order fulfilled", "Order cancelled: out of stock", "Order cancelled: no payment". The customer has a matching end event for each.
+Three outcomes: "Order fulfilled", "Order cancelled: out of stock", "Order cancelled: no payment". The customer learns of each from its own message.
 
 The model carries no numeric parameters: by the task, effects are not calculated without source data.`;
 }
@@ -80,7 +80,7 @@ function toBeDocumentation(locale) {
   return locale === 'ru'
     ? `Модель TO-BE: четыре изменения организации процесса без увеличения штата. Явное допущение: настройка имеющейся информационной системы (форма заказа, правила остатков и резерв, шаблон счёта, сопоставление платежей, статусные уведомления). Для этого в пул компании добавлена дорожка «Информационная система компании (настроена; допущение)».
 
-1. Электронная форма заказа и автоматическая регистрация: клиент заполняет форму, система регистрирует заказ.
+1. Электронная форма заказа и автоматическая регистрация: заказ приходит из формы, система регистрирует его.
 2. Автоматическая проверка остатков и резерв товара на срок оплаты: оплаченный заказ не остаётся без товара.
 3. Автоматический счёт, сопоставление платежа со счётом и таймер срока: у бухгалтерии одна задача, подтверждение сопоставленного платежа.
 4. Автоматические статусные уведомления и закрытие заказа по отметке склада об отгрузке; менеджер остаётся для случая отсутствия товара.
@@ -88,7 +88,7 @@ function toBeDocumentation(locale) {
 Бизнес-правила кейса сохранены: предоплата, отмена при отсутствии товара, срок оплаты 3 рабочих дня, закрытие после отгрузки. Для каждого изменения проблема, отражение в BPMN, результат и показатель описаны в таблице «Обоснование изменений TO-BE». Числовые эффекты не рассчитывались: нет исходных данных.`
     : `The TO-BE model: four changes to how the process is organised with no increase in staff. The explicit assumption: the existing information system is configured (an order form, stock rules and a reserve, an invoice template, payment matching, status notices). For this a lane "The company's information system (configured; an assumption)" is added to the company pool.
 
-1. An electronic order form and automatic registration: the customer fills in the form and the system registers the order.
+1. An electronic order form and automatic registration: the order arrives from the form and the system registers it.
 2. An automatic stock check and a reserve for the payment term: a paid order is not left without goods.
 3. An automatic invoice, matching of the payment with the invoice and a term timer: accounting has one task, confirming the matched payment.
 4. Automatic status notices and closing of the order on the warehouse's shipment mark; the manager stays for the out-of-stock case.
@@ -104,7 +104,7 @@ function bpmn(spec, key, id, variant, locale, documentation) {
     name: NAMES[key],
     description: {
       source: t('Модель с рисунка 1 задания вместе с её ошибками: поток управления между пулами, поток сообщений внутри пула, исключающее ветвление с параллельным слиянием и другие.', 'The model of figure 1 of the task with its mistakes: a sequence flow between pools, a message flow inside a pool, an exclusive split with a parallel merge and others.'),
-      asis: t('Действующий процесс по условиям кейса: два пула, потоки сообщений, ожидание оплаты с таймером в 3 рабочих дня и три исхода.', 'The existing process by the case conditions: two pools, message flows, waiting for payment with a 3-working-day timer and three outcomes.'),
+      asis: t('Действующий процесс по условиям кейса: два пула (клиент свёрнут), шесть потоков сообщений, ожидание оплаты с таймером в 3 рабочих дня и три исхода.', 'The existing process by the case conditions: two pools (the customer collapsed), six message flows, waiting for payment with a 3-working-day timer and three outcomes.'),
       tobe: t('Четыре изменения без увеличения штата: электронная форма, остатки с резервом, автоматический счёт и сопоставление платежей, статусные уведомления.', 'Four changes with no increase in staff: an electronic form, stock with a reserve, an automatic invoice and payment matching, status notices.'),
     }[key],
     documentation: null,

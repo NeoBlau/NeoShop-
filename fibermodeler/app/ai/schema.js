@@ -66,6 +66,7 @@ export function buildBpmnDiagram(spec, options = {}) {
     for (const item of spec.pools) {
       const node = createNode({ type: 'pool', x: 0, y: 0, w: 900, h: 200, label: text(item.label, locale) });
       diagram.nodes.push(node);
+      idMap.set(item.id, node.id); // a message flow may end at the pool itself
       const own = lanes.filter((lane) => lane.pool === item.id).map((lane) => makeLane(lane, node));
       if (!own.length) {
         // a pool without lanes holds its elements itself
@@ -111,6 +112,8 @@ export function buildBpmnDiagram(spec, options = {}) {
         source,
         target,
         label: text(item.label, locale),
+        ...(item.sourceSide ? { sourceSide: item.sourceSide } : {}),
+        ...(item.targetSide ? { targetSide: item.targetSide } : {}),
         props: { ...(item.props || {}), ...(item.condition ? { condition: item.condition } : {}) },
       })
     );
@@ -173,7 +176,8 @@ export function layoutBpmn(diagram, { lanes = [], pool = null, pools = null } = 
     const { index: rowOf, count: rows } = assignRows(nodes);
     // leave room above the flow when the lane carries data objects or notes
     const headroom = nodes.some((node) => satelliteOwners.has(node.id)) ? SATELLITE_ROOM : 0;
-    const height = Math.max(LANE_MIN_HEIGHT + headroom, rows * 110 + LANE_PADDING + headroom);
+    // a pool with nothing in it is a collapsed black box: a thin strip is enough
+    const height = nodes.length ? Math.max(LANE_MIN_HEIGHT + headroom, rows * 110 + LANE_PADDING + headroom) : 56;
     lane.x = 60 + POOL_HEADER;
     lane.y = cursorY;
     lane.w = laneWidth;

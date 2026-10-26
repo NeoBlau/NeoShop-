@@ -99,8 +99,13 @@ export function layoutEdges(diagram, options = {}) {
     const start = anchors.get(`${edge.id}|source`) || center(rectOf(source));
     const end = anchors.get(`${edge.id}|target`) || center(rectOf(target));
 
+    const poolRoute = !edge.waypoints?.length && style !== 'straight' ? poolMessageRoute(diagram, edge, source, target) : null;
     let points;
-    if (source.id === target.id) {
+    if (poolRoute) {
+      points = poolRoute.points;
+      geom.sourceSide = poolRoute.sourceSide;
+      geom.targetSide = poolRoute.targetSide;
+    } else if (source.id === target.id) {
       points = selfLoop(rectOf(source));
     } else if (edge.routing === 'manual' && edge.waypoints?.length) {
       points = [start, ...edge.waypoints.map((p) => ({ x: p.x, y: p.y })), end];
@@ -114,6 +119,72 @@ export function layoutEdges(diagram, options = {}) {
     geom.length = geom.points.reduce((acc, p, i) => (i ? acc + dist(geom.points[i - 1], p) : 0), 0);
   }
   return result;
+}
+
+const CHANNEL = 14;
+const CLEAR = 5;
+
+const crosses = (rect, x1, y1, x2, y2) =>
+  Math.max(x1, x2) > rect.x - CLEAR && Math.min(x1, x2) < rect.x + rect.w + CLEAR && Math.max(y1, y2) > rect.y - CLEAR && Math.min(y1, y2) < rect.y + rect.h + CLEAR;
+
+/**
+ * A message flow between a pool and an element of another pool.
+ *
+ * A collapsed pool is a wide, flat box, so the generic side choice (left / right
+ * by the distance between the centres) sends the line round the diagram. The
+ * line instead leaves the element towards the pool, goes straight to the pool
+ * border where it can, and otherwise steps sideways into a free gap first.
+ * Returns null when neither end is a pool (or both are).
+ */
+function poolMessageRoute(diagram, edge, source, target) {
+  const sourceIsPool = source.type === 'pool';
+  const targetIsPool = target.type === 'pool';
+  if (sourceIsPool === targetIsPool) return null;
+  const pool = rectOf(sourceIsPool ? source : target);
+  const other = sourceIsPool ? target : source;
+  const box = rectOf(other);
+  let up;
+  if (pool.y + pool.h <= box.y) up = true;
+  else if (pool.y >= box.y + box.h) up = false;
+  else return null;
+  const edgeY = up ? box.y : box.y + box.h;
+  const poolY = up ? pool.y + pool.h : pool.y;
+  const lo = Math.min(edgeY, poolY);
+  const hi = Math.max(edgeY, poolY);
+  const obstacles = diagram.nodes
+    .filter((n) => n.id !== other.id && n.type !== 'pool' && n.type !== 'lane' && n.type !== 'textAnnotation')
+    .map(rectOf)
+    .filter((r) => r.y + r.h > lo && r.y < hi);
+  const stepY = up ? edgeY - CHANNEL : edgeY + CHANNEL;
+  // another flow already enters or leaves on that side: keep the message line clear of it
+  const elementSide = up ? 'top' : 'bottom';
+  const busy = diagram.edges.some((e) => {
+    if (e === edge || e.type === 'messageFlow' || (e.source !== other.id && e.target !== other.id)) return false;
+    const partner = diagram.nodes.find((n) => n.id === (e.source === other.id ? e.target : e.source));
+    return partner && autoSides(box, rectOf(partner)).sourceSide === elementSide;
+  });
+  const cx = box.x + box.w / 2 + (busy ? box.w / 4 : 0);
+  const free = (x) =>
+    !obstacles.some((r) => crosses(r, x, lo, x, hi)) &&
+    (x === cx || !diagram.nodes.some((n) => n.id !== other.id && n.type !== 'pool' && n.type !== 'lane' && crosses(rectOf(n), cx, stepY, x, stepY)));
+  const left = pool.x + 12;
+  const right = pool.x + pool.w - 12;
+  let chosen = null;
+  for (let k = 0; k < 400 && !chosen; k++) {
+    for (const x of k === 0 ? [cx] : [cx + k * 8, cx - k * 8]) {
+      if (x >= left && x <= right && free(x)) {
+        chosen = x;
+        break;
+      }
+    }
+  }
+  if (chosen === null) return null;
+  const elementEnd = { x: cx, y: edgeY };
+  const poolEnd = { x: chosen, y: poolY };
+  const points = chosen === cx ? [elementEnd, poolEnd] : [elementEnd, { x: cx, y: stepY }, { x: chosen, y: stepY }, poolEnd];
+  const poolSide = up ? 'bottom' : 'top';
+  if (sourceIsPool) return { points: points.reverse(), sourceSide: poolSide, targetSide: elementSide };
+  return { points, sourceSide: elementSide, targetSide: poolSide };
 }
 
 function straightRoute(sourceRect, targetRect) {

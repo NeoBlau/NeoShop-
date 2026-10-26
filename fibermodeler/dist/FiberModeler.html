@@ -7663,8 +7663,13 @@ function layoutEdges(diagram, options = {}) {
     const start = anchors.get(`${edge.id}|source`) || center(rectOf(source));
     const end = anchors.get(`${edge.id}|target`) || center(rectOf(target));
 
+    const poolRoute = !edge.waypoints?.length && style !== 'straight' ? poolMessageRoute(diagram, edge, source, target) : null;
     let points;
-    if (source.id === target.id) {
+    if (poolRoute) {
+      points = poolRoute.points;
+      geom.sourceSide = poolRoute.sourceSide;
+      geom.targetSide = poolRoute.targetSide;
+    } else if (source.id === target.id) {
       points = selfLoop(rectOf(source));
     } else if (edge.routing === 'manual' && edge.waypoints?.length) {
       points = [start, ...edge.waypoints.map((p) => ({ x: p.x, y: p.y })), end];
@@ -7678,6 +7683,72 @@ function layoutEdges(diagram, options = {}) {
     geom.length = geom.points.reduce((acc, p, i) => (i ? acc + dist(geom.points[i - 1], p) : 0), 0);
   }
   return result;
+}
+
+const CHANNEL = 14;
+const CLEAR = 5;
+
+const crosses = (rect, x1, y1, x2, y2) =>
+  Math.max(x1, x2) > rect.x - CLEAR && Math.min(x1, x2) < rect.x + rect.w + CLEAR && Math.max(y1, y2) > rect.y - CLEAR && Math.min(y1, y2) < rect.y + rect.h + CLEAR;
+
+/**
+ * A message flow between a pool and an element of another pool.
+ *
+ * A collapsed pool is a wide, flat box, so the generic side choice (left / right
+ * by the distance between the centres) sends the line round the diagram. The
+ * line instead leaves the element towards the pool, goes straight to the pool
+ * border where it can, and otherwise steps sideways into a free gap first.
+ * Returns null when neither end is a pool (or both are).
+ */
+function poolMessageRoute(diagram, edge, source, target) {
+  const sourceIsPool = source.type === 'pool';
+  const targetIsPool = target.type === 'pool';
+  if (sourceIsPool === targetIsPool) return null;
+  const pool = rectOf(sourceIsPool ? source : target);
+  const other = sourceIsPool ? target : source;
+  const box = rectOf(other);
+  let up;
+  if (pool.y + pool.h <= box.y) up = true;
+  else if (pool.y >= box.y + box.h) up = false;
+  else return null;
+  const edgeY = up ? box.y : box.y + box.h;
+  const poolY = up ? pool.y + pool.h : pool.y;
+  const lo = Math.min(edgeY, poolY);
+  const hi = Math.max(edgeY, poolY);
+  const obstacles = diagram.nodes
+    .filter((n) => n.id !== other.id && n.type !== 'pool' && n.type !== 'lane' && n.type !== 'textAnnotation')
+    .map(rectOf)
+    .filter((r) => r.y + r.h > lo && r.y < hi);
+  const stepY = up ? edgeY - CHANNEL : edgeY + CHANNEL;
+  // another flow already enters or leaves on that side: keep the message line clear of it
+  const elementSide = up ? 'top' : 'bottom';
+  const busy = diagram.edges.some((e) => {
+    if (e === edge || e.type === 'messageFlow' || (e.source !== other.id && e.target !== other.id)) return false;
+    const partner = diagram.nodes.find((n) => n.id === (e.source === other.id ? e.target : e.source));
+    return partner && autoSides(box, rectOf(partner)).sourceSide === elementSide;
+  });
+  const cx = box.x + box.w / 2 + (busy ? box.w / 4 : 0);
+  const free = (x) =>
+    !obstacles.some((r) => crosses(r, x, lo, x, hi)) &&
+    (x === cx || !diagram.nodes.some((n) => n.id !== other.id && n.type !== 'pool' && n.type !== 'lane' && crosses(rectOf(n), cx, stepY, x, stepY)));
+  const left = pool.x + 12;
+  const right = pool.x + pool.w - 12;
+  let chosen = null;
+  for (let k = 0; k < 400 && !chosen; k++) {
+    for (const x of k === 0 ? [cx] : [cx + k * 8, cx - k * 8]) {
+      if (x >= left && x <= right && free(x)) {
+        chosen = x;
+        break;
+      }
+    }
+  }
+  if (chosen === null) return null;
+  const elementEnd = { x: cx, y: edgeY };
+  const poolEnd = { x: chosen, y: poolY };
+  const points = chosen === cx ? [elementEnd, poolEnd] : [elementEnd, { x: cx, y: stepY }, { x: chosen, y: stepY }, poolEnd];
+  const poolSide = up ? 'bottom' : 'top';
+  if (sourceIsPool) return { points: points.reverse(), sourceSide: poolSide, targetSide: elementSide };
+  return { points, sourceSide: elementSide, targetSide: poolSide };
 }
 
 function straightRoute(sourceRect, targetRect) {
@@ -10264,6 +10335,7 @@ function buildBpmnDiagram(spec, options = {}) {
     for (const item of spec.pools) {
       const node = createNode({ type: 'pool', x: 0, y: 0, w: 900, h: 200, label: text(item.label, locale) });
       diagram.nodes.push(node);
+      idMap.set(item.id, node.id); // a message flow may end at the pool itself
       const own = lanes.filter((lane) => lane.pool === item.id).map((lane) => makeLane(lane, node));
       if (!own.length) {
         // a pool without lanes holds its elements itself
@@ -10309,6 +10381,8 @@ function buildBpmnDiagram(spec, options = {}) {
         source,
         target,
         label: text(item.label, locale),
+        ...(item.sourceSide ? { sourceSide: item.sourceSide } : {}),
+        ...(item.targetSide ? { targetSide: item.targetSide } : {}),
         props: { ...(item.props || {}), ...(item.condition ? { condition: item.condition } : {}) },
       })
     );
@@ -10371,7 +10445,8 @@ function layoutBpmn(diagram, { lanes = [], pool = null, pools = null } = {}) {
     const { index: rowOf, count: rows } = assignRows(nodes);
     // leave room above the flow when the lane carries data objects or notes
     const headroom = nodes.some((node) => satelliteOwners.has(node.id)) ? SATELLITE_ROOM : 0;
-    const height = Math.max(LANE_MIN_HEIGHT + headroom, rows * 110 + LANE_PADDING + headroom);
+    // a pool with nothing in it is a collapsed black box: a thin strip is enough
+    const height = nodes.length ? Math.max(LANE_MIN_HEIGHT + headroom, rows * 110 + LANE_PADDING + headroom) : 56;
     lane.x = 60 + POOL_HEADER;
     lane.y = cursorY;
     lane.w = laneWidth;
@@ -16698,44 +16773,12 @@ const SOURCE_SPEC = {
 
 /* ------------------------------------------------------- 2. corrected AS-IS */
 
-/** The customer's side, shared by AS-IS and TO-BE apart from the first two steps. */
-function customerNodes(firstStep) {
-  return [
-    node('cStart', 'startEvent', 'client', 'Потребность в товаре', 'A need for goods'),
-    firstStep,
-    node('cGw1', 'eventBasedGateway', 'client', 'Ответ компании', 'The company\'s answer'),
-    node('cAbsent', 'intermediateMessageCatchEvent', 'client', 'Получено уведомление об отсутствии товара', 'Notice received: out of stock'),
-    node('cEndAbsent', 'endEvent', 'client', 'Заказ не выполнен: товара нет', 'Order not fulfilled: out of stock'),
-    node('cInvoice', 'intermediateMessageCatchEvent', 'client', 'Получен счёт', 'Invoice received'),
-    node('cGwPay', 'exclusiveGateway', 'client', 'Оплатить счёт в срок?', 'Pay the invoice in time?'),
-    node('cPay', 'sendTask', 'client', 'Оплатить счёт', 'Pay the invoice'),
-    node('cJoin', 'exclusiveGateway', 'client', 'Решение об оплате принято', 'Payment decision made'),
-    node('cGw2', 'eventBasedGateway', 'client', 'Итог обработки заказа', 'The outcome of the order'),
-    node('cDone', 'intermediateMessageCatchEvent', 'client', 'Получено уведомление о выполнении заказа', 'Notice received: order fulfilled'),
-    node('cCancelled', 'intermediateMessageCatchEvent', 'client', 'Получено уведомление об отмене заказа', 'Notice received: order cancelled'),
-    node('cEndDone', 'endEvent', 'client', 'Заказ выполнен для клиента', 'Order fulfilled for the customer'),
-    node('cEndCancel', 'endEvent', 'client', 'Заказ отменён', 'Order cancelled'),
-  ];
-}
-
-function customerEdges(firstId) {
-  return [
-    flow('cStart', firstId),
-    flow(firstId, 'cGw1'),
-    flow('cGw1', 'cAbsent'),
-    flow('cGw1', 'cInvoice'),
-    flow('cAbsent', 'cEndAbsent'),
-    flow('cInvoice', 'cGwPay'),
-    flow('cGwPay', 'cPay', { ru: 'Да', en: 'Yes' }),
-    flow('cGwPay', 'cJoin', { ru: 'Нет', en: 'No' }),
-    flow('cPay', 'cJoin'),
-    flow('cJoin', 'cGw2'),
-    flow('cGw2', 'cDone'),
-    flow('cGw2', 'cCancelled'),
-    flow('cDone', 'cEndDone'),
-    flow('cCancelled', 'cEndCancel'),
-  ];
-}
+/*
+ * The customer is a collapsed pool (a black box): the case is about the
+ * company's process, and every exchange with the customer is a message flow
+ * to or from the pool. That keeps the corrected models as small as the
+ * source model while staying correct.
+ */
 
 const AS_IS_SPEC = {
   notation: 'bpmn',
@@ -16743,35 +16786,30 @@ const AS_IS_SPEC = {
   pools: POOLS,
   lanes: LANES,
   nodes: [
-    ...customerNodes(node('cSend', 'sendTask', 'client', 'Направить заказ', 'Send the order')),
-    node('start', 'startMessageEvent', 'manager', 'Получен заказ клиента', 'Customer order received'),
+    node('start', 'startMessageEvent', 'manager', 'Заказ получен', 'Order received'),
     node('register', 'userTask', 'manager', 'Зарегистрировать заказ', 'Register the order'),
     node('check', 'userTask', 'warehouse', 'Проверить наличие товара', 'Check the stock'),
     node('gwStock', 'exclusiveGateway', 'warehouse', 'Товар есть?', 'In stock?'),
-    node('notifyAbsent', 'sendTask', 'manager', 'Уведомить клиента об отсутствии товара', 'Notify the customer that the goods are out of stock'),
-    node('cancelNoStock', 'userTask', 'manager', 'Отменить заказ', 'Cancel the order'),
+    node('notifyAbsent', 'sendTask', 'manager', 'Сообщить клиенту об отсутствии товара', 'Tell the customer the goods are out of stock'),
     node('endNoStock', 'endEvent', 'manager', 'Заказ отменён: товара нет', 'Order cancelled: out of stock'),
-    node('invoice', 'sendTask', 'accounting', 'Выставить счёт клиенту', 'Issue the invoice to the customer'),
+    node('invoice', 'sendTask', 'accounting', 'Выставить счёт', 'Issue the invoice'),
     node('gwWait', 'eventBasedGateway', 'accounting', 'Ожидание оплаты', 'Waiting for payment'),
     node('paid', 'intermediateMessageCatchEvent', 'accounting', 'Оплата получена', 'Payment received'),
-    node('timeout', 'intermediateTimerEvent', 'accounting', 'Прошло 3 рабочих дня', '3 working days have passed'),
+    node('timeout', 'intermediateTimerEvent', 'accounting', '3 рабочих дня', '3 working days'),
     node('confirm', 'userTask', 'accounting', 'Подтвердить поступление оплаты', 'Confirm the receipt of payment'),
     node('ship', 'userTask', 'warehouse', 'Отгрузить товар', 'Ship the goods'),
-    node('notifyDone', 'sendTask', 'manager', 'Сообщить клиенту о выполнении заказа', 'Tell the customer the order is fulfilled'),
+    node('notifyDone', 'sendTask', 'manager', 'Сообщить клиенту о выполнении', 'Tell the customer it is fulfilled'),
     node('close', 'userTask', 'manager', 'Закрыть заказ', 'Close the order'),
     node('endDone', 'endEvent', 'manager', 'Заказ выполнен', 'Order fulfilled'),
-    node('cancelNoPay', 'userTask', 'manager', 'Отменить заказ', 'Cancel the order'),
-    node('notifyCancel', 'sendTask', 'manager', 'Уведомить клиента об отмене заказа', 'Notify the customer that the order is cancelled'),
+    node('notifyCancel', 'sendTask', 'manager', 'Сообщить клиенту об отмене заказа', 'Tell the customer the order is cancelled'),
     node('endNoPay', 'endEvent', 'manager', 'Заказ отменён: нет оплаты', 'Order cancelled: no payment'),
   ],
   edges: [
-    ...customerEdges('cSend'),
     flow('start', 'register'),
     flow('register', 'check'),
     flow('check', 'gwStock'),
     flow('gwStock', 'notifyAbsent', { ru: 'Нет', en: 'No' }),
-    flow('notifyAbsent', 'cancelNoStock'),
-    flow('cancelNoStock', 'endNoStock'),
+    flow('notifyAbsent', 'endNoStock'),
     flow('gwStock', 'invoice', { ru: 'Да', en: 'Yes' }),
     flow('invoice', 'gwWait'),
     flow('gwWait', 'paid'),
@@ -16781,15 +16819,14 @@ const AS_IS_SPEC = {
     flow('ship', 'notifyDone'),
     flow('notifyDone', 'close'),
     flow('close', 'endDone'),
-    flow('timeout', 'cancelNoPay'),
-    flow('cancelNoPay', 'notifyCancel'),
+    { ...flow('timeout', 'notifyCancel'), sourceSide: 'right', targetSide: 'left' },
     flow('notifyCancel', 'endNoPay'),
-    message('cSend', 'start', 'Заказ', 'Order'),
-    message('notifyAbsent', 'cAbsent', 'Отсутствие товара', 'Out of stock'),
-    message('invoice', 'cInvoice', 'Счёт', 'Invoice'),
-    message('cPay', 'paid', 'Оплата', 'Payment'),
-    message('notifyDone', 'cDone', 'Заказ выполнен', 'Order fulfilled'),
-    message('notifyCancel', 'cCancelled', 'Заказ отменён', 'Order cancelled'),
+    message('client', 'start', 'Заказ', 'Order'),
+    message('notifyAbsent', 'client', 'Нет товара', 'Out of stock'),
+    message('invoice', 'client', 'Счёт', 'Invoice'),
+    message('client', 'paid', 'Оплата', 'Payment'),
+    message('notifyDone', 'client', 'Выполнен', 'Fulfilled'),
+    message('notifyCancel', 'client', 'Отменён', 'Cancelled'),
   ],
 };
 
@@ -16801,53 +16838,45 @@ const TO_BE_SPEC = {
   pools: POOLS,
   lanes: [LANES[0], LANES[1], LANES[2], SYSTEM_LANE],
   nodes: [
-    ...customerNodes(node('cSend', 'sendTask', 'client', 'Заполнить и отправить электронную форму заказа', 'Fill in and send the electronic order form')),
-    node('start', 'startMessageEvent', 'system', 'Получен заказ из электронной формы', 'Order received from the electronic form'),
-    node('register', 'serviceTask', 'system', 'Автоматически зарегистрировать заказ', 'Register the order automatically'),
-    node('reserve', 'businessRuleTask', 'system', 'Проверить остатки и зарезервировать товар на срок оплаты', 'Check the stock and reserve the goods for the payment term'),
+    node('start', 'startMessageEvent', 'system', 'Заказ из электронной формы', 'Order from the electronic form'),
+    node('register', 'serviceTask', 'system', 'Зарегистрировать заказ автоматически', 'Register the order automatically'),
+    node('reserve', 'businessRuleTask', 'system', 'Проверить остатки и зарезервировать товар', 'Check the stock and reserve the goods'),
     node('gwStock', 'exclusiveGateway', 'system', 'Товар есть?', 'In stock?'),
-    node('notifyAbsent', 'sendTask', 'manager', 'Уведомить клиента об отсутствии товара', 'Notify the customer that the goods are out of stock'),
-    node('cancelNoStock', 'serviceTask', 'system', 'Отменить заказ', 'Cancel the order'),
-    node('endNoStock', 'endEvent', 'system', 'Заказ отменён: товара нет', 'Order cancelled: out of stock'),
-    node('invoice', 'serviceTask', 'system', 'Автоматически выставить и отправить счёт', 'Issue and send the invoice automatically'),
+    node('notifyAbsent', 'sendTask', 'manager', 'Сообщить клиенту об отсутствии товара', 'Tell the customer the goods are out of stock'),
+    node('endNoStock', 'endEvent', 'manager', 'Заказ отменён: товара нет', 'Order cancelled: out of stock'),
+    node('invoice', 'serviceTask', 'system', 'Выставить и отправить счёт автоматически', 'Issue and send the invoice automatically'),
     node('gwWait', 'eventBasedGateway', 'system', 'Ожидание оплаты', 'Waiting for payment'),
-    node('paid', 'intermediateMessageCatchEvent', 'system', 'Платёж найден в выписке банка', 'Payment found in the bank statement'),
-    node('timeout', 'intermediateTimerEvent', 'system', 'Прошло 3 рабочих дня', '3 working days have passed'),
-    node('match', 'serviceTask', 'system', 'Сопоставить платёж со счётом', 'Match the payment with the invoice'),
-    node('confirm', 'userTask', 'accounting', 'Подтвердить сопоставленный платёж', 'Confirm the matched payment'),
-    node('ship', 'userTask', 'warehouse', 'Отгрузить зарезервированный товар и отметить отгрузку в системе', 'Ship the reserved goods and mark the shipment in the system'),
-    node('done', 'serviceTask', 'system', 'Закрыть заказ и уведомить клиента о выполнении', 'Close the order and notify the customer of fulfilment'),
+    node('paid', 'intermediateMessageCatchEvent', 'system', 'Платёж найден в выписке', 'Payment found in the statement'),
+    node('timeout', 'intermediateTimerEvent', 'system', '3 рабочих дня', '3 working days'),
+    node('confirm', 'userTask', 'accounting', 'Подтвердить платёж', 'Confirm the payment'),
+    node('ship', 'userTask', 'warehouse', 'Отгрузить зарезервированный товар', 'Ship the reserved goods'),
+    node('done', 'serviceTask', 'system', 'Закрыть заказ и уведомить клиента', 'Close the order and notify the customer'),
     node('endDone', 'endEvent', 'system', 'Заказ выполнен', 'Order fulfilled'),
-    node('cancelNoPay', 'serviceTask', 'system', 'Отменить заказ и снять резерв', 'Cancel the order and release the reserve'),
-    node('notifyCancel', 'sendTask', 'system', 'Автоматически уведомить клиента об отмене', 'Notify the customer of the cancellation automatically'),
+    node('cancelNoPay', 'serviceTask', 'system', 'Отменить заказ, снять резерв, уведомить клиента', 'Cancel the order, release the reserve, notify the customer'),
     node('endNoPay', 'endEvent', 'system', 'Заказ отменён: нет оплаты', 'Order cancelled: no payment'),
   ],
   edges: [
-    ...customerEdges('cSend'),
     flow('start', 'register'),
     flow('register', 'reserve'),
     flow('reserve', 'gwStock'),
     flow('gwStock', 'notifyAbsent', { ru: 'Нет', en: 'No' }),
-    flow('notifyAbsent', 'cancelNoStock'),
-    flow('cancelNoStock', 'endNoStock'),
+    flow('notifyAbsent', 'endNoStock'),
     flow('gwStock', 'invoice', { ru: 'Да', en: 'Yes' }),
     flow('invoice', 'gwWait'),
     flow('gwWait', 'paid'),
     flow('gwWait', 'timeout'),
-    flow('paid', 'match'),
-    flow('match', 'confirm'),
+    flow('paid', 'confirm'),
     flow('confirm', 'ship'),
     flow('ship', 'done'),
     flow('done', 'endDone'),
     flow('timeout', 'cancelNoPay'),
-    flow('cancelNoPay', 'notifyCancel'),
-    flow('notifyCancel', 'endNoPay'),
-    message('cSend', 'start', 'Заказ', 'Order'),
-    message('notifyAbsent', 'cAbsent', 'Отсутствие товара', 'Out of stock'),
-    message('invoice', 'cInvoice', 'Счёт', 'Invoice'),
-    message('cPay', 'paid', 'Оплата', 'Payment'),
-    message('done', 'cDone', 'Заказ выполнен', 'Order fulfilled'),
-    message('notifyCancel', 'cCancelled', 'Заказ отменён', 'Order cancelled'),
+    flow('cancelNoPay', 'endNoPay'),
+    message('client', 'start', 'Заказ', 'Order'),
+    message('notifyAbsent', 'client', 'Нет товара', 'Out of stock'),
+    message('invoice', 'client', 'Счёт', 'Invoice'),
+    message('client', 'paid', 'Оплата', 'Payment'),
+    message('done', 'client', 'Выполнен', 'Fulfilled'),
+    message('cancelNoPay', 'client', 'Отменён', 'Cancelled'),
   ],
 };
 
@@ -16879,7 +16908,7 @@ const DIAGNOSIS = [
     fragment: t('«Направить заказ» → «Зарегистрировать заказ»: сплошная стрелка из пула «Клиент» в пул «Торговая компания»', '"Send the order" → "Register the order": a solid arrow from the "Customer" pool to the "Trading company" pool'),
     error: t('Поток управления пересекает границу пула. В BPMN 2.0 поток управления остаётся внутри пула, а участники обмениваются сообщениями. Заказ клиента — именно сообщение.', 'A sequence flow crosses a pool boundary. In BPMN 2.0 a sequence flow stays inside a pool and participants exchange messages. The customer\'s order is exactly a message.'),
     effect: t('Схема читается как один процесс без границы между клиентом и компанией; у процесса компании нет собственного старта. Проверка программы отмечает это как ошибку.', 'The diagram reads as one process with no boundary between the customer and the company; the company\'s process has no start of its own. The program\'s check flags it as an error.'),
-    fix: t('Заменить стрелку потоком сообщений от «Направить заказ» к стартовому событию-сообщению «Получен заказ клиента» в пуле компании.', 'Replace the arrow with a message flow from "Send the order" to a message start event "Customer order received" in the company pool.'),
+    fix: t('Заменить стрелку потоком сообщений от пула «Клиент» к стартовому событию-сообщению «Заказ получен» в пуле компании.', 'Replace the arrow with a message flow from the "Customer" pool to a message start event "Order received" in the company pool.'),
   },
   {
     fragment: t('«Зарегистрировать заказ» → «Проверить наличие товара»: пунктир с кружком, соединяющий дорожки «Менеджер» и «Склад»', '"Register the order" → "Check the stock": a dashed line with a circle between the "Manager" and "Warehouse" lanes'),
@@ -16897,7 +16926,7 @@ const DIAGNOSIS = [
     fragment: t('Ветка «Нет»: «Сообщить клиенту об отсутствии» → слияние → «Закрыть заказ» → «Отгрузить товар»', 'The "No" branch: "Tell the customer it is out of stock" → merge → "Close the order" → "Ship the goods"'),
     error: t('Нарушено условие кейса: при отсутствии товара заказ отменяется. В модели же после уведомления заказ идёт на закрытие и отгрузку.', 'A case condition is broken: if the goods are missing the order is cancelled. The model instead sends it on to closing and shipping after the notice.'),
     effect: t('Модель предусматривает отгрузку товара, которого нет, а отмена заказа нигде не происходит.', 'The model provides for shipping goods that are not there, and the order is cancelled nowhere.'),
-    fix: t('После уведомления клиента добавить «Отменить заказ» и завершить ветку событием «Заказ отменён: товара нет».', 'After notifying the customer add "Cancel the order" and end the branch with "Order cancelled: out of stock".'),
+    fix: t('После уведомления клиента завершить ветку событием «Заказ отменён: товара нет» вместо закрытия и отгрузки.', 'After notifying the customer end the branch with "Order cancelled: out of stock" instead of closing and shipping.'),
   },
   {
     fragment: t('«Выставить счёт» → событие «Оплата получена»', '"Issue the invoice" → the event "Payment received"'),
@@ -16909,7 +16938,7 @@ const DIAGNOSIS = [
     fragment: t('Событие «Оплата получена» и пул «Клиент»', 'The event "Payment received" and the "Customer" pool'),
     error: t('Сообщение о получении оплаты ни от кого не приходит, а у клиента нет задач «Получить счёт» и «Оплатить счёт». Взаимодействие участников описано только с одной стороны.', 'The message about the payment comes from nobody and the customer has no tasks "Receive the invoice" and "Pay the invoice". The interaction of the participants is described from one side only.'),
     effect: t('Непонятно, кто и что сообщает бухгалтерии; нет ни счёта клиенту, ни его оплаты, хотя от них зависит исход процесса.', 'It is unclear who tells accounting what; there is neither an invoice to the customer nor its payment, although the outcome depends on both.'),
-    fix: t('Показать счёт потоком сообщений от бухгалтерии к клиенту и оплату потоком сообщений от клиента к событию «Оплата получена».', 'Show the invoice as a message flow from accounting to the customer and the payment as a message flow from the customer to the event "Payment received".'),
+    fix: t('Показать счёт потоком сообщений от бухгалтерии к пулу клиента и оплату потоком сообщений от пула клиента к событию «Оплата получена».', 'Show the invoice as a message flow from accounting to the customer pool and the payment as a message flow from the customer pool to the event "Payment received".'),
   },
   {
     fragment: t('Порядок задач: «Закрыть заказ» выполняется раньше «Отгрузить товар»', 'The order of tasks: "Close the order" comes before "Ship the goods"'),
@@ -16927,13 +16956,13 @@ const DIAGNOSIS = [
     fragment: t('Задача «Сообщить клиенту об отсутствии» и отсутствие других уведомлений клиенту', 'The task "Tell the customer it is out of stock" and the lack of other notices to the customer'),
     error: t('Менеджер сообщает клиенту результат обработки, но связи с клиентом на схеме нет, а о выполнении и об отмене из-за неоплаты клиент вообще не узнаёт.', 'The manager tells the customer the result, but the diagram has no link to the customer, and the customer is never told about fulfilment or a cancellation for non-payment.'),
     effect: t('Часть условий кейса не выполнена: клиент не знает итога своего заказа.', 'Part of the case conditions is not met: the customer does not know the result of the order.'),
-    fix: t('Показать три уведомления потоками сообщений менеджера клиенту (отсутствие товара, выполнение, отмена) и событиями получения в пуле клиента.', 'Show three notices as message flows from the manager to the customer (out of stock, fulfilled, cancelled) and receiving events in the customer pool.'),
+    fix: t('Показать три уведомления потоками сообщений от менеджера к пулу клиента: «Нет товара», «Выполнен», «Отменён».', 'Show three notices as message flows from the manager to the customer pool: "Out of stock", "Fulfilled", "Cancelled".'),
   },
   {
     fragment: t('Пул «Клиент» состоит из старта и одной задачи', 'The "Customer" pool is a start and one task'),
     error: t('Поведение клиента не доведено до конца: нет ожидания ответа, решения об оплате и получения итога. Клиент влияет на исход (платит или нет), но на схеме этого не видно.', 'The customer\'s behaviour is not carried through: there is no wait for an answer, no decision to pay and no receipt of the outcome. The customer affects the outcome (pays or not) but the diagram does not show it.'),
     effect: t('Без поведения клиента нельзя проверить ни сценарий «оплата не поступила в срок», ни то, как каждый сценарий завершается для клиента.', 'Without the customer\'s behaviour neither the "payment not received in time" scenario nor how each scenario ends for the customer can be checked.'),
-    fix: t('Описать путь клиента до конечных событий: событийный шлюз «Ответ компании», решение «Оплатить счёт в срок?», событийный шлюз «Итог обработки заказа».', 'Describe the customer\'s path to the end events: the event-based gateway "The company\'s answer", the decision "Pay the invoice in time?", the event-based gateway "The outcome of the order".'),
+    fix: t('Свернуть пул «Клиент» в «чёрный ящик»: подробное поведение клиента в кейсе не нужно, достаточно сообщений, которыми он обменивается с компанией (заказ, счёт, оплата, три уведомления).', 'Collapse the "Customer" pool into a black box: the case does not need the customer\'s detailed behaviour, only the messages exchanged with the company (order, invoice, payment, three notices).'),
   },
   {
     fragment: t('Все задачи — обычные «task» без типа', 'All tasks are plain "task" with no type'),
@@ -16977,28 +17006,28 @@ const CHANGES = [
   {
     problem: t('Заказ регистрируется вручную менеджером из произвольного сообщения клиента: возможны ошибки и неполные данные, регистрация зависит от занятости менеджера.', 'The manager registers the order by hand from a free-form customer message: errors and incomplete data are possible and registration depends on the manager being free.'),
     change: t('Электронная форма заказа с обязательными полями; заказ регистрируется в информационной системе автоматически.', 'An electronic order form with required fields; the order is registered in the information system automatically.'),
-    bpmn: t('Клиент: задача отправки «Заполнить и отправить электронную форму заказа». В дорожке системы: стартовое событие-сообщение и служебная задача «Автоматически зарегистрировать заказ» вместо пользовательской задачи менеджера.', 'Customer: the send task "Fill in and send the electronic order form". In the system lane: a message start event and the service task "Register the order automatically" instead of the manager\'s user task.'),
+    bpmn: t('Стартовое событие-сообщение «Заказ из электронной формы» и служебная задача «Зарегистрировать заказ автоматически» в дорожке системы вместо пользовательской задачи менеджера.', 'The message start event "Order from the electronic form" and the service task "Register the order automatically" in the system lane instead of the manager\'s user task.'),
     result: t('Меньше ручных операций и ошибок при вводе, регистрация не ждёт менеджера.', 'Fewer manual operations and entry errors; registration does not wait for the manager.'),
     indicator: t('Число ручных операций на один заказ; доля заказов, исправленных после регистрации; время от получения заказа до регистрации.', 'The number of manual operations per order; the share of orders corrected after registration; the time from receiving the order to registering it.'),
   },
   {
     problem: t('Наличие проверяет склад вручную, и товар не закреплён за заказом. Пока клиент оплачивает счёт, товар может закончиться: счёт выставлен, а отгружать нечего.', 'The warehouse checks the stock by hand and the goods are not tied to the order. While the customer pays, the goods may run out: the invoice is issued and there is nothing to ship.'),
     change: t('Система проверяет остатки по правилу и резервирует товар на срок оплаты (3 рабочих дня); при отмене резерв снимается.', 'The system checks the stock by a rule and reserves the goods for the payment term (3 working days); the reserve is released on cancellation.'),
-    bpmn: t('Бизнес-правило «Проверить остатки и зарезервировать товар на срок оплаты» перед шлюзом «Товар есть?»; в ветке неоплаты задача «Отменить заказ и снять резерв»; склад выполняет только «Отгрузить зарезервированный товар…».', 'The business rule "Check the stock and reserve the goods for the payment term" before the gateway "In stock?"; in the non-payment branch the task "Cancel the order and release the reserve"; the warehouse only does "Ship the reserved goods…".'),
+    bpmn: t('Задача-правило «Проверить остатки и зарезервировать товар» перед шлюзом «Товар есть?»; в ветке неоплаты служебная задача «Отменить заказ, снять резерв, уведомить клиента»; склад выполняет только «Отгрузить зарезервированный товар».', 'The business rule task "Check the stock and reserve the goods" before the gateway "In stock?"; in the non-payment branch the service task "Cancel the order, release the reserve, notify the customer"; the warehouse only does "Ship the reserved goods".'),
     result: t('Оплаченный заказ не остаётся без товара; склад не тратит время на проверку каждого заказа.', 'A paid order is not left without goods; the warehouse does not spend time checking every order.'),
     indicator: t('Число оплаченных заказов, которые не удалось отгрузить из-за отсутствия товара; время от регистрации до ответа о наличии.', 'The number of paid orders that could not be shipped because the goods were missing; the time from registration to the answer about the stock.'),
   },
   {
     problem: t('Счёт выставляется вручную, поступление оплаты бухгалтерия ищет в выписке, а срок в 3 рабочих дня контролируется вручную.', 'The invoice is issued by hand, accounting looks for the payment in the statement and the 3-working-day term is watched by hand.'),
     change: t('Счёт формируется и отправляется системой автоматически; система сопоставляет платёж из выписки со счётом, бухгалтерия подтверждает совпадение; срок оплаты отслеживает таймер.', 'The system issues and sends the invoice automatically, matches the payment from the statement with the invoice and accounting confirms the match; a timer watches the payment term.'),
-    bpmn: t('Служебная задача «Автоматически выставить и отправить счёт»; событийный шлюз с событием «Платёж найден в выписке банка» и таймером «Прошло 3 рабочих дня»; у бухгалтерии одна задача «Подтвердить сопоставленный платёж».', 'The service task "Issue and send the invoice automatically"; an event-based gateway with the event "Payment found in the bank statement" and the timer "3 working days have passed"; accounting has one task "Confirm the matched payment".'),
+    bpmn: t('Служебная задача «Выставить и отправить счёт автоматически»; событийный шлюз с событием «Платёж найден в выписке» и таймером «3 рабочих дня»; у бухгалтерии одна задача «Подтвердить платёж».', 'The service task "Issue and send the invoice automatically"; an event-based gateway with the event "Payment found in the statement" and the timer "3 working days"; accounting has one task "Confirm the payment".'),
     result: t('Быстрее передача оплаченного заказа в отгрузку, меньше ошибок при сопоставлении, срок оплаты не пропускается.', 'A paid order reaches shipping faster, there are fewer matching errors and the payment term is not missed.'),
     indicator: t('Время от поступления платежа до его подтверждения; доля платежей, сопоставленных автоматически; число заказов, не отменённых в срок.', 'The time from the payment arriving to its confirmation; the share of payments matched automatically; the number of orders not cancelled on time.'),
   },
   {
     problem: t('Клиенту сообщают результат вручную, и пока менеджер занят, клиент не знает статуса; закрытие заказа тоже делается вручную и забывается.', 'The customer is told the result by hand and, while the manager is busy, does not know the status; closing the order is also manual and gets forgotten.'),
     change: t('Статусные уведомления (счёт, выполнение, отмена) отправляет система; заказ закрывается автоматически по отметке склада об отгрузке. Менеджер остаётся только в случае отсутствия товара.', 'The system sends the status notices (invoice, fulfilment, cancellation); the order closes automatically on the warehouse\'s shipment mark. The manager stays only for the out-of-stock case.'),
-    bpmn: t('Служебные задачи «Закрыть заказ и уведомить клиента о выполнении» и «Автоматически уведомить клиента об отмене», потоки сообщений к событиям получения в пуле клиента; ручная задача менеджера «Уведомить клиента об отсутствии товара» сохранена.', 'The service tasks "Close the order and notify the customer of fulfilment" and "Notify the customer of the cancellation automatically", message flows to the receiving events in the customer pool; the manager\'s manual task "Notify the customer that the goods are out of stock" is kept.'),
+    bpmn: t('Служебные задачи «Закрыть заказ и уведомить клиента» и «Отменить заказ, снять резерв, уведомить клиента» с потоками сообщений к пулу клиента; задача менеджера «Сообщить клиенту об отсутствии товара» сохранена.', 'The service tasks "Close the order and notify the customer" and "Cancel the order, release the reserve, notify the customer" with message flows to the customer pool; the manager\'s task "Tell the customer the goods are out of stock" is kept.'),
     result: t('Быстрее обмен информацией, меньше обращений клиентов «где мой заказ», нет незакрытых отгруженных заказов.', 'Faster exchange of information, fewer "where is my order" enquiries, no shipped orders left open.'),
     indicator: t('Время от решения (отгрузка, отмена) до уведомления клиента; число обращений клиентов о статусе заказа; число отгруженных, но не закрытых заказов.', 'The time from the decision (shipment, cancellation) to the notice to the customer; the number of customer enquiries about order status; the number of shipped orders not closed.'),
   },
@@ -17041,21 +17070,21 @@ function changesSpec() {
 const SCENARIOS = [
   {
     name: t('1. Товар есть, оплата поступила вовремя', '1. The goods are in stock and the payment arrives in time'),
-    asis: t('Клиент отправляет заказ → менеджер регистрирует → склад проверяет наличие → «Товар есть?»: да → бухгалтерия выставляет счёт, клиент его получает и оплачивает → событийный шлюз: «Оплата получена» раньше таймера → бухгалтерия подтверждает поступление → склад отгружает → менеджер сообщает клиенту о выполнении → закрывает заказ.', 'The customer sends the order → the manager registers it → the warehouse checks the stock → "In stock?": yes → accounting issues the invoice, the customer receives and pays it → event-based gateway: "Payment received" before the timer → accounting confirms the receipt → the warehouse ships → the manager tells the customer it is fulfilled → closes the order.'),
-    tobe: t('Клиент отправляет электронную форму → система регистрирует, проверяет остатки и резервирует товар → «Товар есть?»: да → система выставляет и отправляет счёт, клиент оплачивает → платёж найден в выписке и сопоставлен → бухгалтерия подтверждает → склад отгружает зарезервированный товар и отмечает отгрузку → система закрывает заказ и уведомляет клиента.', 'The customer sends the electronic form → the system registers the order, checks the stock and reserves the goods → "In stock?": yes → the system issues and sends the invoice, the customer pays → the payment is found in the statement and matched → accounting confirms → the warehouse ships the reserved goods and marks the shipment → the system closes the order and notifies the customer.'),
-    end: t('Компания: «Заказ выполнен». Клиент: «Заказ выполнен для клиента».', 'Company: "Order fulfilled". Customer: "Order fulfilled for the customer".'),
+    asis: t('Клиент присылает заказ → менеджер регистрирует → склад проверяет наличие → «Товар есть?»: да → бухгалтерия выставляет счёт → событийный шлюз: «Оплата получена» раньше таймера → бухгалтерия подтверждает поступление → склад отгружает → менеджер сообщает клиенту о выполнении → закрывает заказ.', 'The customer sends the order → the manager registers it → the warehouse checks the stock → "In stock?": yes → accounting issues the invoice → event-based gateway: "Payment received" before the timer → accounting confirms the receipt → the warehouse ships → the manager tells the customer it is fulfilled → closes the order.'),
+    tobe: t('Заказ приходит из электронной формы → система регистрирует его, проверяет остатки и резервирует товар → «Товар есть?»: да → система выставляет и отправляет счёт → платёж найден в выписке → бухгалтерия подтверждает → склад отгружает зарезервированный товар → система закрывает заказ и уведомляет клиента.', 'The order arrives from the electronic form → the system registers it, checks the stock and reserves the goods → "In stock?": yes → the system issues and sends the invoice → the payment is found in the statement → accounting confirms → the warehouse ships the reserved goods → the system closes the order and notifies the customer.'),
+    end: t('Конец «Заказ выполнен». Клиенту уходит сообщение «Выполнен».', 'End "Order fulfilled". The customer gets the message "Fulfilled".'),
   },
   {
     name: t('2. Товара нет', '2. The goods are not in stock'),
-    asis: t('Клиент отправляет заказ → менеджер регистрирует → склад проверяет наличие → «Товар есть?»: нет → менеджер уведомляет клиента об отсутствии → менеджер отменяет заказ. Счёт не выставляется, клиент ждёт только ответа компании.', 'The customer sends the order → the manager registers it → the warehouse checks the stock → "In stock?": no → the manager notifies the customer that the goods are missing → the manager cancels the order. No invoice is issued and the customer waits only for the company\'s answer.'),
-    tobe: t('Клиент отправляет электронную форму → система регистрирует и проверяет остатки → «Товар есть?»: нет (резерв не создаётся) → менеджер уведомляет клиента об отсутствии → система отменяет заказ.', 'The customer sends the electronic form → the system registers the order and checks the stock → "In stock?": no (no reserve is made) → the manager notifies the customer → the system cancels the order.'),
-    end: t('Компания: «Заказ отменён: товара нет». Клиент: «Заказ не выполнен: товара нет».', 'Company: "Order cancelled: out of stock". Customer: "Order not fulfilled: out of stock".'),
+    asis: t('Клиент присылает заказ → менеджер регистрирует → склад проверяет наличие → «Товар есть?»: нет → менеджер сообщает клиенту об отсутствии товара → заказ отменён. Счёт не выставляется.', 'The customer sends the order → the manager registers it → the warehouse checks the stock → "In stock?": no → the manager tells the customer the goods are out of stock → the order is cancelled. No invoice is issued.'),
+    tobe: t('Заказ приходит из электронной формы → система регистрирует его и проверяет остатки → «Товар есть?»: нет (резерв не создаётся) → менеджер сообщает клиенту об отсутствии товара → заказ отменён.', 'The order arrives from the electronic form → the system registers it and checks the stock → "In stock?": no (no reserve is made) → the manager tells the customer the goods are out of stock → the order is cancelled.'),
+    end: t('Конец «Заказ отменён: товара нет». Клиенту уходит сообщение «Нет товара».', 'End "Order cancelled: out of stock". The customer gets the message "Out of stock".'),
   },
   {
     name: t('3. Товар есть, но оплата не поступила в срок', '3. The goods are in stock but the payment does not arrive in time'),
-    asis: t('Как в сценарии 1 до счёта: бухгалтерия выставляет счёт, клиент получает его и не оплачивает → событийный шлюз «Ожидание оплаты»: срабатывает таймер «Прошло 3 рабочих дня» → менеджер отменяет заказ → уведомляет клиента об отмене.', 'As in scenario 1 up to the invoice: accounting issues the invoice, the customer receives it and does not pay → event-based gateway "Waiting for payment": the timer "3 working days have passed" fires → the manager cancels the order → notifies the customer of the cancellation.'),
-    tobe: t('Как в сценарии 1 до счёта (товар зарезервирован на срок оплаты): клиент не оплачивает → срабатывает таймер «Прошло 3 рабочих дня» → система отменяет заказ и снимает резерв → автоматически уведомляет клиента об отмене.', 'As in scenario 1 up to the invoice (the goods are reserved for the payment term): the customer does not pay → the timer "3 working days have passed" fires → the system cancels the order and releases the reserve → automatically notifies the customer of the cancellation.'),
-    end: t('Компания: «Заказ отменён: нет оплаты». Клиент: «Заказ отменён».', 'Company: "Order cancelled: no payment". Customer: "Order cancelled".'),
+    asis: t('Как в сценарии 1 до счёта: бухгалтерия выставляет счёт, клиент не платит → событийный шлюз «Ожидание оплаты»: срабатывает таймер «3 рабочих дня» → менеджер сообщает клиенту об отмене → заказ отменён.', 'As in scenario 1 up to the invoice: accounting issues the invoice and the customer does not pay → event-based gateway "Waiting for payment": the timer "3 working days" fires → the manager tells the customer the order is cancelled → the order is cancelled.'),
+    tobe: t('Как в сценарии 1 до счёта (товар зарезервирован): клиент не платит → срабатывает таймер «3 рабочих дня» → система отменяет заказ, снимает резерв и уведомляет клиента.', 'As in scenario 1 up to the invoice (the goods are reserved): the customer does not pay → the timer "3 working days" fires → the system cancels the order, releases the reserve and notifies the customer.'),
+    end: t('Конец «Заказ отменён: нет оплаты». Клиенту уходит сообщение «Отменён».', 'End "Order cancelled: no payment". The customer gets the message "Cancelled".'),
   },
 ];
 
@@ -17085,8 +17114,8 @@ function scenariosSpec() {
       };
     }),
     footer: t(
-      'Конечное событие у каждого сценария своё: так по модели видно, чем закончился заказ. В обеих моделях три исхода компании и три исхода клиента совпадают.',
-      'Every scenario has its own end event, so the model shows how an order ended. In both models the company\'s three outcomes and the customer\'s three outcomes agree.'
+      'Конечное событие у каждого сценария своё: так по модели видно, чем закончился заказ. Клиент в обеих моделях показан свёрнутым пулом, поэтому его исход видно по сообщению, которое он получает.',
+      'Every scenario has its own end event, so the model shows how an order ended. In both models the customer is a collapsed pool, so its outcome shows in the message it receives.'
     ),
     footerHeight: 64,
   };
@@ -17100,16 +17129,16 @@ function reportSpec(counts) {
       `The source model (figure 1) was checked. Remarks found: ${counts.remarks}. By the task's list: types of flows 2, gateways 1, order of tasks 1, alternative situations 3, interaction of participants 3, readability 1 (one remark may belong to several groups). The program finds three of them itself. Details are in table 1.`
     ),
     models: t(
-      `Исправленная модель AS-IS: ${counts.asis} элементов, два пула (клиент и торговая компания с дорожками менеджера, склада и бухгалтерии), шесть потоков сообщений, три исхода компании и три исхода клиента. Модель TO-BE: ${counts.tobe} элементов, добавлена дорожка настроенной информационной системы. Обе модели в папке этого кейса; редактируемые файлы получаются командой экспорта BPMN 2.0 XML, их можно открыть в Bizagi Modeler через импорт.`,
-      `The corrected AS-IS model: ${counts.asis} elements, two pools (the customer and the trading company with the manager, warehouse and accounting lanes), six message flows, three company outcomes and three customer outcomes. The TO-BE model: ${counts.tobe} elements, with a lane for the configured information system added. Both models are in this case's folder; editable files come from the BPMN 2.0 XML export command and can be opened in Bizagi Modeler through its import.`
+      `Исправленная модель AS-IS: ${counts.asis} элементов, два пула (клиент — свёрнутый «чёрный ящик» — и торговая компания с дорожками менеджера, склада и бухгалтерии), шесть потоков сообщений, три исхода. Модель TO-BE: ${counts.tobe} элементов, добавлена дорожка настроенной информационной системы. Обе модели в папке этого кейса; редактируемые файлы получаются командой экспорта BPMN 2.0 XML, их можно открыть в Bizagi Modeler через импорт.`,
+      `The corrected AS-IS model: ${counts.asis} elements, two pools (the customer as a collapsed black box and the trading company with the manager, warehouse and accounting lanes), six message flows, three outcomes. The TO-BE model: ${counts.tobe} elements, with a lane for the configured information system added. Both models are in this case's folder; editable files come from the BPMN 2.0 XML export command and can be opened in Bizagi Modeler through its import.`
     ),
     changes: t(
       'Предложено четыре изменения: электронная форма заказа с автоматической регистрацией, автоматическая проверка остатков с резервом на срок оплаты, автоматический счёт и сопоставление платежей с таймером срока, автоматические статусные уведомления и закрытие заказа. Для каждого указаны проблема, отражение в BPMN, ожидаемый результат и показатель. Числовые эффекты не рассчитывались: нет исходных данных. Допущение: настройка имеющейся информационной системы, штат не растёт.',
       'Four changes are proposed: an electronic order form with automatic registration, an automatic stock check with a reserve for the payment term, an automatic invoice and payment matching with a term timer, and automatic status notices with automatic closing. For each the problem, the BPMN reflection, the expected result and the indicator are given. No numeric effects were calculated: there is no source data. Assumption: the existing information system is configured and the staff does not grow.'
     ),
     scenarios: t(
-      'Три сценария проходят по обеим моделям и заканчиваются разными событиями: «Заказ выполнен», «Заказ отменён: товара нет», «Заказ отменён: нет оплаты»; у клиента им соответствуют свои конечные события. Таблица «Прохождение трёх сценариев».',
-      'The three scenarios run through both models and end with different events: "Order fulfilled", "Order cancelled: out of stock", "Order cancelled: no payment"; the customer has a matching end event for each. See the table "Walk through three scenarios".'
+      'Три сценария проходят по обеим моделям и заканчиваются разными событиями: «Заказ выполнен», «Заказ отменён: товара нет», «Заказ отменён: нет оплаты»; клиент получает своё сообщение в каждом случае. Таблица «Прохождение трёх сценариев».',
+      'The three scenarios run through both models and end with different events: "Order fulfilled", "Order cancelled: out of stock", "Order cancelled: no payment"; the customer gets its own message in each case. See the table "Walk through three scenarios".'
     ),
   };
   return {
@@ -17198,20 +17227,20 @@ function asIsDocumentation(locale) {
   return locale === 'ru'
     ? `Исправленная модель AS-IS: действующий процесс по условиям кейса и правилам BPMN 2.0. Обязанности участников и бизнес-правила сохранены, исправлены только ошибки моделирования.
 
-Участники: пул «Клиент» и пул «Торговая компания» с дорожками «Менеджер», «Склад» и «Бухгалтерия». Между пулами идут только потоки сообщений: заказ, отсутствие товара, счёт, оплата, уведомления о выполнении и об отмене.
+Участники: пул «Торговая компания» с дорожками «Менеджер», «Склад» и «Бухгалтерия» и пул «Клиент». Клиент показан свёрнутым пулом («чёрный ящик»): его поведение в кейсе не разбирается. Между пулами идут только потоки сообщений: заказ, «нет товара», счёт, оплата, «выполнен», «отменён».
 
 Ход процесса. Менеджер регистрирует полученный заказ, склад проверяет наличие. Если товара нет, менеджер уведомляет клиента и отменяет заказ. Если товар есть, бухгалтерия выставляет счёт и процесс ждёт одного из двух событий: оплаты или истечения трёх рабочих дней. При оплате бухгалтерия подтверждает поступление, склад отгружает товар, менеджер сообщает клиенту о выполнении и закрывает заказ. Без оплаты в срок менеджер отменяет заказ и уведомляет клиента.
 
-Три исхода компании: «Заказ выполнен», «Заказ отменён: товара нет», «Заказ отменён: нет оплаты». У клиента им соответствуют свои конечные события.
+Три исхода: «Заказ выполнен», «Заказ отменён: товара нет», «Заказ отменён: нет оплаты». Клиент узнаёт о каждом по своему сообщению.
 
 Числовых параметров в модели нет: по условиям задания эффекты без исходных данных не рассчитываются.`
     : `The corrected AS-IS model: the existing process by the case conditions and the BPMN 2.0 rules. The participants' duties and the business rules are kept; only modelling mistakes are fixed.
 
-Participants: the "Customer" pool and the "Trading company" pool with the "Manager", "Warehouse" and "Accounting" lanes. Only message flows run between the pools: the order, the out-of-stock notice, the invoice, the payment, the notices of fulfilment and of cancellation.
+Participants: the "Trading company" pool with the "Manager", "Warehouse" and "Accounting" lanes and the "Customer" pool. The customer is a collapsed pool (a black box): its behaviour is not analysed in the case. Only message flows run between the pools: the order, "out of stock", the invoice, the payment, "fulfilled", "cancelled".
 
 The flow. The manager registers the received order and the warehouse checks the stock. If the goods are missing the manager notifies the customer and cancels the order. If they are in stock accounting issues the invoice and the process waits for one of two events: the payment or the end of three working days. On payment accounting confirms the receipt, the warehouse ships, the manager tells the customer it is fulfilled and closes the order. If there is no payment in time the manager cancels the order and notifies the customer.
 
-Three company outcomes: "Order fulfilled", "Order cancelled: out of stock", "Order cancelled: no payment". The customer has a matching end event for each.
+Three outcomes: "Order fulfilled", "Order cancelled: out of stock", "Order cancelled: no payment". The customer learns of each from its own message.
 
 The model carries no numeric parameters: by the task, effects are not calculated without source data.`;
 }
@@ -17220,7 +17249,7 @@ function toBeDocumentation(locale) {
   return locale === 'ru'
     ? `Модель TO-BE: четыре изменения организации процесса без увеличения штата. Явное допущение: настройка имеющейся информационной системы (форма заказа, правила остатков и резерв, шаблон счёта, сопоставление платежей, статусные уведомления). Для этого в пул компании добавлена дорожка «Информационная система компании (настроена; допущение)».
 
-1. Электронная форма заказа и автоматическая регистрация: клиент заполняет форму, система регистрирует заказ.
+1. Электронная форма заказа и автоматическая регистрация: заказ приходит из формы, система регистрирует его.
 2. Автоматическая проверка остатков и резерв товара на срок оплаты: оплаченный заказ не остаётся без товара.
 3. Автоматический счёт, сопоставление платежа со счётом и таймер срока: у бухгалтерии одна задача, подтверждение сопоставленного платежа.
 4. Автоматические статусные уведомления и закрытие заказа по отметке склада об отгрузке; менеджер остаётся для случая отсутствия товара.
@@ -17228,7 +17257,7 @@ function toBeDocumentation(locale) {
 Бизнес-правила кейса сохранены: предоплата, отмена при отсутствии товара, срок оплаты 3 рабочих дня, закрытие после отгрузки. Для каждого изменения проблема, отражение в BPMN, результат и показатель описаны в таблице «Обоснование изменений TO-BE». Числовые эффекты не рассчитывались: нет исходных данных.`
     : `The TO-BE model: four changes to how the process is organised with no increase in staff. The explicit assumption: the existing information system is configured (an order form, stock rules and a reserve, an invoice template, payment matching, status notices). For this a lane "The company's information system (configured; an assumption)" is added to the company pool.
 
-1. An electronic order form and automatic registration: the customer fills in the form and the system registers the order.
+1. An electronic order form and automatic registration: the order arrives from the form and the system registers it.
 2. An automatic stock check and a reserve for the payment term: a paid order is not left without goods.
 3. An automatic invoice, matching of the payment with the invoice and a term timer: accounting has one task, confirming the matched payment.
 4. Automatic status notices and closing of the order on the warehouse's shipment mark; the manager stays for the out-of-stock case.
@@ -17244,7 +17273,7 @@ function bpmn(spec, key, id, variant, locale, documentation) {
     name: NAMES[key],
     description: {
       source: t('Модель с рисунка 1 задания вместе с её ошибками: поток управления между пулами, поток сообщений внутри пула, исключающее ветвление с параллельным слиянием и другие.', 'The model of figure 1 of the task with its mistakes: a sequence flow between pools, a message flow inside a pool, an exclusive split with a parallel merge and others.'),
-      asis: t('Действующий процесс по условиям кейса: два пула, потоки сообщений, ожидание оплаты с таймером в 3 рабочих дня и три исхода.', 'The existing process by the case conditions: two pools, message flows, waiting for payment with a 3-working-day timer and three outcomes.'),
+      asis: t('Действующий процесс по условиям кейса: два пула (клиент свёрнут), шесть потоков сообщений, ожидание оплаты с таймером в 3 рабочих дня и три исхода.', 'The existing process by the case conditions: two pools (the customer collapsed), six message flows, waiting for payment with a 3-working-day timer and three outcomes.'),
       tobe: t('Четыре изменения без увеличения штата: электронная форма, остатки с резервом, автоматический счёт и сопоставление платежей, статусные уведомления.', 'Four changes with no increase in staff: an electronic form, stock with a reserve, an automatic invoice and payment matching, status notices.'),
     }[key],
     documentation: null,

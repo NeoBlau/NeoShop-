@@ -42,14 +42,17 @@ test('the program\'s own check finds the notation mistakes of the source model a
   assert.ok(source.meta.documentation.includes('Поток управления «'), 'the documentation quotes what the check found');
 });
 
-test('the corrected AS-IS has two pools, six message flows and the three outcomes on each side', () => {
+test('the corrected models are compact: two pools, six message flows, three outcomes, no more than twenty steps', () => {
   for (const locale of ['ru', 'en']) {
     const [, asis, tobe] = buildTradecaseDiagrams(locale);
     for (const diagram of [asis, tobe]) {
       assert.equal(diagram.nodes.filter((n) => n.type === 'pool').length, 2, 'the customer and the company');
       assert.equal(diagram.edges.filter((e) => e.type === 'messageFlow').length, 6, 'six message flows');
       const ends = diagram.nodes.filter((n) => n.type === 'endEvent');
-      assert.equal(ends.length, 6, 'three company ends and three customer ends');
+      assert.equal(ends.length, 3, 'fulfilled, out of stock, no payment');
+      const steps = diagram.nodes.filter((n) => !['pool', 'lane', 'textAnnotation'].includes(n.type));
+      assert.ok(steps.length <= 20, `${steps.length} elements: as small as the source model, not bigger`);
+      assert.equal(diagram.edges.filter((e) => e.type === 'messageFlow' && diagram.nodes.find((n) => n.id === e.source || n.id === e.target)?.type === 'pool').length >= 2, true, 'messages go to and from the customer pool');
       assert.equal(diagram.nodes.filter((n) => n.type === 'parallelGateway').length, 0, 'no parallel gateway: nothing runs in parallel');
       const timer = diagram.nodes.filter((n) => n.type === 'intermediateTimerEvent');
       assert.equal(timer.length, 1, 'one timer: the payment term');
@@ -69,12 +72,12 @@ test('shipping comes before closing, and the order is cancelled when the goods a
     const bs = diagram.nodes.filter((n) => n.label === to).map((n) => n.id);
     return diagram.edges.some((e) => e.type === 'sequenceFlow' && as.includes(e.source) && bs.includes(e.target));
   };
-  assert.ok(next(asis, 'Ship the goods', 'Tell the customer the order is fulfilled'), 'shipping is followed by the notice');
-  assert.ok(next(asis, 'Tell the customer the order is fulfilled', 'Close the order'), 'which is followed by closing');
-  assert.ok(next(asis, 'Notify the customer that the goods are out of stock', 'Cancel the order'), 'the notice about missing goods is followed by cancelling');
-  assert.ok(next(asis, '3 working days have passed', 'Cancel the order'), 'the timer is followed by cancelling');
-  assert.ok(next(tobe, 'Cancel the order and release the reserve', 'Notify the customer of the cancellation automatically'), 'the TO-BE releases the reserve on non-payment');
-  assert.ok(tobe.nodes.some((n) => n.label === 'Check the stock and reserve the goods for the payment term'), 'the TO-BE reserves the goods');
+  assert.ok(next(asis, 'Ship the goods', 'Tell the customer it is fulfilled'), 'shipping is followed by the notice');
+  assert.ok(next(asis, 'Tell the customer it is fulfilled', 'Close the order'), 'which is followed by closing');
+  assert.ok(next(asis, 'Tell the customer the goods are out of stock', 'Order cancelled: out of stock'), 'the notice about missing goods ends in a cancellation');
+  assert.ok(next(asis, '3 working days', 'Tell the customer the order is cancelled'), 'the timer is followed by the cancellation notice');
+  assert.ok(next(tobe, '3 working days', 'Cancel the order, release the reserve, notify the customer'), 'the TO-BE releases the reserve on non-payment');
+  assert.ok(tobe.nodes.some((n) => n.label === 'Check the stock and reserve the goods'), 'the TO-BE reserves the goods');
 });
 
 test('no element leaves its pool or lane, and none overlaps', () => {
