@@ -28,7 +28,7 @@ export function layeredLayout(diagram, options = {}) {
 
   const ids = new Set(flowNodes.map((n) => n.id));
   const flowEdges = diagram.edges.filter(
-    (e) => ids.has(e.source) && ids.has(e.target) && e.source !== e.target && isPrimaryEdge(e)
+    (e) => ids.has(e.source) && ids.has(e.target) && e.source !== e.target && isPrimaryEdge(e, opt)
   );
 
   const outgoing = new Map(flowNodes.map((n) => [n.id, []]));
@@ -224,8 +224,9 @@ function inside(container, node) {
   return cx >= container.x && cx <= container.x + container.w && cy >= container.y && cy <= container.y + container.h;
 }
 
-function isPrimaryEdge(edge) {
-  return ['sequenceFlow', 'idef0Input', 'idef0Control', 'idef0Output', 'idef0Mechanism', 'idef0Call'].includes(edge.type);
+/** Edges that order the layout; `extraEdgeTypes` lets a collaboration count message flows as time order too. */
+function isPrimaryEdge(edge, opt = {}) {
+  return ['sequenceFlow', 'idef0Input', 'idef0Control', 'idef0Output', 'idef0Mechanism', 'idef0Call', ...(opt.extraEdgeTypes || [])].includes(edge.type);
 }
 
 /** Resizes pools and lanes so they contain their children again. */

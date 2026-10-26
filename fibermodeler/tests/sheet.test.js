@@ -69,7 +69,7 @@ test('worksheets survive a project round trip', () => {
   const project = createLibrariesProject('ru');
   const restored = normalizeProject(JSON.parse(JSON.stringify(project)));
   const sheets = restored.diagrams.filter((d) => d.notation === 'sheet');
-  assert.equal(sheets.length, WEG_SHEET_COUNT + AUTOMATION_SHEET_COUNT, 'worksheets keep their notation');
+  assert.equal(sheets.length, WEG_SHEET_COUNT + AUTOMATION_SHEET_COUNT + 4, 'worksheets keep their notation (the case adds four)');
   assert.ok(sheets.every((d) => d.id.startsWith('sheet') || d.id.length > 0), 'ids survive');
 });
 

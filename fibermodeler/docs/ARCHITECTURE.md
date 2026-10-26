@@ -54,13 +54,14 @@ app/
     automation/         листы семинара по автоматизации (techs, content, index; факты считаются по моделям)
     weg/journey/        путь покупателя в BPMN (собирается из процессов 1 и 6)
     weg/sheets/         engine (измерение вклада изменений), matrices, risks, journey, index
+    tradecase/          кейс «торговая компания»: три BPMN-модели с пулами и четыре листа
     alfabank/           facts, asis, index (кредитование, как есть)
     ubereats/           facts, asis, tobe, index
   storage/              db (IndexedDB), recent, autosave
   ui/                   app, commands, menus, panels/, dialogs/, icons, menu, dialog, toast
   i18n/                 ru, en
   assets/fonts/         подмножество DejaVu Sans для PDF
-tests/                  129 тестов, свой раннер
+tests/                  137 тестов, свой раннер
 tools/                  сборка одного файла, subsetting шрифта
 ```
 

@@ -13,6 +13,14 @@ const MSG = {
   danglingEdge: { en: 'Connection points to a missing element', ru: 'Связь ведёт к несуществующему элементу' },
   duplicateId: { en: 'Duplicate identifier “{id}”', ru: 'Идентификатор «{id}» дублируется' },
   outsidePool: { en: '“{name}” is drawn outside of any pool while the diagram uses pools', ru: '«{name}» находится вне пулов, хотя на диаграмме есть пулы' },
+  sequenceCrossPool: {
+    en: 'Sequence flow “{name}” crosses a pool boundary: use a message flow between pools',
+    ru: 'Поток управления «{name}» пересекает границу пула: между пулами нужен поток сообщений',
+  },
+  gatewayMismatch: {
+    en: 'Parallel gateway “{name}” waits for branches of an exclusive split: only one of them ever runs, so the process stops here',
+    ru: 'Параллельный шлюз «{name}» ждёт ветки исключающего разветвления: выполняется только одна из них, и процесс здесь зависнет',
+  },
   messageSamePool: { en: 'Message flow “{name}” connects elements of the same pool', ru: 'Поток сообщений «{name}» соединяет элементы одного пула' },
   unnamed: { en: '{type} has no name', ru: 'У элемента «{type}» нет названия' },
   conditionMissing: { en: 'Exclusive gateway “{name}” has unconditional outgoing flows', ru: 'У исключающего шлюза «{name}» есть потоки без условий' },
@@ -104,6 +112,51 @@ export function validateBpmn(diagram, doc) {
       const connected = edges.some((e) => e.source === node.id || e.target === node.id);
       if (!connected) add('info', 'isolated', { name: node.label || node.type }, { diagramId: diagram.id, elementId: node.id });
     }
+  }
+
+  /* a sequence flow may not leave its pool */
+  for (const edge of seq) {
+    const source = byId.get(edge.source);
+    const target = byId.get(edge.target);
+    if (!source || !target) continue;
+    const poolA = poolOf(diagram, source);
+    const poolB = poolOf(diagram, target);
+    if (poolA && poolB && poolA.id !== poolB.id) {
+      const name = edge.label || `${source.label || source.type} → ${target.label || target.type}`;
+      add('error', 'sequenceCrossPool', { name }, { diagramId: diagram.id, elementId: edge.id });
+    }
+  }
+
+  /* a parallel join fed by two branches of one exclusive split never fires */
+  const reach = (start) => {
+    const seenIds = new Set([start]);
+    const queue = [start];
+    while (queue.length) {
+      const id = queue.shift();
+      for (const edge of outgoing.get(id) || []) {
+        if (!seenIds.has(edge.target)) {
+          seenIds.add(edge.target);
+          queue.push(edge.target);
+        }
+      }
+    }
+    return seenIds;
+  };
+  for (const join of flowNodes.filter((nd) => nd.type === 'parallelGateway')) {
+    const feeds = incoming.get(join.id) || [];
+    if (feeds.length < 2) continue;
+    const mismatch = flowNodes
+      .filter((nd) => nd.type === 'exclusiveGateway' && (outgoing.get(nd.id) || []).length > 1)
+      .some((split) => {
+        const reachedBy = (outgoing.get(split.id) || []).map((edge) => reach(edge.target));
+        // inputs of the join that belong to exactly one branch of the split
+        const owners = feeds
+          .map((feed) => reachedBy.flatMap((set, branch) => (set.has(feed.source) ? [branch] : [])))
+          .filter((branches) => branches.length === 1)
+          .map((branches) => branches[0]);
+        return new Set(owners).size >= 2;
+      });
+    if (mismatch) add('warning', 'gatewayMismatch', { name: join.label || 'AND' }, { diagramId: diagram.id, elementId: join.id });
   }
 
   for (const edge of edges.filter((e) => e.type === 'messageFlow')) {

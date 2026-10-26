@@ -17,6 +17,7 @@ const LANE_PADDING = 44;
 const SATELLITE_TYPES = ['dataObject', 'dataStore', 'dataInput', 'dataOutput', 'textAnnotation'];
 const LANE_MIN_HEIGHT = 130;
 const POOL_HEADER = 30;
+const POOL_GAP = 40;
 
 export function text(value, locale = 'ru') {
   if (value === null || value === undefined) return '';
@@ -44,23 +45,41 @@ export function buildBpmnDiagram(spec, options = {}) {
 
   const lanes = Array.isArray(spec.lanes) ? spec.lanes.filter(Boolean) : [];
   const laneNodes = new Map();
+  const pools = [];
   let pool = null;
-  if (lanes.length) {
+  const makeLane = (lane, parent) => {
+    const node = createNode({
+      type: 'lane',
+      x: POOL_HEADER,
+      y: 0,
+      w: 860,
+      h: LANE_MIN_HEIGHT,
+      label: text(lane.label ?? lane, locale),
+      parent: parent.id,
+    });
+    diagram.nodes.push(node);
+    laneNodes.set(lane.id ?? String(lane), node);
+    return node;
+  };
+  if (Array.isArray(spec.pools) && spec.pools.length) {
+    // a collaboration: several pools stacked one under another, message flows between them
+    for (const item of spec.pools) {
+      const node = createNode({ type: 'pool', x: 0, y: 0, w: 900, h: 200, label: text(item.label, locale) });
+      diagram.nodes.push(node);
+      const own = lanes.filter((lane) => lane.pool === item.id).map((lane) => makeLane(lane, node));
+      if (!own.length) {
+        // a pool without lanes holds its elements itself
+        laneNodes.set(item.id, node);
+        pools.push({ node, lanes: [node], own: true });
+      } else {
+        pools.push({ node, lanes: own, own: false });
+      }
+    }
+  } else if (lanes.length) {
     pool = createNode({ type: 'pool', x: 0, y: 0, w: 900, h: 200, label: text(spec.poolLabel, locale) || diagram.name });
     diagram.nodes.push(pool);
-    lanes.forEach((lane) => {
-      const node = createNode({
-        type: 'lane',
-        x: POOL_HEADER,
-        y: 0,
-        w: 860,
-        h: LANE_MIN_HEIGHT,
-        label: text(lane.label ?? lane, locale),
-        parent: pool.id,
-      });
-      diagram.nodes.push(node);
-      laneNodes.set(lane.id ?? String(lane), node);
-    });
+    lanes.forEach((lane) => makeLane(lane, pool));
+    pools.push({ node: pool, lanes: [...laneNodes.values()], own: false });
   }
 
   for (const item of spec.nodes || []) {
@@ -97,7 +116,7 @@ export function buildBpmnDiagram(spec, options = {}) {
     );
   }
 
-  layoutBpmn(diagram, { lanes: [...laneNodes.values()], pool });
+  layoutBpmn(diagram, { lanes: pools.flatMap((item) => item.lanes), pools });
   return diagram;
 }
 
@@ -110,8 +129,17 @@ function guessBpmnType(item) {
 }
 
 /** Layered layout that also arranges the swimlane bands. */
-export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
-  const changes = layeredLayout(diagram, { direction: 'LR', layerGap: 72, nodeGap: 46, margin: 80 });
+export function layoutBpmn(diagram, { lanes = [], pool = null, pools = null } = {}) {
+  const groups = pools || (pool ? [{ node: pool, lanes, own: false }] : []);
+  const collaboration = groups.length > 1;
+  const changes = layeredLayout(diagram, {
+    direction: 'LR',
+    layerGap: 72,
+    nodeGap: 46,
+    margin: 80,
+    // in a collaboration a message is part of the time order, so partners line up
+    extraEdgeTypes: collaboration ? ['messageFlow'] : [],
+  });
   for (const change of changes) {
     const node = diagram.nodes.find((n) => n.id === change.id);
     if (node) Object.assign(node, change);
@@ -137,8 +165,10 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
     if (link) satelliteOwners.add(link.source === node.id ? link.target : link.source);
   }
 
+  const firstOfPool = new Set(groups.slice(1).map((group) => group.lanes[0].id));
   let cursorY = 70;
   for (const lane of lanes) {
+    if (firstOfPool.has(lane.id)) cursorY += POOL_GAP;
     const nodes = byLane.get(lane.id) || [];
     const { index: rowOf, count: rows } = assignRows(nodes);
     // leave room above the flow when the lane carries data objects or notes
@@ -159,7 +189,7 @@ export function layoutBpmn(diagram, { lanes = [], pool = null } = {}) {
     cursorY += height;
   }
   placeSatellites(diagram, lanes);
-  restackLanes(diagram, lanes, pool);
+  restackLanes(diagram, lanes, groups);
   return diagram;
 }
 
@@ -222,8 +252,8 @@ function placeSatellites(diagram, lanes) {
   }
 }
 
-/** Grows every lane to its content and stacks the lanes again. */
-function restackLanes(diagram, lanes, pool) {
+/** Grows every lane to its content and stacks the lanes again; pools wrap their lanes. */
+function restackLanes(diagram, lanes, groups) {
   if (!lanes.length) return;
   const members = new Map(lanes.map((lane) => [lane.id, []]));
   for (const node of diagram.nodes) {
@@ -231,8 +261,10 @@ function restackLanes(diagram, lanes, pool) {
     const list = members.get(node.parent);
     if (list) list.push(node);
   }
+  const firstOfPool = new Set(groups.slice(1).map((group) => group.lanes[0].id));
   let cursor = lanes[0].y;
   for (const lane of lanes) {
+    if (firstOfPool.has(lane.id)) cursor += POOL_GAP;
     const list = members.get(lane.id) || [];
     const shift = cursor - lane.y;
     lane.y = cursor;
@@ -242,19 +274,25 @@ function restackLanes(diagram, lanes, pool) {
       const bottom = Math.max(...list.map((n) => n.y + n.h));
       const needed = bottom - top + LANE_PADDING;
       if (needed > lane.h) {
-        const extra = needed - lane.h;
         lane.h = Math.round(needed);
         for (const node of list) node.y += Math.round(Math.max(0, lane.y + LANE_PADDING / 2 - top));
-        void extra;
       }
     }
     cursor = lane.y + lane.h;
   }
-  if (pool) {
-    pool.x = lanes[0].x - POOL_HEADER;
-    pool.y = lanes[0].y;
-    pool.w = lanes[0].w + POOL_HEADER;
-    pool.h = cursor - lanes[0].y;
+  for (const group of groups) {
+    const first = group.lanes[0];
+    const last = group.lanes[group.lanes.length - 1];
+    if (group.own) {
+      // the pool is its own lane: its header strip belongs to the pool box
+      group.node.x = first.x - POOL_HEADER;
+      group.node.w = first.w + POOL_HEADER;
+    } else {
+      group.node.x = first.x - POOL_HEADER;
+      group.node.y = first.y;
+      group.node.w = first.w + POOL_HEADER;
+      group.node.h = last.y + last.h - first.y;
+    }
   }
 }
 

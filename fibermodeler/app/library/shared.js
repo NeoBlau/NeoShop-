@@ -39,7 +39,8 @@ export function localizeSpec(spec, locale = 'ru', roleName = (name) => name) {
     notation: spec.notation || 'bpmn',
     name: pick(spec.name, locale),
     poolLabel: spec.poolLabel ? pick(spec.poolLabel, locale) : undefined,
-    lanes: (spec.lanes || []).map((lane) => ({ id: lane.id, label: pick(lane.label, locale) })),
+    ...(spec.pools ? { pools: spec.pools.map((pool) => ({ id: pool.id, label: pick(pool.label, locale) })) } : {}),
+    lanes: (spec.lanes || []).map((lane) => ({ ...lane, label: pick(lane.label, locale) })),
     nodes: (spec.nodes || []).map((node) => ({
       ...node,
       label: pick(node.label, locale),
